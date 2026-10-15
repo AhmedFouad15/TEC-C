@@ -86,7 +86,7 @@ contract TetherGuardHook is IERC7579Hook {
     event AutonomousExecutionLogged(address indexed account, uint256 indexed recordId, address indexed target, uint256 value, uint256 timestamp);
     event TransactionRatified(address indexed account, uint256 indexed recordId, uint256 value, uint256 newDailySpent);
     event TransactionFlaggedForRevert(address indexed account, uint256 indexed recordId, string reason, uint256 penalizedRadius);
-    event TransactionNoteSubmitted(address indexed account, uint256 indexed recordId, string note, bool penalizeVault, uint256 resultingRadius);
+    event TransactionNoteSubmitted(address indexed account, uint256 indexed recordId, string note, bool penalizeBrain, uint256 resultingRadius);
 
     // --- Custom Errors ---
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
@@ -490,13 +490,15 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice Morning Review: User attaches a feedback note to teach the AI, with optional vault penalty.
+     * @notice Morning Review: User attaches a feedback note to teach the AI Brain, with optional Brain allowance penalty.
+     * @dev The Vault itself is sovereign and NEVER penalized. This penalty only restricts the autonomous AI Brain's
+     *      discretionary Tether Radius allowance, leaving all Vault treasury funds and user root capabilities intact.
      */
     function submitTransactionNote(
         address account,
         uint256 recordId,
         string calldata note,
-        bool penalizeVault
+        bool penalizeBrain
     ) external onlyAccountOrOwner(account) {
         AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
         if (rec.id == 0) revert InvalidRecordId();
@@ -506,7 +508,7 @@ contract TetherGuardHook is IERC7579Hook {
         rec.userNote = note;
 
         AccountPolicy storage p = policies[account];
-        if (penalizeVault) {
+        if (penalizeBrain) {
             uint256 penalty = (p.tetherRadius * 10) / 100;
             uint256 minFloor = p.baselineRadius / 2;
             if (p.tetherRadius > penalty && p.tetherRadius - penalty >= minFloor) {
@@ -516,7 +518,7 @@ contract TetherGuardHook is IERC7579Hook {
             }
         }
 
-        emit TransactionNoteSubmitted(account, recordId, note, penalizeVault, p.tetherRadius);
+        emit TransactionNoteSubmitted(account, recordId, note, penalizeBrain, p.tetherRadius);
     }
 
     /**
