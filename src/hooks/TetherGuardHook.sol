@@ -26,10 +26,10 @@ contract TetherGuardHook is IERC7579Hook {
     uint8 public constant RISK_TIER_BALANCED     = 2;
     uint8 public constant RISK_TIER_AGGRESSIVE   = 3;
 
-    // --- State Storage Per Account ---
-    // --- Dynamic Elasticity Parameters (Axis 2 Learning Engine) ---
-    uint256 public constant MAX_STEP_UP_PERCENTAGE = 250; // Max 250% increase per calibration step (e.g. 2k -> 5k max)
-    uint256 public constant STEP_UP_COOLDOWN       = 1 days; // Minimum 24 hours between autonomous radius increases
+    // --- Dynamic Elasticity Parameters (Axis 2 Learning Engine - Vault-Native) ---
+    uint256 public constant MAX_DAILY_GROWTH_PERCENTAGE = 10;     // Strictly max 10% autonomous increase per day
+    uint256 public constant CALIBRATION_COOLDOWN        = 1 days; // Minimum 24 hours between autonomous calibrations
+    uint256 public constant STEP_UP_COOLDOWN            = 1 days; // Alias for cooldown
 
     // --- State Storage Per Account ---
     struct AccountPolicy {
@@ -42,6 +42,7 @@ contract TetherGuardHook is IERC7579Hook {
         bool emergencyPaused;               // Circuit breaker triggered by PegGuard NLP Sentinel
         bool isDynamicElasticityEnabled;     // User opt-in: Learn from approved decisions (true) vs strictly limited (false)
         uint256 lastRadiusStepUpTime;      // Timestamp of last autonomous step-up
+        uint256 consecutiveRatifications;   // On-chain count of user-ratified transactions without a revert
         address rootOwner;                  // Passkey WebAuthn FaceID root owner
     }
 
@@ -197,12 +198,12 @@ contract TetherGuardHook is IERC7579Hook {
             }
 
             // Check 24-hour cooldown between increases
-            if (block.timestamp < p.lastRadiusStepUpTime + STEP_UP_COOLDOWN) {
-                revert StepUpCooldownActive(p.lastRadiusStepUpTime + STEP_UP_COOLDOWN);
+            if (block.timestamp < p.lastRadiusStepUpTime + CALIBRATION_COOLDOWN) {
+                revert StepUpCooldownActive(p.lastRadiusStepUpTime + CALIBRATION_COOLDOWN);
             }
 
-            // Enforce harsh conservatism: max 250% of current radius (e.g. 2k -> 5k max)
-            uint256 maxAllowed = (p.tetherRadius * MAX_STEP_UP_PERCENTAGE) / 100;
+            // Enforce harsh conservatism: strictly max 10% daily increase
+            uint256 maxAllowed = p.tetherRadius + (p.tetherRadius * MAX_DAILY_GROWTH_PERCENTAGE) / 100;
             if (proposedRadius > maxAllowed) {
                 revert ExcessiveStepUpJump(proposedRadius, maxAllowed);
             }
@@ -214,6 +215,63 @@ contract TetherGuardHook is IERC7579Hook {
         p.tetherRadius = proposedRadius;
 
         emit AutonomousRadiusAdjusted(account, oldRadius, proposedRadius, rationale);
+    }
+
+    /**
+     * @notice Independent Vault-Native Elasticity Calibration.
+     * @dev The Vault autonomously calculates and applies the new Tether Radius directly on-chain,
+     *      completely independent of off-chain AI calculation.
+     *      Maximum increase is strictly capped at 10% per day.
+     *      Requires positive user ratifications and zero active reverts.
+     */
+    function calibrateDynamicRadius(address account) external returns (uint256 newRadius) {
+        AccountPolicy storage p = policies[account];
+
+        // 1. Caller must be an authorized session key, account, or root owner
+        if (!authorizedSessionKeys[account][msg.sender] && msg.sender != account && msg.sender != p.rootOwner) {
+            revert UnauthorizedCaller();
+        }
+
+        // 2. Dynamic adjustment must be explicitly enabled by user
+        if (!p.isDynamicElasticityEnabled) {
+            revert DynamicAdjustmentDisabled();
+        }
+
+        // 3. PegGuard circuit breaker must NOT be active
+        if (p.emergencyPaused) {
+            revert EmergencyCircuitBreakerActive();
+        }
+
+        // 4. Must enforce 24-hour daily calibration cooldown
+        if (block.timestamp < p.lastRadiusStepUpTime + CALIBRATION_COOLDOWN) {
+            revert StepUpCooldownActive(p.lastRadiusStepUpTime + CALIBRATION_COOLDOWN);
+        }
+
+        // 5. Check on-chain review history: requires at least 1 positive ratification
+        require(p.consecutiveRatifications > 0, "INSUFFICIENT_RATIFICATIONS");
+
+        // 6. Vault calculates 10% maximum daily growth internally:
+        uint256 growth = (p.tetherRadius * MAX_DAILY_GROWTH_PERCENTAGE) / 100;
+        uint256 calculated = p.tetherRadius + growth;
+
+        // 7. Enforce hard ceiling
+        if (calculated > p.maxElasticCeiling) {
+            calculated = p.maxElasticCeiling;
+        }
+
+        uint256 oldRadius = p.tetherRadius;
+        p.tetherRadius = calculated;
+        p.lastRadiusStepUpTime = block.timestamp;
+        p.consecutiveRatifications = 0; // reset cycle for next day
+
+        emit AutonomousRadiusAdjusted(
+            account,
+            oldRadius,
+            calculated,
+            "Vault-Native Autonomous Calibration (+10% max daily growth based on on-chain ratifications)"
+        );
+
+        return calculated;
     }
 
     /**
@@ -399,6 +457,7 @@ contract TetherGuardHook is IERC7579Hook {
         } else {
             p.dailySpent = 0;
         }
+        p.consecutiveRatifications++; // on-chain endorsement recorded for autonomous calibration
 
         emit TransactionRatified(account, recordId, rec.value, p.dailySpent);
     }
@@ -416,6 +475,8 @@ contract TetherGuardHook is IERC7579Hook {
         rec.userNote = reason;
 
         AccountPolicy storage p = policies[account];
+        p.consecutiveRatifications = 0; // reset consecutive approvals due to rejection
+
         // Apply trust penalty: cut radius by 20%, but keep above floor (baselineRadius / 2)
         uint256 penalty = (p.tetherRadius * 20) / 100;
         uint256 minFloor = p.baselineRadius / 2;

@@ -298,17 +298,16 @@ contract TetherGuardHookTest is Test {
         // Fast forward 1 day so cooldown is ready
         vm.warp(block.timestamp + 1 days + 1);
 
-        // AI analyzes approved transactions (e.g. user approved multiple 10k transfers to Aave)
-        // AI brain steps up limit from 2 ETH -> 5 ETH (2.5x jump, max allowed!)
+        // Max 10% daily increase: 2.0 ETH -> 2.2 ETH
         vm.prank(sessionKey);
         hook.autonomousRadiusAdjustment(
             dynamicAccount,
-            5.0 ether,
-            "Harsh Audit: 3 consecutive 10k FaceID approvals to Aave v3 with zero adverse news; stepping up 2k -> 5k"
+            2.2 ether,
+            "10% max daily increase after positive performance review"
         );
 
         TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(dynamicAccount);
-        assertEq(p.tetherRadius, 5.0 ether);
+        assertEq(p.tetherRadius, 2.2 ether);
     }
 
     function test_DynamicElasticity_ExcessiveStepUp_Reverts() public {
@@ -328,16 +327,16 @@ contract TetherGuardHookTest is Test {
 
         vm.warp(block.timestamp + 1 days + 1);
 
-        // AI tries to jump from 2 ETH directly to 8 ETH (> 250% = 5 ETH max)
+        // AI tries to jump from 2 ETH directly to 2.5 ETH (> 10% = 2.2 ETH max)
         vm.prank(sessionKey);
         vm.expectRevert(
             abi.encodeWithSelector(
                 TetherGuardHook.ExcessiveStepUpJump.selector,
-                8.0 ether,
-                5.0 ether
+                2.5 ether,
+                2.2 ether
             )
         );
-        hook.autonomousRadiusAdjustment(dynamicAccount, 8.0 ether, "Greedy jump");
+        hook.autonomousRadiusAdjustment(dynamicAccount, 2.5 ether, "Greedy jump");
     }
 
     function test_DynamicElasticity_CooldownActive_Reverts() public {
@@ -356,20 +355,20 @@ contract TetherGuardHookTest is Test {
 
         vm.warp(block.timestamp + 1 days + 1);
 
-        // First step-up: 2 ETH -> 4 ETH (Succeeds)
+        // First step-up: 2.0 ETH -> 2.2 ETH (Succeeds)
         vm.prank(sessionKey);
-        hook.autonomousRadiusAdjustment(dynamicAccount, 4.0 ether, "First step up");
+        hook.autonomousRadiusAdjustment(dynamicAccount, 2.2 ether, "First step up");
 
         // Attempting second step-up 2 hours later (Cooldown is 24 hours!) -> Must revert!
         vm.warp(block.timestamp + 2 hours);
 
         vm.prank(sessionKey);
         vm.expectRevert();
-        hook.autonomousRadiusAdjustment(dynamicAccount, 6.0 ether, "Too fast second step up");
+        hook.autonomousRadiusAdjustment(dynamicAccount, 2.3 ether, "Too fast second step up");
     }
 
     function test_DynamicElasticity_ExceedsCeiling_Reverts() public {
-        // User opts in with 2 ETH radius, but hard ceiling is 4 ETH!
+        // User opts in with 2 ETH radius, but hard ceiling is 2.1 ETH!
         address dynamicAccount = address(0xDD44);
         hook.initializeAccountPolicy(
             dynamicAccount,
@@ -377,7 +376,7 @@ contract TetherGuardHookTest is Test {
             2.0 ether,
             TIER_GROWTH_DEFI,
             true,
-            4.0 ether // Ceiling = 4 ETH
+            2.1 ether // Ceiling = 2.1 ETH
         );
 
         vm.prank(rootOwner);
@@ -385,16 +384,78 @@ contract TetherGuardHookTest is Test {
 
         vm.warp(block.timestamp + 1 days + 1);
 
-        // AI tries to step up to 5 ETH (under 250% jump, but EXCEEDS 4 ETH ceiling!)
+        // AI tries to step up to 2.2 ETH (10% jump, but EXCEEDS 2.1 ETH ceiling!)
         vm.prank(sessionKey);
         vm.expectRevert(
             abi.encodeWithSelector(
                 TetherGuardHook.ExceedsElasticCeiling.selector,
-                5.0 ether,
-                4.0 ether
+                2.2 ether,
+                2.1 ether
             )
         );
-        hook.autonomousRadiusAdjustment(dynamicAccount, 5.0 ether, "Exceeds ceiling");
+        hook.autonomousRadiusAdjustment(dynamicAccount, 2.2 ether, "Exceeds ceiling");
+    }
+
+    function test_VaultNative_CalibrateDynamicRadius_Succeeds() public {
+        // Independent Vault-Native calibration (Zero input params from AI Brain!)
+        address dynamicAccount = address(0xDD44);
+        hook.initializeAccountPolicy(
+            dynamicAccount,
+            rootOwner,
+            2.0 ether,
+            TIER_GROWTH_DEFI,
+            true,
+            10.0 ether
+        );
+
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
+        vm.prank(rootOwner);
+        hook.setTargetWhitelist(dynamicAccount, address(lidoStaking), true, TIER_GROWTH_DEFI);
+
+        // 1. AI executes trade
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.2 ether), hex"");
+        vm.prank(dynamicAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 0.2 ether, msgData);
+        vm.prank(dynamicAccount);
+        hook.postCheck(hookData);
+
+        // 2. User wakes up and ratifies it (incrementing on-chain consecutiveRatifications)
+        vm.prank(rootOwner);
+        hook.ratifyTransaction(dynamicAccount, 1);
+
+        // 3. Fast forward 24 hours
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // 4. Vault autonomously calibrates directly on-chain (+10% increase!)
+        vm.prank(sessionKey);
+        uint256 calibratedRadius = hook.calibrateDynamicRadius(dynamicAccount);
+
+        assertEq(calibratedRadius, 2.2 ether); // Exactly 2.0 ETH + 10%
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(dynamicAccount);
+        assertEq(p.tetherRadius, 2.2 ether);
+    }
+
+    function test_VaultNative_CalibrateDynamicRadius_ZeroRatifications_Reverts() public {
+        address dynamicAccount = address(0xDD44);
+        hook.initializeAccountPolicy(
+            dynamicAccount,
+            rootOwner,
+            2.0 ether,
+            TIER_GROWTH_DEFI,
+            true,
+            10.0 ether
+        );
+
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
+
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // No ratifications recorded on-chain -> Reverts!
+        vm.prank(sessionKey);
+        vm.expectRevert("INSUFFICIENT_RATIFICATIONS");
+        hook.calibrateDynamicRadius(dynamicAccount);
     }
 
     function test_DynamicElasticity_DecreasingRadius_PermittedImmediately() public {
