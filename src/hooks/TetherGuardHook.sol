@@ -13,10 +13,18 @@ import { IERC7579Hook } from "../interfaces/IERC7579Hook.sol";
  *      Any action exceeding The Tether Radius reverts unless escalated ("Breaking the Tether").
  */
 contract TetherGuardHook is IERC7579Hook {
-    // --- Risk Tiers (Dual-Axis Risk Engine) ---
-    uint8 public constant RISK_TIER_CONSERVATIVE = 1; // Tier 1: Staking, Blue-Chips, Shibor/MMFs, Tokenized Gold
-    uint8 public constant RISK_TIER_BALANCED     = 2; // Tier 2: Liquid Staking Tokens (stETH), Major AMMs
-    uint8 public constant RISK_TIER_AGGRESSIVE   = 3; // Tier 3: Concentrated Liquidity, Long-Tail LPs
+    // --- Risk Tiers (Dual-Axis Risk Engine - Axis 1: Asset Universe) ---
+    // Tier 1: Core Preservation & Mega Assets (Giga Tokens: BTC/ETH, Stablecoins: USDC/USDT/e-CNY, Commodities: PAXG Gold/Silver, Shibor MMFs)
+    uint8 public constant RISK_TIER_CORE_PRESERVATION = 1;
+    // Tier 2: Growth & Active DeFi (Merged Liquid Staking stETH/rETH, AMMs, Curve/Uniswap LPs, Yield Vaults)
+    uint8 public constant RISK_TIER_GROWTH_DEFI       = 2;
+    // Tier 3: Omni-Universe / Unrestricted (Allows EVERYTHING to be held and traded; zero whitelist restriction, strictly bound by Tether Radius)
+    uint8 public constant RISK_TIER_UNRESTRICTED      = 3;
+
+    // Aliases for backwards compatibility
+    uint8 public constant RISK_TIER_CONSERVATIVE = 1;
+    uint8 public constant RISK_TIER_BALANCED     = 2;
+    uint8 public constant RISK_TIER_AGGRESSIVE   = 3;
 
     // --- State Storage Per Account ---
     struct AccountPolicy {
@@ -180,14 +188,16 @@ contract TetherGuardHook is IERC7579Hook {
             p.dailySpent = 0;
         }
 
-        // 4. Verify target protocol whitelist & risk tier
-        if (!whitelistedTargets[account][target]) {
-            revert UnauthorizedTarget(target);
-        }
+        // 4. Verify target protocol whitelist & risk tier (Bypassed if Tier 3 Unrestricted is selected)
+        if (p.riskTier != RISK_TIER_UNRESTRICTED) {
+            if (!whitelistedTargets[account][target]) {
+                revert UnauthorizedTarget(target);
+            }
 
-        uint8 targetTier = targetRiskTiers[account][target];
-        if (targetTier > p.riskTier) {
-            revert AssetTierNotPermitted(target, targetTier, p.riskTier);
+            uint8 targetTier = targetRiskTiers[account][target];
+            if (targetTier > p.riskTier) {
+                revert AssetTierNotPermitted(target, targetTier, p.riskTier);
+            }
         }
 
         // 5. Enforce The Tether Radius (Daily Velocity Limit)
