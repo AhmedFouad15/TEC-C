@@ -11,6 +11,7 @@ def export_artifacts():
         "TecAccount": os.path.join(out_dir, "TecAccount.sol", "TecAccount.json"),
         "TetherGuardHook": os.path.join(out_dir, "TetherGuardHook.sol", "TetherGuardHook.json"),
         "SessionKeyValidator": os.path.join(out_dir, "SessionKeyValidator.sol", "SessionKeyValidator.json"),
+        "WebAuthnP256Validator": os.path.join(out_dir, "WebAuthnP256Validator.sol", "WebAuthnP256Validator.json"),
         "TecPaymaster": os.path.join(out_dir, "TecPaymaster.sol", "TecPaymaster.json"),
         "MockDeFiProtocol": os.path.join(out_dir, "MockDeFiProtocol.sol", "MockDeFiProtocol.json")
     }

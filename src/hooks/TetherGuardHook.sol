@@ -83,6 +83,28 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Explicit rejections to prevent rogue execution
     mapping(address => mapping(bytes32 => bool)) public signRejections;
 
+    // --- Dead-Man's Switch & Inactive AI Heartbeat ---
+    uint256 public constant DEFAULT_AI_HEARTBEAT_TIMEOUT = 48 hours;
+    uint256 public constant DEFAULT_DEADMAN_TIMEOUT = 90 days;
+
+    /// @notice Last timestamp when an AI session key broadcast a heartbeat or executed successfully
+    mapping(address => uint256) public lastAIHeartbeat;
+
+    /// @notice Custom heartbeat timeout per account (0 = use DEFAULT_AI_HEARTBEAT_TIMEOUT)
+    mapping(address => uint256) public customAIHeartbeatTimeout;
+
+    /// @notice Designated corporate guardian / recovery multisig for Dead-Man's Switch
+    mapping(address => address) public deadmanGuardians;
+
+    /// @notice Custom inactivity timeout per account for Dead-Man's Switch (0 = use DEFAULT_DEADMAN_TIMEOUT)
+    mapping(address => uint256) public deadmanTimeouts;
+
+    /// @notice Last timestamp when user interacted with the vault (biometrics, sign approval, review, ping)
+    mapping(address => uint256) public lastUserActivity;
+
+    // --- WebAuthn P-256 (RIP-7212) Precompile Address ---
+    address public constant RIP7212_PRECOMPILE = address(0x100);
+
     // --- Events for WeBank WeIdentity Audit Trails ---
     event TetherRadiusConfigured(address indexed account, uint256 newRadius, uint8 riskTier);
     event TetherRadiusConsumed(address indexed account, uint256 amount, uint256 remainingRadius, uint256 epoch);
@@ -99,6 +121,11 @@ contract TetherGuardHook is IERC7579Hook {
     event BiometricVerificationCompleted(address indexed account, address indexed verifier, uint256 validUntil);
     event BiometricVerificationRevoked(address indexed account);
     event SignApprovalSubmitted(address indexed account, bytes32 indexed executionHash, bool approved);
+    event AIHeartbeatRecorded(address indexed account, address indexed sessionKey, uint256 timestamp);
+    event AIHeartbeatTimeoutConfigured(address indexed account, uint256 newTimeout);
+    event DeadmanSwitchConfigured(address indexed account, address indexed guardian, uint256 timeoutSeconds);
+    event DeadmanSwitchTriggered(address indexed account, address indexed guardian, address newRootOwner, uint256 timestamp);
+    event UserActivityPinged(address indexed account, uint256 timestamp);
 
     // --- Custom Errors ---
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
@@ -116,6 +143,10 @@ contract TetherGuardHook is IERC7579Hook {
     error SignApprovalRequired();
     error ExecutionRejectedByUser();
     error InvalidApprovalSignature();
+    error AIHeartbeatStale(uint256 lastBeat, uint256 currentTime);
+    error DeadmanSwitchNotEligible(uint256 lastActivity, uint256 eligibleTime);
+    error UnauthorizedGuardian();
+    error InvalidP256Signature();
 
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -381,6 +412,7 @@ contract TetherGuardHook is IERC7579Hook {
 
         // 2. Caller is Root Owner (Passkey / FaceID holder):
         if (msgSender == p.rootOwner) {
+            lastUserActivity[account] = block.timestamp;
             if (isBreakout) {
                 // "Breaking the Tether: Not if they are logged in 5alas!"
                 // Even the logged-in root owner MUST have an active biometric verification window (within last 5 minutes).
@@ -398,6 +430,13 @@ contract TetherGuardHook is IERC7579Hook {
         }
 
         // 3. Caller is AI Agent Session Key:
+        // Enforce Inactive AI Heartbeat Watchdog:
+        uint256 hbTimeout = customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
+        if (lastAIHeartbeat[account] > 0 && block.timestamp > lastAIHeartbeat[account] + hbTimeout) {
+            revert AIHeartbeatStale(lastAIHeartbeat[account], block.timestamp);
+        }
+        lastAIHeartbeat[account] = block.timestamp;
+
         // Explicit user rejection vetoes execution immediately
         if (signRejections[account][execHash]) {
             revert ExecutionRejectedByUser();
@@ -616,6 +655,7 @@ contract TetherGuardHook is IERC7579Hook {
     function completeBiometricVerification(address account) external onlyAccountOrOwner(account) {
         uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
         biometricVerifiedUntil[account] = validUntil;
+        lastUserActivity[account] = block.timestamp;
         emit BiometricVerificationCompleted(account, msg.sender, validUntil);
     }
 
@@ -643,6 +683,8 @@ contract TetherGuardHook is IERC7579Hook {
         if (block.timestamp > biometricVerifiedUntil[account]) {
             revert BiometricVerificationRequired();
         }
+
+        lastUserActivity[account] = block.timestamp;
 
         if (approve) {
             signApprovals[account][executionHash] = true;
@@ -677,6 +719,8 @@ contract TetherGuardHook is IERC7579Hook {
             revert InvalidApprovalSignature();
         }
 
+        lastUserActivity[account] = block.timestamp;
+
         if (approve) {
             signApprovals[account][executionHash] = true;
             signRejections[account][executionHash] = false;
@@ -700,6 +744,127 @@ contract TetherGuardHook is IERC7579Hook {
      */
     function getSignApprovalStatus(address account, bytes32 executionHash) external view returns (bool isApproved, bool isRejected) {
         return (signApprovals[account][executionHash], signRejections[account][executionHash]);
+    }
+
+    // =========================================================================
+    // --- Dead-Man's Switch & Inactive AI Heartbeat Engine ---
+    // =========================================================================
+
+    /**
+     * @notice Broadcasts an AI liveness heartbeat from an authorized session key.
+     */
+    function recordAIHeartbeat(address account) external {
+        if (!authorizedSessionKeys[account][msg.sender] && msg.sender != account && msg.sender != policies[account].rootOwner) {
+            revert UnauthorizedCaller();
+        }
+        lastAIHeartbeat[account] = block.timestamp;
+        emit AIHeartbeatRecorded(account, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Configures custom AI heartbeat timeout (e.g. 24 hours, 48 hours).
+     */
+    function configureAIHeartbeatTimeout(address account, uint256 timeoutSeconds) external onlyAccountOrOwner(account) {
+        require(timeoutSeconds >= 1 hours, "TIMEOUT_TOO_SHORT");
+        customAIHeartbeatTimeout[account] = timeoutSeconds;
+        emit AIHeartbeatTimeoutConfigured(account, timeoutSeconds);
+    }
+
+    /**
+     * @notice Configures Dead-Man's Switch guardian and inactivity threshold.
+     */
+    function configureDeadmanSwitch(
+        address account,
+        address guardian,
+        uint256 timeoutSeconds
+    ) external onlyAccountOrOwner(account) {
+        require(guardian != address(0), "INVALID_GUARDIAN");
+        deadmanGuardians[account] = guardian;
+        deadmanTimeouts[account] = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_DEADMAN_TIMEOUT;
+        if (lastUserActivity[account] == 0) {
+            lastUserActivity[account] = block.timestamp;
+        }
+        emit DeadmanSwitchConfigured(account, guardian, deadmanTimeouts[account]);
+    }
+
+    /**
+     * @notice Pings user activity to reset Dead-Man's Switch timer.
+     */
+    function pingUserActivity(address account) external onlyAccountOrOwner(account) {
+        lastUserActivity[account] = block.timestamp;
+        emit UserActivityPinged(account, block.timestamp);
+    }
+
+    /**
+     * @notice Triggers Dead-Man's Switch recovery after user has been inactive for the designated timeout.
+     * @dev Rotates the Root Owner to a designated corporate guardian / successor, restoring vault sovereignty.
+     */
+    function triggerDeadmanRecovery(address account, address newRootOwner) external {
+        if (msg.sender != deadmanGuardians[account]) {
+            revert UnauthorizedGuardian();
+        }
+        require(newRootOwner != address(0), "INVALID_NEW_OWNER");
+
+        uint256 timeout = deadmanTimeouts[account] > 0 ? deadmanTimeouts[account] : DEFAULT_DEADMAN_TIMEOUT;
+        uint256 eligibleTime = lastUserActivity[account] + timeout;
+        if (lastUserActivity[account] == 0 || block.timestamp < eligibleTime) {
+            revert DeadmanSwitchNotEligible(lastUserActivity[account], eligibleTime);
+        }
+
+        AccountPolicy storage p = policies[account];
+        p.rootOwner = newRootOwner;
+        lastUserActivity[account] = block.timestamp;
+
+        emit DeadmanSwitchTriggered(account, msg.sender, newRootOwner, block.timestamp);
+    }
+
+    /**
+     * @notice View helper to check if AI Heartbeat is currently healthy.
+     */
+    function isAIHeartbeatAlive(address account) external view returns (bool) {
+        if (lastAIHeartbeat[account] == 0) return true;
+        uint256 timeout = customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
+        return block.timestamp <= lastAIHeartbeat[account] + timeout;
+    }
+
+    /**
+     * @notice View helper to check if Dead-Man's Switch is currently triggerable by the guardian.
+     */
+    function isDeadmanSwitchTriggerable(address account) external view returns (bool) {
+        if (deadmanGuardians[account] == address(0) || lastUserActivity[account] == 0) return false;
+        uint256 timeout = deadmanTimeouts[account] > 0 ? deadmanTimeouts[account] : DEFAULT_DEADMAN_TIMEOUT;
+        return block.timestamp > lastUserActivity[account] + timeout;
+    }
+
+    // =========================================================================
+    // --- WebAuthn P-256 (RIP-7212) Native Precompile Biometric Verification ---
+    // =========================================================================
+
+    /**
+     * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 precompile at 0x100.
+     * @dev Opens the 5-minute Biometric Verification window upon successful hardware verification.
+     */
+    function completeBiometricVerificationWithP256(
+        address account,
+        bytes32 messageHash,
+        uint256 r,
+        uint256 s,
+        uint256 qx,
+        uint256 qy
+    ) external {
+        // 1. Verify P-256 signature via native RIP-7212 precompile at 0x100
+        bytes memory input = abi.encode(messageHash, r, s, qx, qy);
+        (bool success, bytes memory output) = RIP7212_PRECOMPILE.staticcall(input);
+        if (!success || output.length != 32 || abi.decode(output, (uint256)) != 1) {
+            revert InvalidP256Signature();
+        }
+
+        // 2. Open 5-minute Biometric Verification Window
+        uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
+        biometricVerifiedUntil[account] = validUntil;
+        lastUserActivity[account] = block.timestamp;
+
+        emit BiometricVerificationCompleted(account, msg.sender, validUntil);
     }
 
     /**

@@ -30,10 +30,15 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 │   │                         ├── Axis 1: Asset Universe (Tiers 1, 2, 3)      │   │
 │   │                         ├── Axis 2: Dynamic Tether Radius Elasticity    │   │
 │   │                         ├── On-Chain 10% Daily Increase Cap             │   │
+│   │                         ├── Inactive AI Heartbeat Watchdog (48h)        │   │
+│   │                         ├── Corporate Dead-Man's Switch (90d)           │   │
 │   │                         ├── Asynchronous Morning Review (Like/Rev/Note) │   │
 │   │                         ├── Brain Discretionary Quota Throttling        │   │
 │   │                         ├── Breaking the Tether: 5m Biometric Window    │   │
 │   │                         └── Normal Sign Approval (Accept / Reject)      │   │
+│   │                                                                         │   │
+│   │   [Validation]     ──▶  WebAuthnP256Validator (RIP-7212 @ 0x100)        │   │
+│   │                         └── SessionKeyValidator (EIP-712 Mandates)      │   │
 │   │                                                                         │   │
 │   │   [Execution]      ──▶  Lido / Aave / Curve / Shibor MMF / Institutional│   │
 │   │                                                                         │   │
@@ -65,7 +70,11 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 > 4. **Normal Accept or Reject**: If the user accepts, the transaction executes under the active biometric window; if rejected, the transaction is immediately vetoed. Gasless signature approvals (`submitSignApprovalWithSignature`) are fully supported.
 > 5. **Expiry**: Once 5 minutes elapse, the window closes and any further breakout requires fresh biometric re-verification.
 
-### 🌐 Invariant 4: Dual-Axis Risk Engine
+### 💓 Invariant 4: Inactive AI Heartbeat & Dead-Man's Switch
+> 1. **Inactive AI Heartbeat Watchdog (48h Timeout):** The AI session key must regularly broadcast an on-chain heartbeat via `recordAIHeartbeat(account)`. If $>48\text{ hours}$ elapse without an AI heartbeat, autonomous execution is automatically blocked (`AIHeartbeatStale`) until the agent is re-synced, preventing zombie key exploits.
+> 2. **Corporate Dead-Man's Switch (90d Timeout):** If the primary FaceID user is inactive for $>90\text{ days}$ without interacting with the vault, a designated corporate guardian can trigger recovery via `triggerDeadmanRecovery(account, newOwner)`, transferring custody to a corporate successor. Any user activity (biometric verification, sign approval, or ping) resets the timer.
+
+### 🌐 Invariant 5: Dual-Axis Risk Engine
 - **Axis 1 (Asset Universe):**
   - **Tier 1 (Core Capital Preservation):** Mega-cap assets (BTC, ETH, SOL), fiat-backed stablecoins (USDC, USDT, e-CNY), tokenized commodities (PAXG Gold, Silver), and money-market instruments (Shibor MMF).
   - **Tier 2 (Dynamic Growth & Active DeFi):** Liquid staking (stETH, rETH), AMM liquidity pools (Uniswap, Curve), and yield vaults (Aave, Compound).
@@ -74,7 +83,7 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
   - Onboarding initial tolerance: 10%, 25%, 50%, 100%, or Custom %.
   - Static Mode vs. Adaptive Learning Mode.
 
-### ☀️ Invariant 5: Asynchronous Morning Review System
+### ☀️ Invariant 6: Asynchronous Morning Review System
 Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up and can:
 1. **👍 Like / Ratify (`ratifyTransaction`):** Replenishes the Tether Radius by the transaction's value and increments on-chain `consecutiveRatifications`.
 2. **👎 Revert / Object (`flagTransactionForRevert`):** Flags transaction for cognitive unwind and applies a 20% trust penalty to the AI Brain's radius.
@@ -87,7 +96,8 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 | Contract | Standard | Description |
 | :--- | :--- | :--- |
 | **[`TecAccount.sol`](src/TecAccount.sol)** | ERC-7579 & ERC-4337 | Modular smart account executing single & batch operations with pre/post execution hooks. |
-| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, 10% daily limit growth cap, 5m Biometric Window, Sign Approval (Accept/Reject), and Morning Review. |
+| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, 10% daily limit growth cap, 5m Biometric Window, Sign Approval (Accept/Reject), AI Heartbeat Watchdog, Dead-Man's Switch, and Morning Review. |
+| **[`WebAuthnP256Validator.sol`](src/validators/WebAuthnP256Validator.sol)** | ERC-7579 & RIP-7212 | Native secp256r1 NIST P-256 validator querying precompile at `0x0100` (~3,450 gas hardware FaceID). |
 | **[`SessionKeyValidator.sol`](src/validators/SessionKeyValidator.sol)** | ERC-7579 Validator | Validates ephemeral AI Brain ECDSA signatures bound to EIP-712 mandate digests and time bounds. |
 | **[`TecPaymaster.sol`](src/paymaster/TecPaymaster.sol)** | ERC-4337 Paymaster | Anti-griefing paymaster capping cumulative gas sponsorship to `MAX_SESSION_GAS_BUDGET = 0.005 ETH`. |
 
@@ -95,13 +105,33 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 
 ## 4. Test Coverage & Verification
 
-**44/44 invariant and unit tests passing with 100% green status across 4 test suites:**
+**62/62 invariant and unit tests passing with 100% green status across 6 test suites:**
 
 ```bash
 forge test
 ```
 
 ### Complete Test Matrix:
+- **`test/DeadmanAndHeartbeat.t.sol` (10/10 PASS)**
+  - `test_AIHeartbeat_InitialStatus_Alive`
+  - `test_AIHeartbeat_Record_Success`
+  - `test_AIHeartbeat_StaleTimeout_RevertsAutonomousExecution`
+  - `test_AIHeartbeat_SuccessfulExecution_RefreshesHeartbeat`
+  - `test_AIHeartbeat_CustomTimeout_Enforced`
+  - `test_DeadmanSwitch_Configure_Success`
+  - `test_DeadmanSwitch_PrematureTrigger_Reverts`
+  - `test_DeadmanSwitch_ElapsedTimeout_Success`
+  - `test_DeadmanSwitch_UserActivityPings_ResetsTimer`
+  - `test_DeadmanSwitch_UnauthorizedCaller_Reverts`
+- **`test/WebAuthnP256Validator.t.sol` (8/8 PASS)**
+  - `test_PasskeyRegistration`
+  - `test_VerifyP256Signature_NativePrecompile_Success`
+  - `test_VerifyP256Signature_InvalidSignature_Fails`
+  - `test_ValidateUserOp_Success`
+  - `test_ValidateUserOp_UnregisteredPasskey_Fails`
+  - `test_EIP1271_PasskeySignatureValidation`
+  - `test_CompleteBiometricVerificationWithP256_OpensWindow`
+  - `test_CompleteBiometricVerificationWithP256_InvalidSignature_Reverts`
 - **`test/TetherGuardHook.t.sol` (29/29 PASS)**
   - `test_Initialization`
   - `test_ExecutionWithinTetherRadius_Succeeds`
