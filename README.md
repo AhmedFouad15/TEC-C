@@ -115,13 +115,44 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 
 ## 4. Test Coverage & Verification
 
-**81/81 invariant and security unit tests passing with 100% green status across 7 test suites:**
+**119/119 invariant, scenario, fuzz, and edge case tests passing with 100% green status across 10 test suites:**
 
 ```bash
 forge test
 ```
 
-### Complete Test Matrix (91 / 91 PASS - 100% Green across 7 Suites):
+### Complete Test Matrix (119 / 119 PASS - 100% Green across 10 Suites):
+- **`test/VaultLifecycleScenarios.t.sol` (4/4 PASS - Complex E2E Scenarios)**
+  - `test_Scenario_EnterpriseMultiDayLifecycle`: 3-day corporate operational simulation (Day 1 bounded spending, overnight pending reviews, Day 2 user ratification & dynamic 10% elasticity step-up, Day 3 breakout with biometric & sign approval).
+  - `test_Scenario_AttackSandbox_DefensesHold`: Comprehensive adversarial sandbox test (unauthorized initialization front-run rejection, self-targeting hook hijack rejection, unwhitelisted target denial, budget exhaustion denial, stale biometric window denial, spoofed guardian denial).
+  - `test_Scenario_AIHeartbeatWatchdog_And_DeadmanRecovery`: Complete operational lifecycle of AI heartbeat expiration preventing zombie execution, user activity watchdog reset, and corporate guardian dead-man recovery after 90 days.
+  - `test_Scenario_ComprehensivePortfolioBreakdown`: Institutional multi-asset portfolio breakdown querying ETH, USDC, WBTC, DAI with live Chainlink price feeds, decimals normalization, and accurate aggregate USD valuation.
+- **`test/VaultComprehensiveFuzz.t.sol` (5/5 PASS - Property-Based Invariant Fuzzing - 1,280 Runs)**
+  - `testFuzz_TetherRadius_VelocityEnforcement`: Invariant: Any spend $\le$ available radius succeeds; any spend $>$ available radius strictly reverts.
+  - `testFuzz_DynamicElasticity_10PercentGrowthCap`: Invariant: Daily step-up is strictly bounded by $\le 10\%$ and cannot exceed the configured ceiling.
+  - `testFuzz_TrustPenalty_MathematicallyStrictlyDecreases`: Invariant: Trust penalties strictly decrease the AI Brain's radius without arithmetic underflow or inversion.
+  - `testFuzz_EpochRollover_ReplenishesQuota`: Invariant: Rolling over the 24-hour epoch always resets daily spending and replenishes available radius.
+  - `testFuzz_Paymaster_GasSponsorshipCap`: Invariant: TecPaymaster sponsorship strictly respects gas caps and prevents account draining.
+- **`test/VaultEdgeCases.t.sol` (19/19 PASS - Boundary & Edge Case Hardening)**
+  - `test_EdgeCase_ModuleInstallation_OnlyRootOwner_Reverts`: Non-root callers cannot install modules.
+  - `test_EdgeCase_ModuleInstallation_InvalidModuleType_Reverts`: Module type verification rejection.
+  - `test_EdgeCase_ModuleUninstallation_Mismatch_Reverts`: Mismatched module uninstallation rejection.
+  - `test_EdgeCase_ModuleUninstallation_InvalidType_Reverts`: Invalid module type uninstallation rejection.
+  - `test_EdgeCase_ModuleUninstallation_And_Reinstallation_Success`: Seamless uninstallation and reinstallation lifecycle.
+  - `test_EdgeCase_ZeroValue_EmptyCalldata_Succeeds`: Safe zero-value no-op calls.
+  - `test_EdgeCase_NativeETH_ZeroDataTransfer_Success`: Direct native ETH transfers within radius.
+  - `test_EdgeCase_DirectETHReceive_AcceptsDeposit`: Direct ETH receive hook accepts deposits.
+  - `test_EdgeCase_Review_NonExistentRecord_Reverts`: Reviewing non-existent transaction records reverts.
+  - `test_EdgeCase_Review_UnauthorizedUser_Reverts`: Unauthorized users cannot review transactions.
+  - `test_EdgeCase_BiometricGrace_Revocation_ImmediatelyHaltsBreakout`: Revoking biometric grace window immediately blocks breakout.
+  - `test_EdgeCase_SignApproval_ExplicitReject_PreventsExecution`: Explicit rejection halts execution with `ExecutionRejectedByUser`.
+  - `test_EdgeCase_DeadmanSwitch_ZeroGuardian_Reverts`: Rejects zero-address dead-man guardian.
+  - `test_EdgeCase_DeadmanSwitch_ExactBoundaryTrigger`: Strict 1-second boundary verification for dead-man switch trigger.
+  - `test_EdgeCase_CustomHeartbeatTimeout_Below1Hour_Reverts`: Heartbeat timeout cannot be configured below 1 hour.
+  - `test_EdgeCase_SessionKey_ZeroAddress_Reverts`: Rejects zero-address session key registration.
+  - `test_EdgeCase_SessionKey_InvalidTimeRange_Reverts`: Rejects invalid session key time ranges (`validAfter > validUntil`).
+  - `test_EdgeCase_Paymaster_WithdrawZeroBalance_Reverts`: Rejects zero-balance withdrawals from paymaster.
+  - `test_EdgeCase_Paymaster_OwnerWithdrawal_Unauthorized_Reverts`: Non-owners cannot withdraw global paymaster balance.
 - **`test/TetherGuardHook.t.sol` (37/37 PASS)**
   - `test_Initialization`
   - `test_ExecutionWithinTetherRadius_Succeeds`

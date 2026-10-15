@@ -1154,7 +1154,7 @@ contract TetherGuardHook is IERC7579Hook {
     function isDeadmanSwitchTriggerable(address account) external view returns (bool) {
         if (deadmanGuardians[account] == address(0) || lastUserActivity[account] == 0) return false;
         uint256 timeout = deadmanTimeouts[account] > 0 ? deadmanTimeouts[account] : DEFAULT_DEADMAN_TIMEOUT;
-        return block.timestamp > lastUserActivity[account] + timeout;
+        return block.timestamp >= lastUserActivity[account] + timeout;
     }
 
     // =========================================================================
