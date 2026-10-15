@@ -740,6 +740,88 @@ contract TetherGuardHookTest is Test {
         );
         hook.ratifyTransaction(tecAccount, 1);
     }
+
+    function test_PreCheck_SelfTargetingHook_InTier3_Reverts() public {
+        address tier3Account = address(0xEE77);
+        hook.initializeAccountPolicy(tier3Account, rootOwner, 10.0 ether, TIER_UNRESTRICTED);
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(tier3Account, sessionKey, true);
+
+        // AI session key in Tier 3 attempts to target the hook directly
+        bytes memory msgData = abi.encodePacked(address(hook), uint256(0), hex"");
+
+        vm.prank(tier3Account);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TetherGuardHook.UnauthorizedTarget.selector,
+                address(hook)
+            )
+        );
+        hook.preCheck(sessionKey, 0, msgData);
+    }
+
+    function test_SignApproval_ExpiredGracePeriod_Reverts() public {
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+
+        bytes memory executionData = abi.encodePacked(
+            address(lidoStaking),
+            uint256(10 ether),
+            abi.encodeWithSelector(MockDeFiProtocol.stake.selector)
+        );
+        bytes32 execHash = keccak256(executionData);
+
+        // User submits Sign Approval
+        vm.prank(rootOwner);
+        hook.submitSignApproval(tecAccount, execHash, true);
+
+        // Fast-forward past biometric and approval expiration window (6 minutes)
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.prank(tecAccount);
+        vm.expectRevert(TetherGuardHook.BiometricVerificationRequired.selector);
+        hook.preCheck(sessionKey, 10 ether, executionData);
+    }
+
+    function test_Deployer_CanSetInitialPasskey_Success() public {
+        address freshAccount = address(0xFA01);
+        uint256 qx = 0x1234;
+        uint256 qy = 0x5678;
+
+        // Deployer registers passkey during onboarding
+        hook.setAccountPasskey(freshAccount, qx, qy);
+
+        (uint256 registeredQx, uint256 registeredQy, bool isReg) = hook.accountPasskeys(freshAccount);
+        assertEq(registeredQx, qx);
+        assertEq(registeredQy, qy);
+        assertTrue(isReg);
+
+        // Deployer cannot overwrite once registered!
+        vm.expectRevert(TetherGuardHook.UnauthorizedCaller.selector);
+        hook.setAccountPasskey(freshAccount, 0x9999, 0x8888);
+    }
+
+    function test_MorningReview_FlagForRevert_WhenBelowFloor_StrictlyDecreases() public {
+        // Manually lower radius below floor (floor is baselineRadius / 2 = 0.25 ETH)
+        vm.prank(rootOwner);
+        hook.setTetherRadius(tecAccount, 0.20 ether, TIER_GROWTH_DEFI);
+
+        // Autonomous trade executed
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.05 ether), hex"");
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 0.05 ether, msgData);
+        vm.prank(tecAccount);
+        hook.postCheck(hookData);
+
+        // Flag for revert
+        vm.prank(rootOwner);
+        hook.flagTransactionForRevert(tecAccount, 1, "Below floor test");
+
+        // Verify that radius strictly decreased (0.20 ETH - 20% = 0.16 ETH)
+        // and did NOT invert to jump up to 0.25 ETH!
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(tecAccount);
+        assertEq(p.tetherRadius, 0.16 ether);
+    }
 }
 
 

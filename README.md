@@ -121,8 +121,8 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 forge test
 ```
 
-### Complete Test Matrix:
-- **`test/TetherGuardHook.t.sol` (33/33 PASS)**
+### Complete Test Matrix (91 / 91 PASS - 100% Green across 7 Suites):
+- **`test/TetherGuardHook.t.sol` (37/37 PASS)**
   - `test_Initialization`
   - `test_ExecutionWithinTetherRadius_Succeeds`
   - `test_ExecutionExceedingTetherRadius_Reverts`
@@ -143,6 +143,7 @@ forge test
   - `test_VaultNative_CalibrateDynamicRadius_ZeroRatifications_Reverts`
   - `test_MorningReview_LikeAndRatify_ReplenishesLimit` (With cross-epoch rollover protection)
   - `test_MorningReview_FlagForRevert_AppliesTrustPenalty`
+  - `test_MorningReview_FlagForRevert_WhenBelowFloor_StrictlyDecreases` (Penalty inversion defense)
   - `test_MorningReview_NoteWithoutPenalty`
   - `test_MorningReview_NoteWithPenalty`
   - `test_MorningReview_AlreadyReviewed_Reverts`
@@ -154,6 +155,9 @@ forge test
   - `test_BreakingTheTether_BrainInitiated_GaslessSignatureApproval`
   - `test_submitSignApprovalWithSignature_ExpiredDeadline_Reverts` (Signature deadline expiration)
   - `test_submitSignApprovalWithSignature_ReplayAttack_Reverts` (Anti-replay nonce protection)
+  - `test_SignApproval_ExpiredGracePeriod_Reverts` (Stale approval expiration defense)
+  - `test_PreCheck_SelfTargetingHook_InTier3_Reverts` (Hook self-targeting privilege escalation defense)
+  - `test_Deployer_CanSetInitialPasskey_Success` (Onboarding passkey initialization)
   - `test_initializeAccountPolicy_FrontRunning_Reverts` (Front-running hijack protection)
   - `test_setGlobalPriceFeed_Unauthorized_Reverts` (Oracle configuration access control)
 - **`test/MultiTokenTether.t.sol` (12/12 PASS)**
@@ -169,11 +173,13 @@ forge test
   - `test_AccountSpecificPriceFeedOverride` (Per-account Chainlink oracle override)
   - `test_GetTotalPortfolioValueUSD_ReturnsAccurateValuation` (Accurate 4-asset portfolio valuation)
   - `test_BreakingTheTether_ERC20_WithBiometricAndSignApproval` (5m Biometric Grace + Sign Approval breakout)
-- **`test/WebAuthnP256Validator.t.sol` (9/9 PASS)**
+- **`test/WebAuthnP256Validator.t.sol` (11/11 PASS)**
   - `test_PasskeyRegistration`
   - `test_VerifyP256Signature_NativePrecompile_Success`
   - `test_VerifyP256Signature_InvalidSignature_Fails`
   - `test_ValidateUserOp_Success`
+  - `test_ValidateUserOp_EnvelopeChallengeMatch_Success` (Enforced challenge binding)
+  - `test_ValidateUserOp_EnvelopeChallengeMismatch_Fails` (Replay challenge mismatch rejection)
   - `test_ValidateUserOp_UnregisteredPasskey_Fails`
   - `test_EIP1271_PasskeySignatureValidation`
   - `test_CompleteBiometricVerificationWithP256_OpensWindow`
@@ -197,18 +203,22 @@ forge test
   - `test_DeadmanSwitch_ElapsedTimeout_Success`
   - `test_DeadmanSwitch_UserActivityPings_ResetsTimer`
   - `test_DeadmanSwitch_UnauthorizedCaller_Reverts`
-- **`test/SessionKeyValidator.t.sol` (6/6 PASS)**
+- **`test/SessionKeyValidator.t.sol` (8/8 PASS)**
   - `test_SessionKeyRegistration`
   - `test_ValidateUserOp_Success`
   - `test_ValidateUserOp_WrongSigner_Fails`
   - `test_ValidateUserOp_RevokedSessionKey_Fails`
+  - `test_VerifyMandateCommitment_Success` (WeIdentity W3C anchor verification)
+  - `test_VerifyMandateCommitment_Mismatch_Fails` (Digest mismatch rejection)
   - `test_ERC1271_SignatureValidation`
   - `test_ERC1271_ExpiredSignature_Fails`
-- **`test/TecAccount.t.sol` (5/5 PASS)**
+- **`test/TecAccount.t.sol` (7/7 PASS)**
   - `test_Initialization`
+  - `test_Initialization_FrontRunning_Reverts` (Front-running takeover defense)
   - `test_Execute_WithinTetherRadius_Success`
   - `test_Execute_ExceedingTetherRadius_Reverts`
   - `test_Execute_MaliciousTargetDrain_Reverts`
+  - `test_Execute_SelfTargetHook_Reverts` (Hook self-targeting defense)
   - `test_BreakingTheTether_BiometricFaceID_Success`
 
 ---

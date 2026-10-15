@@ -148,4 +148,35 @@ contract WebAuthnP256ValidatorTest is Test {
             fakeQy
         );
     }
+
+    function test_ValidateUserOp_EnvelopeChallengeMismatch_Fails() public view {
+        bytes32 realUserOpHash = keccak256("RealUserOpHash");
+        bytes32 fakeChallenge = keccak256("FakeReplayedChallenge");
+        uint256 r = 0x112233;
+        uint256 s = 0x445566;
+
+        bytes memory signature = abi.encode(r, s, fakeChallenge);
+
+        PackedUserOperation memory op;
+        op.sender = tecAccount;
+        op.signature = signature;
+
+        uint256 validationData = validator.validateUserOp(op, realUserOpHash);
+        assertEq(validationData, 1); // 1 = Validation failure (Challenge mismatch)
+    }
+
+    function test_ValidateUserOp_EnvelopeChallengeMatch_Success() public view {
+        bytes32 realUserOpHash = keccak256("RealUserOpHash");
+        uint256 r = 0x112233;
+        uint256 s = 0x445566;
+
+        bytes memory signature = abi.encode(r, s, realUserOpHash);
+
+        PackedUserOperation memory op;
+        op.sender = tecAccount;
+        op.signature = signature;
+
+        uint256 validationData = validator.validateUserOp(op, realUserOpHash);
+        assertEq(validationData, 0); // 0 = Valid signature
+    }
 }

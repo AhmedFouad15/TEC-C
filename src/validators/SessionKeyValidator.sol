@@ -72,6 +72,19 @@ contract SessionKeyValidator is IERC7579Validator {
     }
 
     /**
+     * @notice Verifies whether a given mandate digest matches the on-chain committed mandateRoot for a session key.
+     * @dev Provides cryptographic anchoring for WeIdentity W3C Verifiable Credentials.
+     */
+    function verifyMandateCommitment(
+        address account,
+        address sessionKey,
+        bytes32 mandateDigest
+    ) external view returns (bool isValid, bytes32 committedRoot) {
+        committedRoot = sessionKeys[account][sessionKey].mandateRoot;
+        isValid = (committedRoot != bytes32(0) && committedRoot == mandateDigest);
+    }
+
+    /**
      * @notice Validates an ERC-4337 PackedUserOperation signed by a session key.
      * @dev Signature format: abi.encodePacked(address sessionKey, bytes signature)
      */

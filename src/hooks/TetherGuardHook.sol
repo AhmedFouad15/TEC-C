@@ -100,6 +100,9 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Sign approvals (Accept / Reject) given by the user for executions proposed during active biometric window
     mapping(address => mapping(bytes32 => bool)) public signApprovals;
 
+    /// @notice Expiration timestamp for each sign approval to prevent stale breakout execution
+    mapping(address => mapping(bytes32 => uint256)) public signApprovalExpiresAt;
+
     /// @notice Explicit rejections to prevent rogue execution
     mapping(address => mapping(bytes32 => bool)) public signRejections;
 
@@ -670,6 +673,11 @@ contract TetherGuardHook is IERC7579Hook {
         address target = _extractTarget(msgData);
         bytes32 execHash = keccak256(msgData);
 
+        // VULN-01 Defense: Autonomous AI session keys cannot target the security hook itself!
+        if (msgSender != p.rootOwner && target == address(this)) {
+            revert UnauthorizedTarget(target);
+        }
+
         // 1. Roll epoch if 24 hours elapsed
         uint256 currentEpoch = block.timestamp / 1 days;
         if (p.currentEpoch != currentEpoch) {
@@ -729,13 +737,16 @@ contract TetherGuardHook is IERC7579Hook {
         // Check if user provided an explicit Sign Approval for a breakout execution
         if (signApprovals[account][execHash]) {
             // Brain breakout with user sign approval:
-            // Must have an active 5-minute biometric verification window
-            if (block.timestamp > biometricVerifiedUntil[account]) {
+            // VULN-05: Must have an active 5-minute biometric verification window and non-expired sign approval
+            if (block.timestamp > signApprovalExpiresAt[account][execHash] || block.timestamp > biometricVerifiedUntil[account]) {
+                delete signApprovals[account][execHash];
+                delete signApprovalExpiresAt[account][execHash];
                 revert BiometricVerificationRequired();
             }
 
             // Consume one-time approval to protect against replay
             signApprovals[account][execHash] = false;
+            delete signApprovalExpiresAt[account][execHash];
 
             emit TetherBroken(account, msgSender, effectiveAmount, target);
             return abi.encode(true, account, effectiveAmount, target);
@@ -839,13 +850,16 @@ contract TetherGuardHook is IERC7579Hook {
         AccountPolicy storage p = policies[account];
         p.consecutiveRatifications = 0; // reset consecutive approvals due to rejection
 
-        // Apply trust penalty: cut radius by 20%, but keep above floor (baselineRadius / 2)
+        // Apply trust penalty: cut radius by 20%, strictly decrease or keep at floor
         uint256 penalty = (p.tetherRadius * 20) / 100;
+        uint256 targetRadius = (p.tetherRadius > penalty) ? p.tetherRadius - penalty : 0;
         uint256 minFloor = p.baselineRadius / 2;
-        if (p.tetherRadius > penalty && p.tetherRadius - penalty >= minFloor) {
-            p.tetherRadius -= penalty;
-        } else {
+        if (p.tetherRadius > minFloor && targetRadius < minFloor) {
             p.tetherRadius = minFloor;
+        } else if (p.tetherRadius <= minFloor) {
+            p.tetherRadius = targetRadius;
+        } else {
+            p.tetherRadius = targetRadius;
         }
 
         emit TransactionFlaggedForRevert(account, recordId, reason, p.tetherRadius);
@@ -872,11 +886,14 @@ contract TetherGuardHook is IERC7579Hook {
         AccountPolicy storage p = policies[account];
         if (penalizeBrain) {
             uint256 penalty = (p.tetherRadius * 10) / 100;
+            uint256 targetRadius = (p.tetherRadius > penalty) ? p.tetherRadius - penalty : 0;
             uint256 minFloor = p.baselineRadius / 2;
-            if (p.tetherRadius > penalty && p.tetherRadius - penalty >= minFloor) {
-                p.tetherRadius -= penalty;
-            } else {
+            if (p.tetherRadius > minFloor && targetRadius < minFloor) {
                 p.tetherRadius = minFloor;
+            } else if (p.tetherRadius <= minFloor) {
+                p.tetherRadius = targetRadius;
+            } else {
+                p.tetherRadius = targetRadius;
             }
         }
 
@@ -979,9 +996,13 @@ contract TetherGuardHook is IERC7579Hook {
         if (approve) {
             signApprovals[account][executionHash] = true;
             signRejections[account][executionHash] = false;
+            uint256 windowEnd = biometricVerifiedUntil[account];
+            uint256 minGrace = block.timestamp + 60 seconds;
+            signApprovalExpiresAt[account][executionHash] = windowEnd > minGrace ? windowEnd : minGrace;
         } else {
             signApprovals[account][executionHash] = false;
             signRejections[account][executionHash] = true;
+            delete signApprovalExpiresAt[account][executionHash];
         }
 
         emit SignApprovalSubmitted(account, executionHash, approve);
@@ -1020,9 +1041,13 @@ contract TetherGuardHook is IERC7579Hook {
         if (approve) {
             signApprovals[account][executionHash] = true;
             signRejections[account][executionHash] = false;
+            uint256 windowEnd = biometricVerifiedUntil[account];
+            uint256 minGrace = block.timestamp + 60 seconds;
+            signApprovalExpiresAt[account][executionHash] = windowEnd > minGrace ? windowEnd : minGrace;
         } else {
             signApprovals[account][executionHash] = false;
             signRejections[account][executionHash] = true;
+            delete signApprovalExpiresAt[account][executionHash];
         }
 
         emit SignApprovalSubmitted(account, executionHash, approve);
@@ -1138,12 +1163,18 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Configures the WebAuthn P-256 Passkey coordinates (qx, qy) for an account.
+     * @dev Allows deployer to register initial coordinates during onboarding if not yet registered.
      */
     function setAccountPasskey(
         address account,
         uint256 qx,
         uint256 qy
-    ) external onlyAccountOrOwner(account) {
+    ) external {
+        if (msg.sender != account && msg.sender != policies[account].rootOwner) {
+            if (msg.sender != deployer || accountPasskeys[account].isRegistered) {
+                revert UnauthorizedCaller();
+            }
+        }
         require(qx != 0 && qy != 0, "INVALID_COORDINATES");
         accountPasskeys[account] = WebAuthnPasskey({
             qx: qx,

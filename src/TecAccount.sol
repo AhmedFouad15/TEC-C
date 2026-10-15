@@ -18,6 +18,7 @@ contract TecAccount is IERC7579Account {
 
     address public rootOwner; // Biometric Passkey / WebAuthn FaceID owner
     address public immutable entryPoint;
+    address public immutable deployer;
 
     // Installed ERC-7579 Modules
     IERC7579Hook public installedHook;
@@ -48,6 +49,7 @@ contract TecAccount is IERC7579Account {
     constructor(address _entryPoint) {
         require(_entryPoint != address(0), "INVALID_ENTRYPOINT");
         entryPoint = _entryPoint;
+        deployer = msg.sender;
     }
 
     /**
@@ -60,6 +62,7 @@ contract TecAccount is IERC7579Account {
     ) external {
         if (rootOwner != address(0)) revert AlreadyInitialized();
         require(_rootOwner != address(0), "INVALID_OWNER");
+        require(msg.sender == deployer, "UNAUTHORIZED_INIT");
 
         rootOwner = _rootOwner;
         if (_hook != address(0)) {

@@ -119,4 +119,17 @@ contract SessionKeyValidatorTest is Test {
         bytes4 magic = validator.isValidSignatureWithSender(tecAccount, dataHash, signature);
         assertEq(magic, bytes4(0xffffffff)); // EIP-1271 failed
     }
+
+    function test_VerifyMandateCommitment_Success() public view {
+        (bool isValid, bytes32 root) = validator.verifyMandateCommitment(tecAccount, sessionKey, mandateRoot);
+        assertTrue(isValid);
+        assertEq(root, mandateRoot);
+    }
+
+    function test_VerifyMandateCommitment_Mismatch_Fails() public view {
+        bytes32 wrongDigest = keccak256("WrongMandateDigest");
+        (bool isValid, bytes32 root) = validator.verifyMandateCommitment(tecAccount, sessionKey, wrongDigest);
+        assertFalse(isValid);
+        assertEq(root, mandateRoot);
+    }
 }

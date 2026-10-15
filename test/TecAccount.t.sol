@@ -166,4 +166,37 @@ contract TecAccountTest is Test {
         assertEq(lidoStaking.balances(address(account)), breakoutAmount);
         assertEq(address(account).balance, 100 ether - breakoutAmount);
     }
+
+    function test_Initialization_FrontRunning_Reverts() public {
+        TecAccount uninit = new TecAccount(entryPoint);
+        address attacker = address(0xBAD);
+        vm.prank(attacker);
+        vm.expectRevert("UNAUTHORIZED_INIT");
+        uninit.initialize(attacker, address(0), address(0));
+    }
+
+    function test_Execute_SelfTargetHook_Reverts() public {
+        // AI Session key attempts to call setTetherRadius on TetherGuardHook via TecAccount.execute
+        bytes memory callPayload = abi.encodeWithSelector(
+            TetherGuardHook.setTetherRadius.selector,
+            address(account),
+            1_000_000 ether,
+            uint8(3)
+        );
+        bytes memory executionCalldata = abi.encodePacked(
+            address(hook),
+            uint256(0),
+            callPayload
+        );
+
+        // EntryPoint executing on behalf of AI Session Key
+        vm.prank(entryPoint);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TetherGuardHook.UnauthorizedTarget.selector,
+                address(hook)
+            )
+        );
+        account.execute(bytes32(0), executionCalldata);
+    }
 }

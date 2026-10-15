@@ -112,8 +112,14 @@ contract WebAuthnP256Validator is IERC7579Validator {
             (r, s) = abi.decode(userOp.signature, (uint256, uint256));
             messageHash = userOpHash;
         } else {
-            // Full WebAuthn envelope
-            (r, s, messageHash) = abi.decode(userOp.signature, (uint256, uint256, bytes32));
+            // Full WebAuthn envelope: (r, s, challenge)
+            // Ensure the signed challenge strictly matches userOpHash to prevent signature replay
+            bytes32 challenge;
+            (r, s, challenge) = abi.decode(userOp.signature, (uint256, uint256, bytes32));
+            if (challenge != userOpHash) {
+                return 1; // Challenge mismatch: reject signature replay
+            }
+            messageHash = userOpHash;
         }
 
         bool valid = verifyP256Signature(messageHash, r, s, pk.qx, pk.qy);
