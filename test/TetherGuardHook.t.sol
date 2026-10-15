@@ -52,7 +52,6 @@ contract TetherGuardHookTest is Test {
         assertEq(p.tetherRadius, TETHER_RADIUS);
         assertEq(p.dailySpent, 0);
         assertEq(p.riskTier, TIER_BALANCED);
-        assertFalse(p.emergencyPaused);
         assertEq(p.rootOwner, rootOwner);
         assertEq(p.currentEpoch, block.timestamp / 1 days);
         assertFalse(p.isDynamicElasticityEnabled); // default static mode
@@ -288,27 +287,6 @@ contract TetherGuardHookTest is Test {
         assertEq(value, 10 ether);
     }
 
-    function test_PegGuardCircuitBreaker_EmergencyVeto() public {
-        // FinBERT NLP Sentinel detects 90% negative news (exploit detected)
-        vm.prank(rootOwner);
-        hook.triggerEmergencyCircuitBreaker(tecAccount, "FinBERT Veto: Protocol exploit reported on Caixin");
-
-        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.1 ether), hex"");
-
-        // AI Agent attempts transaction -> Halts immediately!
-        vm.prank(tecAccount);
-        vm.expectRevert(TetherGuardHook.EmergencyCircuitBreakerActive.selector);
-        hook.preCheck(sessionKey, 0.1 ether, msgData);
-
-        // Reset circuit breaker
-        vm.prank(rootOwner);
-        hook.resetEmergencyCircuitBreaker(tecAccount);
-
-        // Now transaction succeeds
-        vm.prank(tecAccount);
-        hook.preCheck(sessionKey, 0.1 ether, msgData);
-    }
-
     function test_Tier1_CorePreservation_RevertsOnTier2Growth() public {
         // Set account to Tier 1: Core Preservation (Giga tokens, Stablecoins, Commodities, Shibor)
         vm.prank(rootOwner);
@@ -365,21 +343,6 @@ contract TetherGuardHookTest is Test {
             )
         );
         hook.preCheck(sessionKey, 0.8 ether, msgData);
-    }
-
-    function test_Tier3_Unrestricted_StillEnforcesPegGuardCircuitBreaker() public {
-        // Even in Tier 3 Unrestricted, PegGuard NLP Sentinel can halt all execution
-        vm.prank(rootOwner);
-        hook.setTetherRadius(tecAccount, TETHER_RADIUS, TIER_UNRESTRICTED);
-
-        vm.prank(rootOwner);
-        hook.triggerEmergencyCircuitBreaker(tecAccount, "FinBERT Veto: Market crash or protocol hack");
-
-        bytes memory msgData = abi.encodePacked(address(maliciousDrainer), uint256(0.1 ether), hex"");
-
-        vm.prank(tecAccount);
-        vm.expectRevert(TetherGuardHook.EmergencyCircuitBreakerActive.selector);
-        hook.preCheck(sessionKey, 0.1 ether, msgData);
     }
 
     // --- Axis 2 Dynamic Elasticity & Adaptive Learning Tests ---

@@ -39,7 +39,6 @@ contract TetherGuardHook is IERC7579Hook {
         uint256 dailySpent;                 // Aggregate spent in current 24h epoch
         uint256 currentEpoch;               // Current epoch index: block.timestamp / 1 days
         uint8 riskTier;                     // User's active risk tolerance tier (1, 2, or 3)
-        bool emergencyPaused;               // Circuit breaker triggered by PegGuard NLP Sentinel
         bool isDynamicElasticityEnabled;     // User opt-in: Learn from approved decisions (true) vs strictly limited (false)
         uint256 lastRadiusStepUpTime;      // Timestamp of last autonomous step-up
         uint256 consecutiveRatifications;   // On-chain count of user-ratified transactions without a revert
@@ -90,8 +89,6 @@ contract TetherGuardHook is IERC7579Hook {
     event TetherBroken(address indexed account, address indexed caller, uint256 amount, address indexed target);
     event TargetWhitelisted(address indexed account, address indexed target, uint8 riskTier, bool status);
     event SessionKeyAuthorized(address indexed account, address indexed sessionKey, bool status);
-    event EmergencyCircuitBreakerTriggered(address indexed account, string reason);
-    event EmergencyCircuitBreakerReset(address indexed account);
     event PostExecutionAudited(address indexed account, bool isRoot, uint256 value, address indexed target, uint256 auditIndex);
     event AutonomousRadiusAdjusted(address indexed account, uint256 previousRadius, uint256 newRadius, string rationale);
     event DynamicElasticityToggled(address indexed account, bool enabled, uint256 maxCeiling);
@@ -107,7 +104,6 @@ contract TetherGuardHook is IERC7579Hook {
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
     error UnauthorizedTarget(address target);
     error AssetTierNotPermitted(address target, uint8 targetTier, uint8 allowedTier);
-    error EmergencyCircuitBreakerActive();
     error UnauthorizedCaller();
     error InvalidTetherRadius();
     error DynamicAdjustmentDisabled();
@@ -201,12 +197,7 @@ contract TetherGuardHook is IERC7579Hook {
             revert DynamicAdjustmentDisabled();
         }
 
-        // 3. PegGuard circuit breaker must NOT be active
-        if (p.emergencyPaused) {
-            revert EmergencyCircuitBreakerActive();
-        }
-
-        // 4. Proposed radius cannot decrease to 0
+        // 3. Proposed radius cannot decrease to 0
         if (proposedRadius == 0) revert InvalidTetherRadius();
 
         // 5. If increasing, enforce strict harsh step-up rate limits and ceilings
@@ -256,12 +247,7 @@ contract TetherGuardHook is IERC7579Hook {
             revert DynamicAdjustmentDisabled();
         }
 
-        // 3. PegGuard circuit breaker must NOT be active
-        if (p.emergencyPaused) {
-            revert EmergencyCircuitBreakerActive();
-        }
-
-        // 4. Must enforce 24-hour daily calibration cooldown
+        // 3. Must enforce 24-hour daily calibration cooldown
         if (block.timestamp < p.lastRadiusStepUpTime + CALIBRATION_COOLDOWN) {
             revert StepUpCooldownActive(p.lastRadiusStepUpTime + CALIBRATION_COOLDOWN);
         }
@@ -355,22 +341,7 @@ contract TetherGuardHook is IERC7579Hook {
         emit SessionKeyAuthorized(account, sessionKey, status);
     }
 
-    /**
-     * @notice PegGuard Layer 4 Financial NLP Sentinel Emergency Circuit Breaker.
-     * @dev Halts all autonomous session key actions during adverse news events.
-     */
-    function triggerEmergencyCircuitBreaker(address account, string calldata reason) external onlyAccountOrOwner(account) {
-        policies[account].emergencyPaused = true;
-        emit EmergencyCircuitBreakerTriggered(account, reason);
-    }
 
-    /**
-     * @notice Resets emergency circuit breaker after sentiment stabilizes.
-     */
-    function resetEmergencyCircuitBreaker(address account) external onlyAccountOrOwner(account) {
-        policies[account].emergencyPaused = false;
-        emit EmergencyCircuitBreakerReset(account);
-    }
 
     /**
      * @notice ERC-7579 Pre-execution Hook verification.
@@ -427,10 +398,6 @@ contract TetherGuardHook is IERC7579Hook {
         }
 
         // 3. Caller is AI Agent Session Key:
-        if (p.emergencyPaused) {
-            revert EmergencyCircuitBreakerActive();
-        }
-
         // Explicit user rejection vetoes execution immediately
         if (signRejections[account][execHash]) {
             revert ExecutionRejectedByUser();

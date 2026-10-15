@@ -16,7 +16,7 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 │                                                                                 │
 │   ┌───────────────────────────┐           ┌─────────────────────────────────┐   │
 │   │   Passkey Root Owner      │           │     AI Brain (Session Key)      │   │
-│   │ (Biometric FaceID/TouchID)│           │  (LangGraph / FinBERT Mandate)  │   │
+│   │ (Biometric FaceID/TouchID)│           │  (LangGraph Cognitive Planner)  │   │
 │   └─────────────┬─────────────┘           └────────────────┬────────────────┘   │
 │                 │                                          │                    │
 │        Direct / Breakout                           Bounded UserOps              │
@@ -33,8 +33,7 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 │   │                         ├── Asynchronous Morning Review (Like/Rev/Note) │   │
 │   │                         ├── Brain Discretionary Quota Throttling        │   │
 │   │                         ├── Breaking the Tether: 5m Biometric Window    │   │
-│   │                         ├── Normal Sign Approval (Accept / Reject)      │   │
-│   │                         └── PegGuard NLP Sentinel Circuit Breaker       │   │
+│   │                         └── Normal Sign Approval (Accept / Reject)      │   │
 │   │                                                                         │   │
 │   │   [Execution]      ──▶  Lido / Aave / Curve / Shibor MMF / Institutional│   │
 │   │                                                                         │   │
@@ -47,9 +46,10 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 
 ## 2. Core Security Invariants
 
-### 🏛️ Invariant 1: Vault Sovereignty (Never Penalize the Vault)
-> **The Vault is sovereign and its capacity is NEVER limited.**
-> Penalties apply strictly and exclusively to the **AI Brain's autonomous discretionary session quota** (`penalizeBrain`). When a user objects or penalizes a transaction during review, the AI Brain's autonomous Tether Radius is throttled (`tetherRadius - 10%`), but the Vault treasury, user balance, and FaceID root owner capabilities remain 100% unconstrained.
+### 🏛️ Invariant 1: Vault Sovereignty (Never Penalize or Freeze the Vault)
+> **The Vault is sovereign, and its capacity is NEVER limited or frozen.**
+> 1. **No On-Chain Halts from News Sentiment:** Halting or freezing an on-chain Vault based on off-chain news sentiment causes catastrophic liquidation cascades and capital lockup. Therefore, all NLP news sentiment, depegging models, and financial sentinel intelligence belong **exclusively in the off-chain AI Cognitive Brain**, guiding internal strategy rather than freezing the on-chain vault.
+> 2. **Never Penalize the Vault:** Penalties apply strictly and exclusively to the **AI Brain's autonomous discretionary session quota** (`penalizeBrain`). When a user objects or penalizes a transaction during review, the AI Brain's autonomous Tether Radius is throttled (`tetherRadius - 10%`), but the Vault treasury, user balance, and FaceID root owner capabilities remain 100% unconstrained.
 
 ### 🛡️ Invariant 2: Independent Vault Calibration (Max 10% Daily Growth Cap)
 > Dynamic limit adjustments are computed **autonomously on-chain by the Vault** via `calibrateDynamicRadius(address account)`. The on-chain Vault independently checks consecutive ratified reviews, enforcing:
@@ -69,7 +69,7 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 - **Axis 1 (Asset Universe):**
   - **Tier 1 (Core Capital Preservation):** Mega-cap assets (BTC, ETH, SOL), fiat-backed stablecoins (USDC, USDT, e-CNY), tokenized commodities (PAXG Gold, Silver), and money-market instruments (Shibor MMF).
   - **Tier 2 (Dynamic Growth & Active DeFi):** Liquid staking (stETH, rETH), AMM liquidity pools (Uniswap, Curve), and yield vaults (Aave, Compound).
-  - **Tier 3 (Omni-Universe / Unrestricted):** Allows holding **ANY** token/protocol without asset-tier restrictions, strictly safeguarded by Axis 2 velocity constraints and Layer 4 circuit breakers.
+  - **Tier 3 (Omni-Universe / Unrestricted):** Allows holding **ANY** token/protocol without asset-tier restrictions, strictly safeguarded by Axis 2 velocity constraints and Biometric Breakout requirements.
 - **Axis 2 (The Tether Radius & Dynamic Elasticity):**
   - Onboarding initial tolerance: 10%, 25%, 50%, 100%, or Custom %.
   - Static Mode vs. Adaptive Learning Mode.
@@ -87,7 +87,7 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 | Contract | Standard | Description |
 | :--- | :--- | :--- |
 | **[`TecAccount.sol`](src/TecAccount.sol)** | ERC-7579 & ERC-4337 | Modular smart account executing single & batch operations with pre/post execution hooks. |
-| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, 10% daily limit growth cap, 5m Biometric Window, Sign Approval (Accept/Reject), Morning Review, and PegGuard circuit breakers. |
+| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, 10% daily limit growth cap, 5m Biometric Window, Sign Approval (Accept/Reject), and Morning Review. |
 | **[`SessionKeyValidator.sol`](src/validators/SessionKeyValidator.sol)** | ERC-7579 Validator | Validates ephemeral AI Brain ECDSA signatures bound to EIP-712 mandate digests and time bounds. |
 | **[`TecPaymaster.sol`](src/paymaster/TecPaymaster.sol)** | ERC-4337 Paymaster | Anti-griefing paymaster capping cumulative gas sponsorship to `MAX_SESSION_GAS_BUDGET = 0.005 ETH`. |
 
@@ -95,14 +95,14 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 
 ## 4. Test Coverage & Verification
 
-**46/46 invariant and unit tests passing with 100% green status across 4 test suites:**
+**44/44 invariant and unit tests passing with 100% green status across 4 test suites:**
 
 ```bash
 forge test
 ```
 
 ### Complete Test Matrix:
-- **`test/TetherGuardHook.t.sol` (31/31 PASS)**
+- **`test/TetherGuardHook.t.sol` (29/29 PASS)**
   - `test_Initialization`
   - `test_ExecutionWithinTetherRadius_Succeeds`
   - `test_ExecutionExceedingTetherRadius_Reverts`
@@ -113,7 +113,6 @@ forge test
   - `test_Tier1_CorePreservation_RevertsOnTier2Growth`
   - `test_Tier3_Unrestricted_AllowsAnyAssetAndProtocol`
   - `test_Tier3_Unrestricted_StillEnforcesTetherRadius`
-  - `test_Tier3_Unrestricted_StillEnforcesPegGuardCircuitBreaker`
   - `test_DynamicElasticity_OptIn_StepUp_Succeeds`
   - `test_DynamicElasticity_StaticMode_Reverts`
   - `test_DynamicElasticity_ExcessiveStepUp_Reverts`
@@ -133,7 +132,6 @@ forge test
   - `test_BreakingTheTether_BrainInitiated_SignApproval_Accept`
   - `test_BreakingTheTether_BrainInitiated_SignApproval_Reject`
   - `test_BreakingTheTether_BrainInitiated_GaslessSignatureApproval`
-  - `test_PegGuardCircuitBreaker_EmergencyVeto`
 - **`test/SessionKeyValidator.t.sol` (6/6 PASS)**
   - `test_SessionKeyRegistration`
   - `test_ValidateUserOp_Success`
