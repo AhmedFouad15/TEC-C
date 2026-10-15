@@ -148,7 +148,17 @@ contract TecAccountTest is Test {
             callPayload
         );
 
-        // Root Owner executes directly (FaceID signed)
+        // 1. "Not if they are logged in 5alas!": Without active biometric verification, breakout reverts!
+        vm.prank(rootOwner);
+        vm.expectRevert(TetherGuardHook.BiometricVerificationRequired.selector);
+        account.execute(bytes32(0), executionCalldata);
+
+        // 2. User completes biometric verification (FaceID) -> opens 5-minute window
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(address(account));
+        assertTrue(hook.isBiometricActive(address(account)));
+
+        // 3. Now Root Owner executes directly during active window -> Success!
         vm.prank(rootOwner);
         account.execute(bytes32(0), executionCalldata);
 

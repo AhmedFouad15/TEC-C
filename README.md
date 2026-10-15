@@ -32,6 +32,8 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 │   │                         ├── On-Chain 10% Daily Increase Cap             │   │
 │   │                         ├── Asynchronous Morning Review (Like/Rev/Note) │   │
 │   │                         ├── Brain Discretionary Quota Throttling        │   │
+│   │                         ├── Breaking the Tether: 5m Biometric Window    │   │
+│   │                         ├── Normal Sign Approval (Accept / Reject)      │   │
 │   │                         └── PegGuard NLP Sentinel Circuit Breaker       │   │
 │   │                                                                         │   │
 │   │   [Execution]      ──▶  Lido / Aave / Curve / Shibor MMF / Institutional│   │
@@ -54,7 +56,16 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 > $$\text{New Radius} = \min\left(\text{Current Radius} \times 1.10,\, \text{Max Elastic Ceiling}\right)$$
 > The autonomous AI Brain cannot propose its own budget increases, guaranteeing mathematically bounded growth of at most **10% per 24 hours**.
 
-### 🌐 Invariant 3: Dual-Axis Risk Engine
+### 🔐 Invariant 3: Breaking the Tether Protocol (5-Minute Biometric Window & Sign Approval)
+> **"Not if they are logged in 5alas!"**
+> Simply having an active session or calling as the root owner does NOT grant an automatic, indefinite bypass.
+> 1. **Biometric Verification Window**: When a breakout is required (exceeding Tether Radius or accessing higher-tier assets), the AI Brain confirms user activity and triggers a biometric challenge (FaceID / TouchID / Passkey).
+> 2. **5-Minute Grace Period**: Successful verification opens an on-chain 5-minute active window (`BIOMETRIC_VERIFICATION_WINDOW = 5 minutes`).
+> 3. **Subsequent Brain Transactions**: If the Brain proposes any follow-up transactions during these 5 minutes, the user is **NOT** prompted for biometrics again. Instead, the user provides a simple **Sign Approval** (**Accept** or **Reject**).
+> 4. **Normal Accept or Reject**: If the user accepts, the transaction executes under the active biometric window; if rejected, the transaction is immediately vetoed. Gasless signature approvals (`submitSignApprovalWithSignature`) are fully supported.
+> 5. **Expiry**: Once 5 minutes elapse, the window closes and any further breakout requires fresh biometric re-verification.
+
+### 🌐 Invariant 4: Dual-Axis Risk Engine
 - **Axis 1 (Asset Universe):**
   - **Tier 1 (Core Capital Preservation):** Mega-cap assets (BTC, ETH, SOL), fiat-backed stablecoins (USDC, USDT, e-CNY), tokenized commodities (PAXG Gold, Silver), and money-market instruments (Shibor MMF).
   - **Tier 2 (Dynamic Growth & Active DeFi):** Liquid staking (stETH, rETH), AMM liquidity pools (Uniswap, Curve), and yield vaults (Aave, Compound).
@@ -63,7 +74,7 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
   - Onboarding initial tolerance: 10%, 25%, 50%, 100%, or Custom %.
   - Static Mode vs. Adaptive Learning Mode.
 
-### ☀️ Invariant 4: Asynchronous Morning Review System
+### ☀️ Invariant 5: Asynchronous Morning Review System
 Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up and can:
 1. **👍 Like / Ratify (`ratifyTransaction`):** Replenishes the Tether Radius by the transaction's value and increments on-chain `consecutiveRatifications`.
 2. **👎 Revert / Object (`flagTransactionForRevert`):** Flags transaction for cognitive unwind and applies a 20% trust penalty to the AI Brain's radius.
@@ -76,7 +87,7 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 | Contract | Standard | Description |
 | :--- | :--- | :--- |
 | **[`TecAccount.sol`](src/TecAccount.sol)** | ERC-7579 & ERC-4337 | Modular smart account executing single & batch operations with pre/post execution hooks. |
-| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, 10% daily limit growth cap, Morning Review, and PegGuard circuit breakers. |
+| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, 10% daily limit growth cap, 5m Biometric Window, Sign Approval (Accept/Reject), Morning Review, and PegGuard circuit breakers. |
 | **[`SessionKeyValidator.sol`](src/validators/SessionKeyValidator.sol)** | ERC-7579 Validator | Validates ephemeral AI Brain ECDSA signatures bound to EIP-712 mandate digests and time bounds. |
 | **[`TecPaymaster.sol`](src/paymaster/TecPaymaster.sol)** | ERC-4337 Paymaster | Anti-griefing paymaster capping cumulative gas sponsorship to `MAX_SESSION_GAS_BUDGET = 0.005 ETH`. |
 
@@ -84,14 +95,14 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 
 ## 4. Test Coverage & Verification
 
-**41/41 invariant and unit tests passing with 100% green status across 4 test suites:**
+**46/46 invariant and unit tests passing with 100% green status across 4 test suites:**
 
 ```bash
 forge test
 ```
 
 ### Complete Test Matrix:
-- **`test/TetherGuardHook.t.sol` (26/26 PASS)**
+- **`test/TetherGuardHook.t.sol` (31/31 PASS)**
   - `test_Initialization`
   - `test_ExecutionWithinTetherRadius_Succeeds`
   - `test_ExecutionExceedingTetherRadius_Reverts`
@@ -116,7 +127,12 @@ forge test
   - `test_MorningReview_NoteWithoutPenalty`
   - `test_MorningReview_NoteWithPenalty`
   - `test_MorningReview_AlreadyReviewed_Reverts`
+  - `test_BreakingTheTether_WithoutBiometric_Reverts`
   - `test_BreakingTheTether_BiometricFaceID_BypassesLimit`
+  - `test_BreakingTheTether_BiometricWindowExpires_Reverts`
+  - `test_BreakingTheTether_BrainInitiated_SignApproval_Accept`
+  - `test_BreakingTheTether_BrainInitiated_SignApproval_Reject`
+  - `test_BreakingTheTether_BrainInitiated_GaslessSignatureApproval`
   - `test_PegGuardCircuitBreaker_EmergencyVeto`
 - **`test/SessionKeyValidator.t.sol` (6/6 PASS)**
   - `test_SessionKeyRegistration`

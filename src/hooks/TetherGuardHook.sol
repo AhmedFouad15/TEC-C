@@ -72,10 +72,22 @@ contract TetherGuardHook is IERC7579Hook {
 
     uint256 public totalAuditedExecutions;
 
+    // --- 5-Minute Biometric Verification Window & Sign Approval (Breaking the Tether) ---
+    uint256 public constant BIOMETRIC_VERIFICATION_WINDOW = 5 minutes;
+
+    /// @notice Timestamp until which the account has an active biometric verification window (FaceID/TouchID/Passkey)
+    mapping(address => uint256) public biometricVerifiedUntil;
+
+    /// @notice Sign approvals (Accept / Reject) given by the user for executions proposed during active biometric window
+    mapping(address => mapping(bytes32 => bool)) public signApprovals;
+
+    /// @notice Explicit rejections to prevent rogue execution
+    mapping(address => mapping(bytes32 => bool)) public signRejections;
+
     // --- Events for WeBank WeIdentity Audit Trails ---
     event TetherRadiusConfigured(address indexed account, uint256 newRadius, uint8 riskTier);
     event TetherRadiusConsumed(address indexed account, uint256 amount, uint256 remainingRadius, uint256 epoch);
-    event TetherBroken(address indexed account, address indexed rootOwner, uint256 amount, address indexed target);
+    event TetherBroken(address indexed account, address indexed caller, uint256 amount, address indexed target);
     event TargetWhitelisted(address indexed account, address indexed target, uint8 riskTier, bool status);
     event SessionKeyAuthorized(address indexed account, address indexed sessionKey, bool status);
     event EmergencyCircuitBreakerTriggered(address indexed account, string reason);
@@ -87,6 +99,9 @@ contract TetherGuardHook is IERC7579Hook {
     event TransactionRatified(address indexed account, uint256 indexed recordId, uint256 value, uint256 newDailySpent);
     event TransactionFlaggedForRevert(address indexed account, uint256 indexed recordId, string reason, uint256 penalizedRadius);
     event TransactionNoteSubmitted(address indexed account, uint256 indexed recordId, string note, bool penalizeBrain, uint256 resultingRadius);
+    event BiometricVerificationCompleted(address indexed account, address indexed verifier, uint256 validUntil);
+    event BiometricVerificationRevoked(address indexed account);
+    event SignApprovalSubmitted(address indexed account, bytes32 indexed executionHash, bool approved);
 
     // --- Custom Errors ---
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
@@ -101,6 +116,10 @@ contract TetherGuardHook is IERC7579Hook {
     error ExcessiveStepUpJump(uint256 proposed, uint256 maxAllowed);
     error InvalidRecordId();
     error RecordAlreadyReviewed(ReviewStatus currentStatus);
+    error BiometricVerificationRequired();
+    error SignApprovalRequired();
+    error ExecutionRejectedByUser();
+    error InvalidApprovalSignature();
 
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -355,7 +374,7 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice ERC-7579 Pre-execution Hook verification.
-     * @dev Enforces The Tether Radius and target whitelist before the smart account executes.
+     * @dev Enforces The Tether Radius, target whitelist, risk tiers, and the 5-minute Biometric Verification / Sign Approval protocol.
      */
     function preCheck(
         address msgSender,
@@ -366,26 +385,74 @@ contract TetherGuardHook is IERC7579Hook {
         AccountPolicy storage p = policies[account];
 
         address target = _extractTarget(msgData);
+        bytes32 execHash = keccak256(msgData);
 
-        // 1. If Root Owner is calling directly: "Breaking the Tether" is authorized!
-        if (msgSender == p.rootOwner) {
-            emit TetherBroken(account, p.rootOwner, value, target);
-            return abi.encode(true, account, value, target);
-        }
-
-        // 2. Otherwise caller is an AI Agent session key: enforce strict tether
-        if (p.emergencyPaused) {
-            revert EmergencyCircuitBreakerActive();
-        }
-
-        // 3. Roll epoch if 24 hours elapsed
+        // 1. Roll epoch if 24 hours elapsed
         uint256 currentEpoch = block.timestamp / 1 days;
         if (p.currentEpoch != currentEpoch) {
             p.currentEpoch = currentEpoch;
             p.dailySpent = 0;
         }
 
-        // 4. Verify target protocol whitelist & risk tier (Bypassed if Tier 3 Unrestricted is selected)
+        uint256 remainingRadius = p.tetherRadius > p.dailySpent ? p.tetherRadius - p.dailySpent : 0;
+
+        // Determine if this transaction breaks the tether:
+        // A breakout occurs if:
+        //  (a) spending exceeds remaining daily tether radius, OR
+        //  (b) target is not whitelisted and account is not in Tier 3 (Unrestricted), OR
+        //  (c) target risk tier exceeds account's risk tier setting.
+        bool isBreakout = (value > remainingRadius);
+        if (!isBreakout && p.riskTier != RISK_TIER_UNRESTRICTED) {
+            if (!whitelistedTargets[account][target] || targetRiskTiers[account][target] > p.riskTier) {
+                isBreakout = true;
+            }
+        }
+
+        // 2. Caller is Root Owner (Passkey / FaceID holder):
+        if (msgSender == p.rootOwner) {
+            if (isBreakout) {
+                // "Breaking the Tether: Not if they are logged in 5alas!"
+                // Even the logged-in root owner MUST have an active biometric verification window (within last 5 minutes).
+                if (block.timestamp > biometricVerifiedUntil[account]) {
+                    revert BiometricVerificationRequired();
+                }
+                emit TetherBroken(account, p.rootOwner, value, target);
+                return abi.encode(true, account, value, target);
+            } else {
+                // Safe execution within tether radius
+                p.dailySpent += value;
+                emit TetherRadiusConsumed(account, value, remainingRadius - value, currentEpoch);
+                return abi.encode(true, account, value, target);
+            }
+        }
+
+        // 3. Caller is AI Agent Session Key:
+        if (p.emergencyPaused) {
+            revert EmergencyCircuitBreakerActive();
+        }
+
+        // Explicit user rejection vetoes execution immediately
+        if (signRejections[account][execHash]) {
+            revert ExecutionRejectedByUser();
+        }
+
+        // Check if user provided an explicit Sign Approval for a breakout execution
+        if (signApprovals[account][execHash]) {
+            // Brain breakout with user sign approval:
+            // Must have an active 5-minute biometric verification window
+            if (block.timestamp > biometricVerifiedUntil[account]) {
+                revert BiometricVerificationRequired();
+            }
+
+            // Consume one-time approval to protect against replay
+            signApprovals[account][execHash] = false;
+
+            emit TetherBroken(account, msgSender, value, target);
+            return abi.encode(true, account, value, target);
+        }
+
+        // 4. Normal autonomous AI execution within limits (No Sign Approval):
+        // Verify target protocol whitelist & risk tier (Bypassed if Tier 3 Unrestricted is selected)
         if (p.riskTier != RISK_TIER_UNRESTRICTED) {
             if (!whitelistedTargets[account][target]) {
                 revert UnauthorizedTarget(target);
@@ -397,8 +464,7 @@ contract TetherGuardHook is IERC7579Hook {
             }
         }
 
-        // 5. Enforce The Tether Radius (Daily Velocity Limit)
-        uint256 remainingRadius = p.tetherRadius > p.dailySpent ? p.tetherRadius - p.dailySpent : 0;
+        // Enforce The Tether Radius (Daily Velocity Limit)
         if (value > remainingRadius) {
             revert TetherRadiusExceeded(value, remainingRadius);
         }
@@ -570,6 +636,105 @@ contract TetherGuardHook is IERC7579Hook {
         return p.tetherRadius > p.dailySpent ? p.tetherRadius - p.dailySpent : 0;
     }
 
+    // =========================================================================
+    // --- Biometric Grace Period & Sign Approval System (Breaking the Tether) ---
+    // =========================================================================
+
+    /**
+     * @notice Completes biometric verification (FaceID / TouchID / Passkey) when the user is active.
+     * @dev Opens an active 5-minute verification grace period. During this window, any
+     *      breakout transaction sent by the Brain requires only a simple sign approval
+     *      (Normal Accept or Reject), rather than prompting for biometric authentication repeatedly.
+     */
+    function completeBiometricVerification(address account) external onlyAccountOrOwner(account) {
+        uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
+        biometricVerifiedUntil[account] = validUntil;
+        emit BiometricVerificationCompleted(account, msg.sender, validUntil);
+    }
+
+    /**
+     * @notice Explicitly revokes / clears the active biometric verification window (e.g. user locks app).
+     */
+    function revokeBiometricVerification(address account) external onlyAccountOrOwner(account) {
+        biometricVerifiedUntil[account] = 0;
+        emit BiometricVerificationRevoked(account);
+    }
+
+    /**
+     * @notice User provides Sign Approval (Normal Accept or Reject) for a transaction proposed by the Brain.
+     * @dev Can only be called while the 5-minute biometric verification window is active.
+     *      Does NOT prompt for biometrics—just a standard sign approval confirmation.
+     * @param account The smart account.
+     * @param executionHash The keccak256 hash of the execution calldata.
+     * @param approve True for Accept, False for Reject.
+     */
+    function submitSignApproval(
+        address account,
+        bytes32 executionHash,
+        bool approve
+    ) external onlyAccountOrOwner(account) {
+        if (block.timestamp > biometricVerifiedUntil[account]) {
+            revert BiometricVerificationRequired();
+        }
+
+        if (approve) {
+            signApprovals[account][executionHash] = true;
+            signRejections[account][executionHash] = false;
+        } else {
+            signApprovals[account][executionHash] = false;
+            signRejections[account][executionHash] = true;
+        }
+
+        emit SignApprovalSubmitted(account, executionHash, approve);
+    }
+
+    /**
+     * @notice Relayed / Gasless Sign Approval with an ECDSA signature from the Root Owner.
+     * @dev Allows the user to click Accept or Reject in the UI, generating a simple signature without paying gas.
+     */
+    function submitSignApprovalWithSignature(
+        address account,
+        bytes32 executionHash,
+        bool approve,
+        bytes calldata signature
+    ) external {
+        if (block.timestamp > biometricVerifiedUntil[account]) {
+            revert BiometricVerificationRequired();
+        }
+
+        AccountPolicy storage p = policies[account];
+        bytes32 messageHash = keccak256(abi.encode(account, executionHash, approve));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        address signer = _recoverSigner(ethSignedMessageHash, signature);
+        if (signer != p.rootOwner) {
+            revert InvalidApprovalSignature();
+        }
+
+        if (approve) {
+            signApprovals[account][executionHash] = true;
+            signRejections[account][executionHash] = false;
+        } else {
+            signApprovals[account][executionHash] = false;
+            signRejections[account][executionHash] = true;
+        }
+
+        emit SignApprovalSubmitted(account, executionHash, approve);
+    }
+
+    /**
+     * @notice Check whether the 5-minute biometric verification window is currently active.
+     */
+    function isBiometricActive(address account) external view returns (bool) {
+        return block.timestamp <= biometricVerifiedUntil[account];
+    }
+
+    /**
+     * @notice Check approval status for an execution hash.
+     */
+    function getSignApprovalStatus(address account, bytes32 executionHash) external view returns (bool isApproved, bool isRejected) {
+        return (signApprovals[account][executionHash], signRejections[account][executionHash]);
+    }
+
     /**
      * @dev Helper to extract the destination target from execution calldata.
      */
@@ -580,5 +745,26 @@ contract TetherGuardHook is IERC7579Hook {
         } else {
             target = address(0);
         }
+    }
+
+    /**
+     * @dev Recovers signer from standard Ethereum signed message hash with EIP-2 malleability protection.
+     */
+    function _recoverSigner(bytes32 ethHash, bytes memory sig) internal pure returns (address) {
+        if (sig.length != 65) return address(0);
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := mload(add(sig, 0x20))
+            s := mload(add(sig, 0x40))
+            v := byte(0, mload(add(sig, 0x60)))
+        }
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            return address(0);
+        }
+        if (v < 27) v += 27;
+        if (v != 27 && v != 28) return address(0);
+        return ecrecover(ethHash, v, r, s);
     }
 }

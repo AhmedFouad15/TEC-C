@@ -10,7 +10,8 @@ contract TetherGuardHookTest is Test {
     MockDeFiProtocol public lidoStaking;
     MockDeFiProtocol public maliciousDrainer;
 
-    address public rootOwner = address(0xAA11);      // Passkey WebAuthn FaceID owner
+    uint256 public rootOwnerPk = 0xA11CE;
+    address public rootOwner;
     address public tecAccount = address(0xBB22);     // Tec-C Smart Account
     address public sessionKey = address(0xCC33);     // AI Agent ephemeral session key
 
@@ -25,6 +26,7 @@ contract TetherGuardHookTest is Test {
     uint8 public constant TIER_AGGRESSIVE   = 3;
 
     function setUp() public {
+        rootOwner = vm.addr(rootOwnerPk);
         hook = new TetherGuardHook();
         lidoStaking = new MockDeFiProtocol();
         maliciousDrainer = new MockDeFiProtocol();
@@ -161,7 +163,22 @@ contract TetherGuardHookTest is Test {
         hook.preCheck(sessionKey, 0.1 ether, msgData);
     }
 
+    function test_BreakingTheTether_WithoutBiometric_Reverts() public {
+        // Root Owner initiates a transaction exceeding the radius (e.g. 10 ETH) WITHOUT active biometric verification
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(10 ether), hex"");
+
+        // "Not if they are logged in 5alas!" -> Must revert with BiometricVerificationRequired!
+        vm.prank(tecAccount);
+        vm.expectRevert(TetherGuardHook.BiometricVerificationRequired.selector);
+        hook.preCheck(rootOwner, 10 ether, msgData);
+    }
+
     function test_BreakingTheTether_BiometricFaceID_BypassesLimit() public {
+        // User completes biometric verification (FaceID) -> opens 5-minute active window
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+        assertTrue(hook.isBiometricActive(tecAccount));
+
         // Root Owner initiates a transaction exceeding the radius (e.g. 10 ETH!)
         bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(10 ether), hex"");
 
@@ -174,6 +191,101 @@ contract TetherGuardHookTest is Test {
 
         // Daily spent for AI remains unconsumed!
         assertEq(hook.getRemainingRadius(tecAccount), TETHER_RADIUS);
+    }
+
+    function test_BreakingTheTether_BiometricWindowExpires_Reverts() public {
+        // User completes biometric verification
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+
+        // Warp 5 minutes and 1 second into future -> window expires
+        vm.warp(block.timestamp + 301);
+        assertFalse(hook.isBiometricActive(tecAccount));
+
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(10 ether), hex"");
+        vm.prank(tecAccount);
+        vm.expectRevert(TetherGuardHook.BiometricVerificationRequired.selector);
+        hook.preCheck(rootOwner, 10 ether, msgData);
+    }
+
+    function test_BreakingTheTether_BrainInitiated_SignApproval_Accept() public {
+        // User completes biometric verification -> 5m window is active
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+
+        // Brain prepares 10 ETH breakout call to Lido
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(10 ether), hex"");
+        bytes32 execHash = keccak256(msgData);
+
+        // Brain asks user for sign approval; user clicks [Accept] -> simple signature approval (no biometric prompt!)
+        vm.prank(rootOwner);
+        hook.submitSignApproval(tecAccount, execHash, true);
+
+        (bool isApproved, bool isRejected) = hook.getSignApprovalStatus(tecAccount, execHash);
+        assertTrue(isApproved);
+        assertFalse(isRejected);
+
+        // Brain executes with user's sign approval during 5m window
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 10 ether, msgData);
+
+        (bool isRoot, , uint256 value, ) = abi.decode(hookData, (bool, address, uint256, address));
+        assertTrue(isRoot);
+        assertEq(value, 10 ether);
+    }
+
+    function test_BreakingTheTether_BrainInitiated_SignApproval_Reject() public {
+        // User completes biometric verification
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+
+        // Brain prepares 10 ETH breakout call
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(10 ether), hex"");
+        bytes32 execHash = keccak256(msgData);
+
+        // User clicks [Reject]!
+        vm.prank(rootOwner);
+        hook.submitSignApproval(tecAccount, execHash, false);
+
+        (bool isApproved, bool isRejected) = hook.getSignApprovalStatus(tecAccount, execHash);
+        assertFalse(isApproved);
+        assertTrue(isRejected);
+
+        // Brain attempts to execute -> Reverts with ExecutionRejectedByUser!
+        vm.prank(tecAccount);
+        vm.expectRevert(TetherGuardHook.ExecutionRejectedByUser.selector);
+        hook.preCheck(sessionKey, 10 ether, msgData);
+    }
+
+    function test_BreakingTheTether_BrainInitiated_GaslessSignatureApproval() public {
+        // User completes biometric verification -> 5m window is active
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+
+        // Brain prepares 10 ETH breakout call to Lido
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(10 ether), hex"");
+        bytes32 execHash = keccak256(msgData);
+
+        // User generates off-chain signature approving this execution (Accept = true)
+        bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Relayer submits signature to hook on-chain
+        hook.submitSignApprovalWithSignature(tecAccount, execHash, true, signature);
+
+        (bool isApproved, bool isRejected) = hook.getSignApprovalStatus(tecAccount, execHash);
+        assertTrue(isApproved);
+        assertFalse(isRejected);
+
+        // Brain executes successfully
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 10 ether, msgData);
+
+        (bool isRoot, , uint256 value, ) = abi.decode(hookData, (bool, address, uint256, address));
+        assertTrue(isRoot);
+        assertEq(value, 10 ether);
     }
 
     function test_PegGuardCircuitBreaker_EmergencyVeto() public {
