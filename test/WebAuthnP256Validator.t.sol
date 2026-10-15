@@ -32,6 +32,10 @@ contract WebAuthnP256ValidatorTest is Test {
         // Register hardware passkey for tecAccount
         vm.prank(tecAccount);
         validator.registerPasskey(tecAccount, PASSKEY_QX, PASSKEY_QY);
+
+        // Register hardware passkey on hook
+        vm.prank(tecAccount);
+        hook.setAccountPasskey(tecAccount, PASSKEY_QX, PASSKEY_QY);
     }
 
     function test_PasskeyRegistration() public view {
@@ -124,6 +128,24 @@ contract WebAuthnP256ValidatorTest is Test {
             s,
             PASSKEY_QX,
             PASSKEY_QY
+        );
+    }
+
+    function test_CompleteBiometricVerificationWithP256_UnregisteredPasskey_Reverts() public {
+        bytes32 challenge = keccak256("Breakout Challenge: 10 ETH Allocation");
+        uint256 r = 0x778899;
+        uint256 s = 0xaabbcc;
+        uint256 fakeQx = 0x1111;
+        uint256 fakeQy = 0x2222;
+
+        vm.expectRevert(TetherGuardHook.UnauthorizedPasskey.selector);
+        hook.completeBiometricVerificationWithP256(
+            tecAccount,
+            challenge,
+            r,
+            s,
+            fakeQx,
+            fakeQy
         );
     }
 }

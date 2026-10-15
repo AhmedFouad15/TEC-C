@@ -105,4 +105,25 @@ contract TecPaymasterTest is Test {
 
         assertEq(validationData, 1); // Rejected
     }
+
+    function test_WithdrawForAccount_Success() public {
+        address payable refundee = payable(address(0x7777));
+        uint256 initBalance = refundee.balance;
+
+        // tecAccount withdraws 0.4 ETH of its 1 ETH deposit
+        vm.prank(tecAccount);
+        paymaster.withdrawForAccount(refundee, 0.4 ether);
+
+        assertEq(paymaster.accountBalances(tecAccount), 0.6 ether);
+        assertEq(refundee.balance, initBalance + 0.4 ether);
+    }
+
+    function test_WithdrawForAccount_InsufficientBalance_Reverts() public {
+        address payable refundee = payable(address(0x7777));
+
+        // Attempting to withdraw more than deposited (2 ETH > 1 ETH)
+        vm.prank(tecAccount);
+        vm.expectRevert(TecPaymaster.InsufficientAccountBalance.selector);
+        paymaster.withdrawForAccount(refundee, 2 ether);
+    }
 }

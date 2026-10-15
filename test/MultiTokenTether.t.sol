@@ -204,6 +204,25 @@ contract MultiTokenTetherTest is Test {
     }
 
     // =========================================================================
+    // --- Test 5b: ERC-20 increaseAllowance Call Inspection ---
+    // =========================================================================
+    function test_ERC20IncreaseAllowance_EnforcesTetherRadius() public {
+        address router = address(0x9999);
+        bytes memory call = abi.encodeWithSelector(bytes4(0x39509351), router, 700 * 1e6); // 700 USDC ($700 > $500)
+        bytes memory msgData = abi.encodePacked(address(usdc), uint256(0), call);
+
+        vm.prank(tecAccount);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TetherGuardHook.TetherRadiusExceeded.selector,
+                700 * 1e8,
+                500 * 1e8
+            )
+        );
+        hook.preCheck(sessionKey, 0, msgData);
+    }
+
+    // =========================================================================
     // --- Test 6: Stale Oracle Protection (> 24 Hours) Reverts ---
     // =========================================================================
     function test_StaleOraclePrice_Reverts() public {

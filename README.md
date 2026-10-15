@@ -115,46 +115,14 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 
 ## 4. Test Coverage & Verification
 
-**73/73 invariant and unit tests passing with 100% green status across 7 test suites:**
+**81/81 invariant and security unit tests passing with 100% green status across 7 test suites:**
 
 ```bash
 forge test
 ```
 
 ### Complete Test Matrix:
-- **`test/MultiTokenTether.t.sol` (11/11 PASS)**
-  - `test_ERC20Transfer_WithinTetherRadius_Success` (USDC 6 decimals normalized to USD)
-  - `test_ERC20Transfer_ExceedingTetherRadius_Reverts` (USDC spending cap enforcement)
-  - `test_CumulativeMultiTokenSpending_EnforcesUSDLimit` (USDC + WBTC + DAI cumulative USD tracking)
-  - `test_NativeETH_NormalizedToUSD` (0.1 ETH @ $3,000/ETH = $300 USD)
-  - `test_ERC20Approve_EnforcesTetherRadius` (DEX allowance velocity limit guard)
-  - `test_StaleOraclePrice_Reverts` (Oracle older than 24 hours reverts)
-  - `test_InvalidOraclePrice_Reverts` (Price $\le 0$ reverts)
-  - `test_MissingOraclePriceFeed_Reverts` (Unpriced token in USD mode reverts)
-  - `test_AccountSpecificPriceFeedOverride` (Per-account Chainlink oracle override)
-  - `test_GetTotalPortfolioValueUSD_ReturnsAccurateValuation` (Accurate 4-asset portfolio valuation)
-  - `test_BreakingTheTether_ERC20_WithBiometricAndSignApproval` (5m Biometric Grace + Sign Approval breakout)
-- **`test/DeadmanAndHeartbeat.t.sol` (10/10 PASS)**
-  - `test_AIHeartbeat_InitialStatus_Alive`
-  - `test_AIHeartbeat_Record_Success`
-  - `test_AIHeartbeat_StaleTimeout_RevertsAutonomousExecution`
-  - `test_AIHeartbeat_SuccessfulExecution_RefreshesHeartbeat`
-  - `test_AIHeartbeat_CustomTimeout_Enforced`
-  - `test_DeadmanSwitch_Configure_Success`
-  - `test_DeadmanSwitch_PrematureTrigger_Reverts`
-  - `test_DeadmanSwitch_ElapsedTimeout_Success`
-  - `test_DeadmanSwitch_UserActivityPings_ResetsTimer`
-  - `test_DeadmanSwitch_UnauthorizedCaller_Reverts`
-- **`test/WebAuthnP256Validator.t.sol` (8/8 PASS)**
-  - `test_PasskeyRegistration`
-  - `test_VerifyP256Signature_NativePrecompile_Success`
-  - `test_VerifyP256Signature_InvalidSignature_Fails`
-  - `test_ValidateUserOp_Success`
-  - `test_ValidateUserOp_UnregisteredPasskey_Fails`
-  - `test_EIP1271_PasskeySignatureValidation`
-  - `test_CompleteBiometricVerificationWithP256_OpensWindow`
-  - `test_CompleteBiometricVerificationWithP256_InvalidSignature_Reverts`
-- **`test/TetherGuardHook.t.sol` (29/29 PASS)**
+- **`test/TetherGuardHook.t.sol` (33/33 PASS)**
   - `test_Initialization`
   - `test_ExecutionWithinTetherRadius_Succeeds`
   - `test_ExecutionExceedingTetherRadius_Reverts`
@@ -173,7 +141,7 @@ forge test
   - `test_DynamicElasticity_DecreasingRadius_PermittedImmediately`
   - `test_VaultNative_CalibrateDynamicRadius_Succeeds`
   - `test_VaultNative_CalibrateDynamicRadius_ZeroRatifications_Reverts`
-  - `test_MorningReview_LikeAndRatify_ReplenishesLimit`
+  - `test_MorningReview_LikeAndRatify_ReplenishesLimit` (With cross-epoch rollover protection)
   - `test_MorningReview_FlagForRevert_AppliesTrustPenalty`
   - `test_MorningReview_NoteWithoutPenalty`
   - `test_MorningReview_NoteWithPenalty`
@@ -184,6 +152,51 @@ forge test
   - `test_BreakingTheTether_BrainInitiated_SignApproval_Accept`
   - `test_BreakingTheTether_BrainInitiated_SignApproval_Reject`
   - `test_BreakingTheTether_BrainInitiated_GaslessSignatureApproval`
+  - `test_submitSignApprovalWithSignature_ExpiredDeadline_Reverts` (Signature deadline expiration)
+  - `test_submitSignApprovalWithSignature_ReplayAttack_Reverts` (Anti-replay nonce protection)
+  - `test_initializeAccountPolicy_FrontRunning_Reverts` (Front-running hijack protection)
+  - `test_setGlobalPriceFeed_Unauthorized_Reverts` (Oracle configuration access control)
+- **`test/MultiTokenTether.t.sol` (12/12 PASS)**
+  - `test_ERC20Transfer_WithinTetherRadius_Success` (USDC 6 decimals normalized to USD)
+  - `test_ERC20Transfer_ExceedingTetherRadius_Reverts` (USDC spending cap enforcement)
+  - `test_CumulativeMultiTokenSpending_EnforcesUSDLimit` (USDC + WBTC + DAI cumulative USD tracking)
+  - `test_NativeETH_NormalizedToUSD` (0.1 ETH @ $3,000/ETH = $300 USD)
+  - `test_ERC20Approve_EnforcesTetherRadius` (DEX allowance velocity limit guard)
+  - `test_ERC20IncreaseAllowance_EnforcesTetherRadius` (increaseAllowance inspection guard)
+  - `test_StaleOraclePrice_Reverts` (Oracle older than 24 hours reverts)
+  - `test_InvalidOraclePrice_Reverts` (Price $\le 0$ reverts)
+  - `test_MissingOraclePriceFeed_Reverts` (Unpriced token in USD mode reverts)
+  - `test_AccountSpecificPriceFeedOverride` (Per-account Chainlink oracle override)
+  - `test_GetTotalPortfolioValueUSD_ReturnsAccurateValuation` (Accurate 4-asset portfolio valuation)
+  - `test_BreakingTheTether_ERC20_WithBiometricAndSignApproval` (5m Biometric Grace + Sign Approval breakout)
+- **`test/WebAuthnP256Validator.t.sol` (9/9 PASS)**
+  - `test_PasskeyRegistration`
+  - `test_VerifyP256Signature_NativePrecompile_Success`
+  - `test_VerifyP256Signature_InvalidSignature_Fails`
+  - `test_ValidateUserOp_Success`
+  - `test_ValidateUserOp_UnregisteredPasskey_Fails`
+  - `test_EIP1271_PasskeySignatureValidation`
+  - `test_CompleteBiometricVerificationWithP256_OpensWindow`
+  - `test_CompleteBiometricVerificationWithP256_InvalidSignature_Reverts`
+  - `test_CompleteBiometricVerificationWithP256_UnregisteredPasskey_Reverts` (Spoofed coordinates rejection)
+- **`test/TecPaymaster.t.sol` (6/6 PASS)**
+  - `test_DepositAccounting`
+  - `test_LegitimateSponsorship_Succeeds`
+  - `test_GasGriefingLoop_HaltsAtMaxQuota`
+  - `test_InsufficientDeposit_RejectsSponsorship`
+  - `test_WithdrawForAccount_Success` (User self-withdrawal)
+  - `test_WithdrawForAccount_InsufficientBalance_Reverts`
+- **`test/DeadmanAndHeartbeat.t.sol` (10/10 PASS)**
+  - `test_AIHeartbeat_InitialStatus_Alive`
+  - `test_AIHeartbeat_Record_Success`
+  - `test_AIHeartbeat_StaleTimeout_RevertsAutonomousExecution`
+  - `test_AIHeartbeat_SuccessfulExecution_RefreshesHeartbeat`
+  - `test_AIHeartbeat_CustomTimeout_Enforced`
+  - `test_DeadmanSwitch_Configure_Success`
+  - `test_DeadmanSwitch_PrematureTrigger_Reverts`
+  - `test_DeadmanSwitch_ElapsedTimeout_Success`
+  - `test_DeadmanSwitch_UserActivityPings_ResetsTimer`
+  - `test_DeadmanSwitch_UnauthorizedCaller_Reverts`
 - **`test/SessionKeyValidator.t.sol` (6/6 PASS)**
   - `test_SessionKeyRegistration`
   - `test_ValidateUserOp_Success`
@@ -191,29 +204,6 @@ forge test
   - `test_ValidateUserOp_RevokedSessionKey_Fails`
   - `test_ERC1271_SignatureValidation`
   - `test_ERC1271_ExpiredSignature_Fails`
-- **`test/TecPaymaster.t.sol` (4/4 PASS)**
-  - `test_DepositAccounting`
-  - `test_LegitimateSponsorship_Succeeds`
-  - `test_GasGriefingLoop_HaltsAtMaxQuota`
-  - `test_InsufficientDeposit_RejectsSponsorship`
-- **`test/TecAccount.t.sol` (5/5 PASS)**
-  - `test_Initialization`
-  - `test_Execute_WithinTetherRadius_Success`
-  - `test_Execute_ExceedingTetherRadius_Reverts`
-  - `test_Execute_MaliciousTargetDrain_Reverts`
-  - `test_BreakingTheTether_BiometricFaceID_Success`
-- **`test/SessionKeyValidator.t.sol` (6/6 PASS)**
-  - `test_SessionKeyRegistration`
-  - `test_ValidateUserOp_Success`
-  - `test_ValidateUserOp_WrongSigner_Fails`
-  - `test_ValidateUserOp_RevokedSessionKey_Fails`
-  - `test_ERC1271_SignatureValidation`
-  - `test_ERC1271_ExpiredSignature_Fails`
-- **`test/TecPaymaster.t.sol` (4/4 PASS)**
-  - `test_DepositAccounting`
-  - `test_LegitimateSponsorship_Succeeds`
-  - `test_GasGriefingLoop_HaltsAtMaxQuota`
-  - `test_InsufficientDeposit_RejectsSponsorship`
 - **`test/TecAccount.t.sol` (5/5 PASS)**
   - `test_Initialization`
   - `test_Execute_WithinTetherRadius_Success`

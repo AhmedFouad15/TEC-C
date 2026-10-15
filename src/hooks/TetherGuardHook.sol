@@ -82,6 +82,18 @@ contract TetherGuardHook is IERC7579Hook {
         deployer = msg.sender;
     }
 
+    struct WebAuthnPasskey {
+        uint256 qx;
+        uint256 qy;
+        bool isRegistered;
+    }
+
+    /// @notice Hardware WebAuthn P-256 Passkey coordinates registered per account
+    mapping(address => WebAuthnPasskey) public accountPasskeys;
+
+    /// @notice Gasless sign approval nonces per account for replay protection
+    mapping(address => uint256) public signApprovalNonces;
+
     /// @notice Timestamp until which the account has an active biometric verification window (FaceID/TouchID/Passkey)
     mapping(address => uint256) public biometricVerifiedUntil;
 
@@ -151,6 +163,7 @@ contract TetherGuardHook is IERC7579Hook {
     event UserActivityPinged(address indexed account, uint256 timestamp);
     event AccountPriceFeedConfigured(address indexed account, address indexed token, address indexed feed);
     event GlobalPriceFeedConfigured(address indexed token, address indexed feed);
+    event PasskeyConfigured(address indexed account, uint256 qx, uint256 qy);
 
     // --- Custom Errors ---
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
@@ -175,6 +188,8 @@ contract TetherGuardHook is IERC7579Hook {
     error InvalidOraclePrice(address token, int256 price);
     error StaleOraclePrice(address token, uint256 updatedAt);
     error MissingOraclePriceFeed(address token);
+    error UnauthorizedPasskey();
+    error ExpiredSignature();
 
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -202,6 +217,10 @@ contract TetherGuardHook is IERC7579Hook {
     ) public {
         AccountPolicy storage p = policies[account];
         require(p.rootOwner == address(0), "ALREADY_INITIALIZED");
+        require(
+            msg.sender == account || msg.sender == deployer,
+            "UNAUTHORIZED_INIT"
+        );
         require(initialRadius > 0, "INVALID_RADIUS");
         require(initialRiskTier >= RISK_TIER_CORE_PRESERVATION && initialRiskTier <= RISK_TIER_UNRESTRICTED, "INVALID_TIER");
         if (enableElasticity) {
@@ -422,7 +441,7 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Configures a global default Chainlink price feed for a token or NATIVE_ETH.
      */
     function setGlobalPriceFeed(address token, address feed) external {
-        if (msg.sender != deployer && deployer != address(0)) {
+        if (msg.sender != deployer || deployer == address(0)) {
             revert UnauthorizedCaller();
         }
         globalPriceFeeds[token] = feed;
@@ -537,7 +556,8 @@ contract TetherGuardHook is IERC7579Hook {
 
             // transfer(address to, uint256 amount) - 0xa9059cbb
             // approve(address spender, uint256 amount) - 0x095ea7b3
-            if ((selector == 0xa9059cbb || selector == 0x095ea7b3) && msgData.length >= 120) {
+            // increaseAllowance(address spender, uint256 addedValue) - 0x39509351
+            if ((selector == 0xa9059cbb || selector == 0x095ea7b3 || selector == 0x39509351) && msgData.length >= 120) {
                 tokenAmount = abi.decode(msgData[88:120], (uint256));
             }
             // transferFrom(address from, address to, uint256 amount) - 0x23b872dd
@@ -788,10 +808,16 @@ contract TetherGuardHook is IERC7579Hook {
         rec.status = ReviewStatus.LIKED_AND_RATIFIED;
 
         AccountPolicy storage p = policies[account];
-        if (p.dailySpent >= rec.value) {
-            p.dailySpent -= rec.value;
-        } else {
+        uint256 currentEpoch = block.timestamp / 1 days;
+        if (p.currentEpoch != currentEpoch) {
+            p.currentEpoch = currentEpoch;
             p.dailySpent = 0;
+        } else if (rec.timestamp / 1 days == currentEpoch) {
+            if (p.dailySpent >= rec.value) {
+                p.dailySpent -= rec.value;
+            } else {
+                p.dailySpent = 0;
+            }
         }
         p.consecutiveRatifications++; // on-chain endorsement recorded for autonomous calibration
 
@@ -963,20 +989,26 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Relayed / Gasless Sign Approval with an ECDSA signature from the Root Owner.
-     * @dev Allows the user to click Accept or Reject in the UI, generating a simple signature without paying gas.
+     * @dev Protected with nonce, deadline, and chainId to prevent signature replay and cross-chain attacks.
      */
     function submitSignApprovalWithSignature(
         address account,
         bytes32 executionHash,
         bool approve,
+        uint256 deadline,
         bytes calldata signature
-    ) external {
+    ) public {
+        if (block.timestamp > deadline) {
+            revert ExpiredSignature();
+        }
         if (block.timestamp > biometricVerifiedUntil[account]) {
             revert BiometricVerificationRequired();
         }
 
         AccountPolicy storage p = policies[account];
-        bytes32 messageHash = keccak256(abi.encode(account, executionHash, approve));
+        bytes32 messageHash = keccak256(
+            abi.encode(account, executionHash, approve, signApprovalNonces[account]++, deadline, block.chainid)
+        );
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         address signer = _recoverSigner(ethSignedMessageHash, signature);
         if (signer != p.rootOwner) {
@@ -1105,8 +1137,26 @@ contract TetherGuardHook is IERC7579Hook {
     // =========================================================================
 
     /**
+     * @notice Configures the WebAuthn P-256 Passkey coordinates (qx, qy) for an account.
+     */
+    function setAccountPasskey(
+        address account,
+        uint256 qx,
+        uint256 qy
+    ) external onlyAccountOrOwner(account) {
+        require(qx != 0 && qy != 0, "INVALID_COORDINATES");
+        accountPasskeys[account] = WebAuthnPasskey({
+            qx: qx,
+            qy: qy,
+            isRegistered: true
+        });
+        emit PasskeyConfigured(account, qx, qy);
+    }
+
+    /**
      * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 precompile at 0x100.
      * @dev Opens the 5-minute Biometric Verification window upon successful hardware verification.
+     *      Coordinates (qx, qy) must strictly match the account's registered passkey.
      */
     function completeBiometricVerificationWithP256(
         address account,
@@ -1116,6 +1166,12 @@ contract TetherGuardHook is IERC7579Hook {
         uint256 qx,
         uint256 qy
     ) external {
+        // Enforce that public key coordinates strictly match registered passkey for this account
+        WebAuthnPasskey storage pk = accountPasskeys[account];
+        if (!pk.isRegistered || pk.qx != qx || pk.qy != qy) {
+            revert UnauthorizedPasskey();
+        }
+
         // 1. Verify P-256 signature via native RIP-7212 precompile at 0x100
         bytes memory input = abi.encode(messageHash, r, s, qx, qy);
         (bool success, bytes memory output) = RIP7212_PRECOMPILE.staticcall(input);

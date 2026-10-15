@@ -266,13 +266,13 @@ contract TetherGuardHookTest is Test {
         bytes32 execHash = keccak256(msgData);
 
         // User generates off-chain signature approving this execution (Accept = true)
-        bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        // Relayer submits signature to hook on-chain
-        hook.submitSignApprovalWithSignature(tecAccount, execHash, true, signature);
+        uint256 deadline = block.timestamp + 10 minutes;
+        {
+            bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid));
+            bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
+            hook.submitSignApprovalWithSignature(tecAccount, execHash, true, deadline, abi.encodePacked(r, s, v));
+        }
 
         (bool isApproved, bool isRejected) = hook.getSignApprovalStatus(tecAccount, execHash);
         assertTrue(isApproved);
@@ -285,6 +285,65 @@ contract TetherGuardHookTest is Test {
         (bool isRoot, , uint256 value, ) = abi.decode(hookData, (bool, address, uint256, address));
         assertTrue(isRoot);
         assertEq(value, 10 ether);
+    }
+
+    function test_submitSignApprovalWithSignature_ExpiredDeadline_Reverts() public {
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+
+        bytes32 execHash = keccak256(abi.encodePacked(address(lidoStaking), uint256(10 ether), hex""));
+        uint256 deadline = block.timestamp + 2 minutes;
+        bytes memory signature;
+        {
+            bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid));
+            bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
+            signature = abi.encodePacked(r, s, v);
+        }
+
+        // Warp time past signature deadline (3m), while 5m biometric window remains active
+        vm.warp(block.timestamp + 3 minutes);
+
+        vm.expectRevert(TetherGuardHook.ExpiredSignature.selector);
+        hook.submitSignApprovalWithSignature(tecAccount, execHash, true, deadline, signature);
+    }
+
+    function test_submitSignApprovalWithSignature_ReplayAttack_Reverts() public {
+        vm.prank(rootOwner);
+        hook.completeBiometricVerification(tecAccount);
+
+        bytes32 execHash = keccak256(abi.encodePacked(address(lidoStaking), uint256(10 ether), hex""));
+        uint256 deadline = block.timestamp + 10 minutes;
+        bytes memory signature;
+        {
+            bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid));
+            bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
+            signature = abi.encodePacked(r, s, v);
+        }
+
+        // First submission succeeds
+        hook.submitSignApprovalWithSignature(tecAccount, execHash, true, deadline, signature);
+
+        // Attacker attempts to replay the exact same signature -> reverts because nonce incremented!
+        vm.expectRevert(TetherGuardHook.InvalidApprovalSignature.selector);
+        hook.submitSignApprovalWithSignature(tecAccount, execHash, true, deadline, signature);
+    }
+
+    function test_initializeAccountPolicy_FrontRunning_Reverts() public {
+        address uninitAccount = address(0x4444);
+        address attacker = address(0x6666);
+
+        vm.prank(attacker);
+        vm.expectRevert("UNAUTHORIZED_INIT");
+        hook.initializeAccountPolicy(uninitAccount, attacker, 1 ether, TIER_BALANCED);
+    }
+
+    function test_setGlobalPriceFeed_Unauthorized_Reverts() public {
+        address attacker = address(0x6666);
+        vm.prank(attacker);
+        vm.expectRevert(TetherGuardHook.UnauthorizedCaller.selector);
+        hook.setGlobalPriceFeed(address(0x1234), address(0x5678));
     }
 
     function test_Tier1_CorePreservation_RevertsOnTier2Growth() public {

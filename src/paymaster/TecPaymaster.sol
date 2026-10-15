@@ -25,10 +25,12 @@ contract TecPaymaster is IPaymaster {
     event GasSponsored(address indexed account, address indexed sessionKey, uint256 actualCost, uint256 totalSessionSpent);
     event GasQuotaReplenished(address indexed account, uint256 amount);
     event GasGriefingHalted(address indexed account, address indexed sessionKey, uint256 attemptedCost, uint256 quota);
+    event GasRefundWithdrawn(address indexed account, address indexed recipient, uint256 amount);
 
     error OnlyEntryPoint();
     error OnlyOwner();
     error InsufficientPaymasterBalance();
+    error InsufficientAccountBalance();
     error GasGriefingBudgetExceeded(address sessionKey, uint256 currentSpent, uint256 maxBudget);
 
     modifier onlyEntryPoint() {
@@ -115,6 +117,18 @@ contract TecPaymaster is IPaymaster {
                 emit GasGriefingHalted(account, sessionKey, actualGasCost, MAX_SESSION_GAS_BUDGET);
             }
         }
+    }
+
+    /**
+     * @notice Allows an account to withdraw their unused deposited gas funds.
+     */
+    function withdrawForAccount(address payable recipient, uint256 amount) external {
+        require(recipient != address(0), "INVALID_RECIPIENT");
+        if (accountBalances[msg.sender] < amount) revert InsufficientAccountBalance();
+        accountBalances[msg.sender] -= amount;
+        (bool success, ) = recipient.call{value: amount}("");
+        require(success, "ETH_TRANSFER_FAILED");
+        emit GasRefundWithdrawn(msg.sender, recipient, amount);
     }
 
     /**
