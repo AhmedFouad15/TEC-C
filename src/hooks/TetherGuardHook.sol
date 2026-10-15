@@ -27,13 +27,22 @@ contract TetherGuardHook is IERC7579Hook {
     uint8 public constant RISK_TIER_AGGRESSIVE   = 3;
 
     // --- State Storage Per Account ---
+    // --- Dynamic Elasticity Parameters (Axis 2 Learning Engine) ---
+    uint256 public constant MAX_STEP_UP_PERCENTAGE = 250; // Max 250% increase per calibration step (e.g. 2k -> 5k max)
+    uint256 public constant STEP_UP_COOLDOWN       = 1 days; // Minimum 24 hours between autonomous radius increases
+
+    // --- State Storage Per Account ---
     struct AccountPolicy {
-        uint256 tetherRadius;       // Max daily spending radius (e.g. 500 ether or USD-equivalent wei)
-        uint256 dailySpent;         // Aggregate spent in current 24h epoch
-        uint256 currentEpoch;       // Current epoch index: block.timestamp / 1 days
-        uint8 riskTier;             // User's active risk tolerance tier (1, 2, or 3)
-        bool emergencyPaused;       // Circuit breaker triggered by PegGuard NLP Sentinel
-        address rootOwner;          // Passkey WebAuthn FaceID root owner
+        uint256 tetherRadius;               // Current active daily spending radius
+        uint256 baselineRadius;             // Initial baseline radius chosen at onboarding
+        uint256 maxElasticCeiling;         // Absolute hard ceiling the AI can NEVER exceed
+        uint256 dailySpent;                 // Aggregate spent in current 24h epoch
+        uint256 currentEpoch;               // Current epoch index: block.timestamp / 1 days
+        uint8 riskTier;                     // User's active risk tolerance tier (1, 2, or 3)
+        bool emergencyPaused;               // Circuit breaker triggered by PegGuard NLP Sentinel
+        bool isDynamicElasticityEnabled;     // User opt-in: Learn from approved decisions (true) vs strictly limited (false)
+        uint256 lastRadiusStepUpTime;      // Timestamp of last autonomous step-up
+        address rootOwner;                  // Passkey WebAuthn FaceID root owner
     }
 
     mapping(address => AccountPolicy) public policies;
@@ -52,6 +61,8 @@ contract TetherGuardHook is IERC7579Hook {
     event EmergencyCircuitBreakerTriggered(address indexed account, string reason);
     event EmergencyCircuitBreakerReset(address indexed account);
     event PostExecutionAudited(address indexed account, bool isRoot, uint256 value, address indexed target, uint256 auditIndex);
+    event AutonomousRadiusAdjusted(address indexed account, uint256 previousRadius, uint256 newRadius, string rationale);
+    event DynamicElasticityToggled(address indexed account, bool enabled, uint256 maxCeiling);
 
     // --- Custom Errors ---
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
@@ -60,6 +71,10 @@ contract TetherGuardHook is IERC7579Hook {
     error EmergencyCircuitBreakerActive();
     error UnauthorizedCaller();
     error InvalidTetherRadius();
+    error DynamicAdjustmentDisabled();
+    error ExceedsElasticCeiling(uint256 proposed, uint256 maxCeiling);
+    error StepUpCooldownActive(uint256 nextEligibleTime);
+    error ExcessiveStepUpJump(uint256 proposed, uint256 maxAllowed);
 
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -69,11 +84,44 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice Initializes policy parameters for a new Tec-C Smart Account.
+     * @notice Initializes policy parameters for a new Tec-C Smart Account with Axis 2 elasticity options.
      * @param account The address of the smart account.
      * @param rootOwner The Passkey / WebAuthn root owner address.
-     * @param initialRadius The initial daily spending tether radius.
-     * @param initialRiskTier The user's risk tolerance tier (1, 2, or 3).
+     * @param initialRadius The initial daily spending tether radius (e.g. 10%, 25%, 50%, 100% of liquid budget).
+     * @param initialRiskTier The user's risk tolerance tier (1: Core, 2: Growth, 3: Unrestricted).
+     * @param enableElasticity Whether user consents to AI learning and adjusting the radius from past FaceID decisions.
+     * @param maxCeiling Absolute hard ceiling the AI can never exceed under any circumstance.
+     */
+    function initializeAccountPolicy(
+        address account,
+        address rootOwner,
+        uint256 initialRadius,
+        uint8 initialRiskTier,
+        bool enableElasticity,
+        uint256 maxCeiling
+    ) public {
+        AccountPolicy storage p = policies[account];
+        require(p.rootOwner == address(0), "ALREADY_INITIALIZED");
+        require(initialRadius > 0, "INVALID_RADIUS");
+        require(initialRiskTier >= RISK_TIER_CORE_PRESERVATION && initialRiskTier <= RISK_TIER_UNRESTRICTED, "INVALID_TIER");
+        if (enableElasticity) {
+            require(maxCeiling >= initialRadius, "CEILING_BELOW_RADIUS");
+        }
+
+        p.rootOwner = rootOwner;
+        p.tetherRadius = initialRadius;
+        p.baselineRadius = initialRadius;
+        p.maxElasticCeiling = enableElasticity ? maxCeiling : initialRadius;
+        p.riskTier = initialRiskTier;
+        p.isDynamicElasticityEnabled = enableElasticity;
+        p.currentEpoch = block.timestamp / 1 days;
+
+        emit TetherRadiusConfigured(account, initialRadius, initialRiskTier);
+        emit DynamicElasticityToggled(account, enableElasticity, p.maxElasticCeiling);
+    }
+
+    /**
+     * @notice Overload for backwards compatibility (defaults to static limited mode).
      */
     function initializeAccountPolicy(
         address account,
@@ -81,17 +129,83 @@ contract TetherGuardHook is IERC7579Hook {
         uint256 initialRadius,
         uint8 initialRiskTier
     ) external {
+        initializeAccountPolicy(account, rootOwner, initialRadius, initialRiskTier, false, initialRadius);
+    }
+
+    /**
+     * @notice Allows the cognitive AI Agent to dynamically scale The Tether Radius based on historical approved FaceID transactions.
+     * @dev Strictly enforces user opt-in, step-up maximums (e.g. max 2.5x current radius), cooldowns, and the hard ceiling.
+     * @param account The smart account to adjust.
+     * @param proposedRadius The newly proposed Tether Radius (e.g. from 2,000 to 5,000).
+     * @param rationale Cryptographic audit rationale explaining the past approved transactions analyzed.
+     */
+    function autonomousRadiusAdjustment(
+        address account,
+        uint256 proposedRadius,
+        string calldata rationale
+    ) external {
         AccountPolicy storage p = policies[account];
-        require(p.rootOwner == address(0), "ALREADY_INITIALIZED");
-        require(initialRadius > 0, "INVALID_RADIUS");
-        require(initialRiskTier >= RISK_TIER_CONSERVATIVE && initialRiskTier <= RISK_TIER_AGGRESSIVE, "INVALID_TIER");
 
-        p.rootOwner = rootOwner;
-        p.tetherRadius = initialRadius;
-        p.riskTier = initialRiskTier;
-        p.currentEpoch = block.timestamp / 1 days;
+        // 1. Caller must be an authorized session key or root owner
+        if (!authorizedSessionKeys[account][msg.sender] && msg.sender != p.rootOwner) {
+            revert UnauthorizedCaller();
+        }
 
-        emit TetherRadiusConfigured(account, initialRadius, initialRiskTier);
+        // 2. Dynamic adjustment must be explicitly enabled by user
+        if (!p.isDynamicElasticityEnabled) {
+            revert DynamicAdjustmentDisabled();
+        }
+
+        // 3. PegGuard circuit breaker must NOT be active
+        if (p.emergencyPaused) {
+            revert EmergencyCircuitBreakerActive();
+        }
+
+        // 4. Proposed radius cannot decrease to 0
+        if (proposedRadius == 0) revert InvalidTetherRadius();
+
+        // 5. If increasing, enforce strict harsh step-up rate limits and ceilings
+        if (proposedRadius > p.tetherRadius) {
+            // Check hard ceiling set by user
+            if (proposedRadius > p.maxElasticCeiling) {
+                revert ExceedsElasticCeiling(proposedRadius, p.maxElasticCeiling);
+            }
+
+            // Check 24-hour cooldown between increases
+            if (block.timestamp < p.lastRadiusStepUpTime + STEP_UP_COOLDOWN) {
+                revert StepUpCooldownActive(p.lastRadiusStepUpTime + STEP_UP_COOLDOWN);
+            }
+
+            // Enforce harsh conservatism: max 250% of current radius (e.g. 2k -> 5k max)
+            uint256 maxAllowed = (p.tetherRadius * MAX_STEP_UP_PERCENTAGE) / 100;
+            if (proposedRadius > maxAllowed) {
+                revert ExcessiveStepUpJump(proposedRadius, maxAllowed);
+            }
+
+            p.lastRadiusStepUpTime = block.timestamp;
+        }
+
+        uint256 oldRadius = p.tetherRadius;
+        p.tetherRadius = proposedRadius;
+
+        emit AutonomousRadiusAdjusted(account, oldRadius, proposedRadius, rationale);
+    }
+
+    /**
+     * @notice Toggle dynamic elasticity on/off and update the maximum elastic ceiling.
+     */
+    function setDynamicElasticity(
+        address account,
+        bool enabled,
+        uint256 maxCeiling
+    ) external onlyAccountOrOwner(account) {
+        AccountPolicy storage p = policies[account];
+        p.isDynamicElasticityEnabled = enabled;
+        if (enabled) {
+            require(maxCeiling >= p.tetherRadius, "CEILING_BELOW_RADIUS");
+            p.maxElasticCeiling = maxCeiling;
+        }
+        emit DynamicElasticityToggled(account, enabled, p.maxElasticCeiling);
     }
 
     /**
@@ -225,6 +339,13 @@ contract TetherGuardHook is IERC7579Hook {
 
         totalAuditedExecutions++;
         emit PostExecutionAudited(account, isRoot, value, target, totalAuditedExecutions);
+    }
+
+    /**
+     * @notice View complete policy configuration for an account.
+     */
+    function getAccountPolicy(address account) external view returns (AccountPolicy memory) {
+        return policies[account];
     }
 
     /**

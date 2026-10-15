@@ -45,21 +45,15 @@ contract TetherGuardHookTest is Test {
     }
 
     function test_Initialization() public view {
-        (
-            uint256 radius,
-            uint256 dailySpent,
-            uint256 epoch,
-            uint8 riskTier,
-            bool emergencyPaused,
-            address owner
-        ) = hook.policies(tecAccount);
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(tecAccount);
 
-        assertEq(radius, TETHER_RADIUS);
-        assertEq(dailySpent, 0);
-        assertEq(riskTier, TIER_BALANCED);
-        assertFalse(emergencyPaused);
-        assertEq(owner, rootOwner);
-        assertEq(epoch, block.timestamp / 1 days);
+        assertEq(p.tetherRadius, TETHER_RADIUS);
+        assertEq(p.dailySpent, 0);
+        assertEq(p.riskTier, TIER_BALANCED);
+        assertFalse(p.emergencyPaused);
+        assertEq(p.rootOwner, rootOwner);
+        assertEq(p.currentEpoch, block.timestamp / 1 days);
+        assertFalse(p.isDynamicElasticityEnabled); // default static mode
     }
 
     function test_ExecutionWithinTetherRadius_Succeeds() public {
@@ -69,8 +63,8 @@ contract TetherGuardHookTest is Test {
         bytes memory hookData = hook.preCheck(sessionKey, 0.2 ether, msgData);
 
         // Verify daily spent increased
-        (, uint256 dailySpent, , , , ) = hook.policies(tecAccount);
-        assertEq(dailySpent, 0.2 ether);
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(tecAccount);
+        assertEq(p.dailySpent, 0.2 ether);
         assertEq(hook.getRemainingRadius(tecAccount), 0.3 ether);
 
         // Execute postCheck
@@ -275,5 +269,156 @@ contract TetherGuardHookTest is Test {
         vm.expectRevert(TetherGuardHook.EmergencyCircuitBreakerActive.selector);
         hook.preCheck(sessionKey, 0.1 ether, msgData);
     }
+
+    // --- Axis 2 Dynamic Elasticity & Adaptive Learning Tests ---
+
+    function test_DynamicElasticity_StaticMode_Reverts() public {
+        // By default, account is in static mode (user answered 'keep it limited')
+        // AI attempt to autonomously adjust radius MUST revert!
+        vm.prank(sessionKey);
+        vm.expectRevert(TetherGuardHook.DynamicAdjustmentDisabled.selector);
+        hook.autonomousRadiusAdjustment(tecAccount, 1.0 ether, "Attempted unauthorized autonomous expansion");
+    }
+
+    function test_DynamicElasticity_OptIn_StepUp_Succeeds() public {
+        // User opts in during onboarding: 2 ETH initial radius, 10 ETH max ceiling
+        address dynamicAccount = address(0xDD44);
+        hook.initializeAccountPolicy(
+            dynamicAccount,
+            rootOwner,
+            2.0 ether,
+            TIER_GROWTH_DEFI,
+            true, // enable elasticity!
+            10.0 ether // max ceiling
+        );
+
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
+
+        // Fast forward 1 day so cooldown is ready
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // AI analyzes approved transactions (e.g. user approved multiple 10k transfers to Aave)
+        // AI brain steps up limit from 2 ETH -> 5 ETH (2.5x jump, max allowed!)
+        vm.prank(sessionKey);
+        hook.autonomousRadiusAdjustment(
+            dynamicAccount,
+            5.0 ether,
+            "Harsh Audit: 3 consecutive 10k FaceID approvals to Aave v3 with zero adverse news; stepping up 2k -> 5k"
+        );
+
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(dynamicAccount);
+        assertEq(p.tetherRadius, 5.0 ether);
+    }
+
+    function test_DynamicElasticity_ExcessiveStepUp_Reverts() public {
+        // User opts in with 2 ETH radius, 10 ETH ceiling
+        address dynamicAccount = address(0xDD44);
+        hook.initializeAccountPolicy(
+            dynamicAccount,
+            rootOwner,
+            2.0 ether,
+            TIER_GROWTH_DEFI,
+            true,
+            10.0 ether
+        );
+
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
+
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // AI tries to jump from 2 ETH directly to 8 ETH (> 250% = 5 ETH max)
+        vm.prank(sessionKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TetherGuardHook.ExcessiveStepUpJump.selector,
+                8.0 ether,
+                5.0 ether
+            )
+        );
+        hook.autonomousRadiusAdjustment(dynamicAccount, 8.0 ether, "Greedy jump");
+    }
+
+    function test_DynamicElasticity_CooldownActive_Reverts() public {
+        address dynamicAccount = address(0xDD44);
+        hook.initializeAccountPolicy(
+            dynamicAccount,
+            rootOwner,
+            2.0 ether,
+            TIER_GROWTH_DEFI,
+            true,
+            10.0 ether
+        );
+
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
+
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // First step-up: 2 ETH -> 4 ETH (Succeeds)
+        vm.prank(sessionKey);
+        hook.autonomousRadiusAdjustment(dynamicAccount, 4.0 ether, "First step up");
+
+        // Attempting second step-up 2 hours later (Cooldown is 24 hours!) -> Must revert!
+        vm.warp(block.timestamp + 2 hours);
+
+        vm.prank(sessionKey);
+        vm.expectRevert();
+        hook.autonomousRadiusAdjustment(dynamicAccount, 6.0 ether, "Too fast second step up");
+    }
+
+    function test_DynamicElasticity_ExceedsCeiling_Reverts() public {
+        // User opts in with 2 ETH radius, but hard ceiling is 4 ETH!
+        address dynamicAccount = address(0xDD44);
+        hook.initializeAccountPolicy(
+            dynamicAccount,
+            rootOwner,
+            2.0 ether,
+            TIER_GROWTH_DEFI,
+            true,
+            4.0 ether // Ceiling = 4 ETH
+        );
+
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
+
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // AI tries to step up to 5 ETH (under 250% jump, but EXCEEDS 4 ETH ceiling!)
+        vm.prank(sessionKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TetherGuardHook.ExceedsElasticCeiling.selector,
+                5.0 ether,
+                4.0 ether
+            )
+        );
+        hook.autonomousRadiusAdjustment(dynamicAccount, 5.0 ether, "Exceeds ceiling");
+    }
+
+    function test_DynamicElasticity_DecreasingRadius_PermittedImmediately() public {
+        address dynamicAccount = address(0xDD44);
+        hook.initializeAccountPolicy(
+            dynamicAccount,
+            rootOwner,
+            5.0 ether,
+            TIER_GROWTH_DEFI,
+            true,
+            10.0 ether
+        );
+
+        vm.prank(rootOwner);
+        hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
+
+        // Market risk spikes: AI immediately dials radius down from 5 ETH -> 1 ETH
+        // No cooldown required for reducing risk!
+        vm.prank(sessionKey);
+        hook.autonomousRadiusAdjustment(dynamicAccount, 1.0 ether, "Risk mitigation: dial down");
+
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(dynamicAccount);
+        assertEq(p.tetherRadius, 1.0 ether);
+    }
 }
+
 
