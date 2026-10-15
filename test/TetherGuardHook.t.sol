@@ -419,6 +419,133 @@ contract TetherGuardHookTest is Test {
         TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(dynamicAccount);
         assertEq(p.tetherRadius, 1.0 ether);
     }
+
+    // --- Asynchronous Morning Review Tests ---
+
+    function test_MorningReview_LikeAndRatify_ReplenishesLimit() public {
+        // AI executes a 0.3 ETH trade while user is inactive
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.3 ether), hex"");
+
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 0.3 ether, msgData);
+
+        vm.prank(tecAccount);
+        hook.postCheck(hookData);
+
+        // Verify transaction logged as PENDING_REVIEW
+        TetherGuardHook.AutonomousExecutionRecord memory rec = hook.getExecutionRecord(tecAccount, 1);
+        assertEq(rec.id, 1);
+        assertEq(rec.target, address(lidoStaking));
+        assertEq(rec.value, 0.3 ether);
+        assertEq(uint8(rec.status), uint8(TetherGuardHook.ReviewStatus.PENDING_REVIEW));
+
+        // Prior to review: dailySpent is 0.3 ETH, remaining radius is 0.2 ETH
+        assertEq(hook.getRemainingRadius(tecAccount), 0.2 ether);
+
+        // User wakes up in the morning and "Likes" (ratifies) the transaction!
+        vm.prank(rootOwner);
+        hook.ratifyTransaction(tecAccount, 1);
+
+        // Status is now LIKED_AND_RATIFIED
+        rec = hook.getExecutionRecord(tecAccount, 1);
+        assertEq(uint8(rec.status), uint8(TetherGuardHook.ReviewStatus.LIKED_AND_RATIFIED));
+
+        // Limit is replenished! dailySpent is 0, full 0.5 ETH radius is available again!
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(tecAccount);
+        assertEq(p.dailySpent, 0);
+        assertEq(hook.getRemainingRadius(tecAccount), TETHER_RADIUS);
+    }
+
+    function test_MorningReview_FlagForRevert_AppliesTrustPenalty() public {
+        // AI executes 0.2 ETH trade
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.2 ether), hex"");
+
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 0.2 ether, msgData);
+
+        vm.prank(tecAccount);
+        hook.postCheck(hookData);
+
+        // User wakes up and objects: flags for cognitive unwind!
+        vm.prank(rootOwner);
+        hook.flagTransactionForRevert(tecAccount, 1, "Disliked: high slippage execution");
+
+        TetherGuardHook.AutonomousExecutionRecord memory rec = hook.getExecutionRecord(tecAccount, 1);
+        assertEq(uint8(rec.status), uint8(TetherGuardHook.ReviewStatus.REVERT_REQUESTED));
+        assertEq(rec.userNote, "Disliked: high slippage execution");
+
+        // Trust penalty applied: radius cut by 20% (0.5 ETH -> 0.4 ETH)
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(tecAccount);
+        assertEq(p.tetherRadius, 0.4 ether);
+    }
+
+    function test_MorningReview_NoteWithPenalty() public {
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.2 ether), hex"");
+
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 0.2 ether, msgData);
+
+        vm.prank(tecAccount);
+        hook.postCheck(hookData);
+
+        // User submits note with vault penalty (10% penalty)
+        vm.prank(rootOwner);
+        hook.submitTransactionNote(tecAccount, 1, "Reduce staking during weekend volatility", true);
+
+        TetherGuardHook.AutonomousExecutionRecord memory rec = hook.getExecutionRecord(tecAccount, 1);
+        assertEq(uint8(rec.status), uint8(TetherGuardHook.ReviewStatus.NOTED));
+        assertEq(rec.userNote, "Reduce staking during weekend volatility");
+
+        // Radius cut by 10% (0.5 ETH -> 0.45 ETH)
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(tecAccount);
+        assertEq(p.tetherRadius, 0.45 ether);
+    }
+
+    function test_MorningReview_NoteWithoutPenalty() public {
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.2 ether), hex"");
+
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 0.2 ether, msgData);
+
+        vm.prank(tecAccount);
+        hook.postCheck(hookData);
+
+        // User submits purely educational note without penalty
+        vm.prank(rootOwner);
+        hook.submitTransactionNote(tecAccount, 1, "Great swap timing, but prefer Curve over Lido next time", false);
+
+        TetherGuardHook.AutonomousExecutionRecord memory rec = hook.getExecutionRecord(tecAccount, 1);
+        assertEq(uint8(rec.status), uint8(TetherGuardHook.ReviewStatus.NOTED));
+
+        // Radius remains unchanged
+        TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(tecAccount);
+        assertEq(p.tetherRadius, TETHER_RADIUS);
+    }
+
+    function test_MorningReview_AlreadyReviewed_Reverts() public {
+        bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.2 ether), hex"");
+
+        vm.prank(tecAccount);
+        bytes memory hookData = hook.preCheck(sessionKey, 0.2 ether, msgData);
+
+        vm.prank(tecAccount);
+        hook.postCheck(hookData);
+
+        // First review
+        vm.prank(rootOwner);
+        hook.ratifyTransaction(tecAccount, 1);
+
+        // Attempting to review again reverts!
+        vm.prank(rootOwner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TetherGuardHook.RecordAlreadyReviewed.selector,
+                TetherGuardHook.ReviewStatus.LIKED_AND_RATIFIED
+            )
+        );
+        hook.ratifyTransaction(tecAccount, 1);
+    }
 }
+
 
 

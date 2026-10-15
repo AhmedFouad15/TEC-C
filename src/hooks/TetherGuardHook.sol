@@ -49,6 +49,25 @@ contract TetherGuardHook is IERC7579Hook {
     mapping(address => mapping(address => bool)) public whitelistedTargets;
     mapping(address => mapping(address => uint8)) public targetRiskTiers;
     mapping(address => mapping(address => bool)) public authorizedSessionKeys;
+    // --- Asynchronous Morning Review System ---
+    enum ReviewStatus {
+        PENDING_REVIEW,
+        LIKED_AND_RATIFIED,
+        REVERT_REQUESTED,
+        NOTED
+    }
+
+    struct AutonomousExecutionRecord {
+        uint256 id;
+        address target;
+        uint256 value;
+        uint256 timestamp;
+        ReviewStatus status;
+        string userNote;
+    }
+
+    mapping(address => uint256) public executionCount;
+    mapping(address => mapping(uint256 => AutonomousExecutionRecord)) public executionRecords;
 
     uint256 public totalAuditedExecutions;
 
@@ -63,6 +82,10 @@ contract TetherGuardHook is IERC7579Hook {
     event PostExecutionAudited(address indexed account, bool isRoot, uint256 value, address indexed target, uint256 auditIndex);
     event AutonomousRadiusAdjusted(address indexed account, uint256 previousRadius, uint256 newRadius, string rationale);
     event DynamicElasticityToggled(address indexed account, bool enabled, uint256 maxCeiling);
+    event AutonomousExecutionLogged(address indexed account, uint256 indexed recordId, address indexed target, uint256 value, uint256 timestamp);
+    event TransactionRatified(address indexed account, uint256 indexed recordId, uint256 value, uint256 newDailySpent);
+    event TransactionFlaggedForRevert(address indexed account, uint256 indexed recordId, string reason, uint256 penalizedRadius);
+    event TransactionNoteSubmitted(address indexed account, uint256 indexed recordId, string note, bool penalizeVault, uint256 resultingRadius);
 
     // --- Custom Errors ---
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
@@ -75,6 +98,8 @@ contract TetherGuardHook is IERC7579Hook {
     error ExceedsElasticCeiling(uint256 proposed, uint256 maxCeiling);
     error StepUpCooldownActive(uint256 nextEligibleTime);
     error ExcessiveStepUpJump(uint256 proposed, uint256 maxAllowed);
+    error InvalidRecordId();
+    error RecordAlreadyReviewed(ReviewStatus currentStatus);
 
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -327,7 +352,7 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice ERC-7579 Post-execution Hook callback for WeIdentity audit logs.
+     * @notice ERC-7579 Post-execution Hook callback for WeIdentity audit logs and Morning Review recording.
      */
     function postCheck(bytes calldata hookData) external override {
         // Unpack hookData for telemetry confirmation
@@ -338,7 +363,129 @@ contract TetherGuardHook is IERC7579Hook {
         require(account == msg.sender, "INVALID_POST_ACCOUNT");
 
         totalAuditedExecutions++;
+
+        // If transaction was done autonomously by the AI Session Key, record it for Morning Review!
+        if (!isRoot) {
+            executionCount[account]++;
+            uint256 recId = executionCount[account];
+            executionRecords[account][recId] = AutonomousExecutionRecord({
+                id: recId,
+                target: target,
+                value: value,
+                timestamp: block.timestamp,
+                status: ReviewStatus.PENDING_REVIEW,
+                userNote: ""
+            });
+            emit AutonomousExecutionLogged(account, recId, target, value, block.timestamp);
+        }
+
         emit PostExecutionAudited(account, isRoot, value, target, totalAuditedExecutions);
+    }
+
+    /**
+     * @notice Morning Review: User "Likes" / Ratifies an autonomous transaction done while inactive.
+     * @dev Replenishes The Tether Radius by the amount of this transaction (since it has explicit user ratification).
+     */
+    function ratifyTransaction(address account, uint256 recordId) external onlyAccountOrOwner(account) {
+        AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
+        if (rec.id == 0) revert InvalidRecordId();
+        if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
+
+        rec.status = ReviewStatus.LIKED_AND_RATIFIED;
+
+        AccountPolicy storage p = policies[account];
+        if (p.dailySpent >= rec.value) {
+            p.dailySpent -= rec.value;
+        } else {
+            p.dailySpent = 0;
+        }
+
+        emit TransactionRatified(account, recordId, rec.value, p.dailySpent);
+    }
+
+    /**
+     * @notice Morning Review: User rejects / flags an autonomous transaction for cognitive unwind.
+     * @dev Marks transaction as REVERT_REQUESTED, contracts the dynamic Tether Radius as a trust penalty.
+     */
+    function flagTransactionForRevert(address account, uint256 recordId, string calldata reason) external onlyAccountOrOwner(account) {
+        AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
+        if (rec.id == 0) revert InvalidRecordId();
+        if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
+
+        rec.status = ReviewStatus.REVERT_REQUESTED;
+        rec.userNote = reason;
+
+        AccountPolicy storage p = policies[account];
+        // Apply trust penalty: cut radius by 20%, but keep above floor (baselineRadius / 2)
+        uint256 penalty = (p.tetherRadius * 20) / 100;
+        uint256 minFloor = p.baselineRadius / 2;
+        if (p.tetherRadius > penalty && p.tetherRadius - penalty >= minFloor) {
+            p.tetherRadius -= penalty;
+        } else {
+            p.tetherRadius = minFloor;
+        }
+
+        emit TransactionFlaggedForRevert(account, recordId, reason, p.tetherRadius);
+    }
+
+    /**
+     * @notice Morning Review: User attaches a feedback note to teach the AI, with optional vault penalty.
+     */
+    function submitTransactionNote(
+        address account,
+        uint256 recordId,
+        string calldata note,
+        bool penalizeVault
+    ) external onlyAccountOrOwner(account) {
+        AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
+        if (rec.id == 0) revert InvalidRecordId();
+        if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
+
+        rec.status = ReviewStatus.NOTED;
+        rec.userNote = note;
+
+        AccountPolicy storage p = policies[account];
+        if (penalizeVault) {
+            uint256 penalty = (p.tetherRadius * 10) / 100;
+            uint256 minFloor = p.baselineRadius / 2;
+            if (p.tetherRadius > penalty && p.tetherRadius - penalty >= minFloor) {
+                p.tetherRadius -= penalty;
+            } else {
+                p.tetherRadius = minFloor;
+            }
+        }
+
+        emit TransactionNoteSubmitted(account, recordId, note, penalizeVault, p.tetherRadius);
+    }
+
+    /**
+     * @notice View an individual autonomous execution record.
+     */
+    function getExecutionRecord(address account, uint256 recordId) external view returns (AutonomousExecutionRecord memory) {
+        return executionRecords[account][recordId];
+    }
+
+    /**
+     * @notice View all pending review records for the morning review dashboard.
+     */
+    function getPendingReviews(address account) external view returns (AutonomousExecutionRecord[] memory) {
+        uint256 total = executionCount[account];
+        uint256 pendingCount = 0;
+        for (uint256 i = 1; i <= total; i++) {
+            if (executionRecords[account][i].status == ReviewStatus.PENDING_REVIEW) {
+                pendingCount++;
+            }
+        }
+
+        AutonomousExecutionRecord[] memory pending = new AutonomousExecutionRecord[](pendingCount);
+        uint256 idx = 0;
+        for (uint256 i = 1; i <= total; i++) {
+            if (executionRecords[account][i].status == ReviewStatus.PENDING_REVIEW) {
+                pending[idx] = executionRecords[account][i];
+                idx++;
+            }
+        }
+        return pending;
     }
 
     /**
