@@ -2,6 +2,8 @@
 pragma solidity 0.8.24;
 
 import { IERC7579Hook } from "../interfaces/IERC7579Hook.sol";
+import { AggregatorV3Interface } from "../interfaces/AggregatorV3Interface.sol";
+import { IERC20, IERC20Metadata } from "../interfaces/IERC20.sol";
 
 /**
  * @title TetherGuardHook
@@ -73,6 +75,12 @@ contract TetherGuardHook is IERC7579Hook {
 
     // --- 5-Minute Biometric Verification Window & Sign Approval (Breaking the Tether) ---
     uint256 public constant BIOMETRIC_VERIFICATION_WINDOW = 5 minutes;
+    address public constant RIP7212_PRECOMPILE = address(0x100);
+    address public deployer;
+
+    constructor() {
+        deployer = msg.sender;
+    }
 
     /// @notice Timestamp until which the account has an active biometric verification window (FaceID/TouchID/Passkey)
     mapping(address => uint256) public biometricVerifiedUntil;
@@ -102,8 +110,23 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Last timestamp when user interacted with the vault (biometrics, sign approval, review, ping)
     mapping(address => uint256) public lastUserActivity;
 
-    // --- WebAuthn P-256 (RIP-7212) Precompile Address ---
-    address public constant RIP7212_PRECOMPILE = address(0x100);
+    // --- Multi-Token & Chainlink Price Feed Oracles (USD Normalized Tether Radius) ---
+    address public constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    struct TokenBalanceDetail {
+        address token;
+        string symbol;
+        uint8 decimals;
+        uint256 balance;
+        uint256 priceUSD; // 8 decimals (standard Chainlink USD)
+        uint256 valueUSD; // 8 decimals ((balance * priceUSD) / 10^decimals)
+    }
+
+    /// @notice Per-account token price feed overrides (account => token => Chainlink AggregatorV3 feed)
+    mapping(address => mapping(address => address)) public accountPriceFeeds;
+
+    /// @notice Global default token price feeds (token => Chainlink AggregatorV3 feed)
+    mapping(address => address) public globalPriceFeeds;
 
     // --- Events for WeBank WeIdentity Audit Trails ---
     event TetherRadiusConfigured(address indexed account, uint256 newRadius, uint8 riskTier);
@@ -126,6 +149,8 @@ contract TetherGuardHook is IERC7579Hook {
     event DeadmanSwitchConfigured(address indexed account, address indexed guardian, uint256 timeoutSeconds);
     event DeadmanSwitchTriggered(address indexed account, address indexed guardian, address newRootOwner, uint256 timestamp);
     event UserActivityPinged(address indexed account, uint256 timestamp);
+    event AccountPriceFeedConfigured(address indexed account, address indexed token, address indexed feed);
+    event GlobalPriceFeedConfigured(address indexed token, address indexed feed);
 
     // --- Custom Errors ---
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
@@ -147,6 +172,9 @@ contract TetherGuardHook is IERC7579Hook {
     error DeadmanSwitchNotEligible(uint256 lastActivity, uint256 eligibleTime);
     error UnauthorizedGuardian();
     error InvalidP256Signature();
+    error InvalidOraclePrice(address token, int256 price);
+    error StaleOraclePrice(address token, uint256 updatedAt);
+    error MissingOraclePriceFeed(address token);
 
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -374,6 +402,239 @@ contract TetherGuardHook is IERC7579Hook {
 
 
 
+    // =========================================================================
+    // --- Multi-Token & Chainlink Price Feed Oracles (USD Normalized Tether) ---
+    // =========================================================================
+
+    /**
+     * @notice Configures a per-account Chainlink price feed override for a token or NATIVE_ETH.
+     */
+    function setAccountPriceFeed(
+        address account,
+        address token,
+        address feed
+    ) external onlyAccountOrOwner(account) {
+        accountPriceFeeds[account][token] = feed;
+        emit AccountPriceFeedConfigured(account, token, feed);
+    }
+
+    /**
+     * @notice Configures a global default Chainlink price feed for a token or NATIVE_ETH.
+     */
+    function setGlobalPriceFeed(address token, address feed) external {
+        if (msg.sender != deployer && deployer != address(0)) {
+            revert UnauthorizedCaller();
+        }
+        globalPriceFeeds[token] = feed;
+        emit GlobalPriceFeedConfigured(token, feed);
+    }
+
+    /**
+     * @notice Resolves active price feed for an account and token (account override > global default).
+     */
+    function getPriceFeed(address account, address token) public view returns (address) {
+        address feed = accountPriceFeeds[account][token];
+        if (feed != address(0)) return feed;
+        return globalPriceFeeds[token];
+    }
+
+    /**
+     * @notice Fetches the latest USD price (8 decimals) and feed decimals from the configured Chainlink oracle.
+     * @dev Validates price freshness (< 24h) and non-negative answer.
+     */
+    function getLatestPrice(address account, address token) public view returns (uint256 priceUSD, uint8 feedDecimals) {
+        address feed = getPriceFeed(account, token);
+        require(feed != address(0), "PRICE_FEED_NOT_FOUND");
+
+        (, int256 answer, , uint256 updatedAt, ) = AggregatorV3Interface(feed).latestRoundData();
+        if (answer <= 0) {
+            revert InvalidOraclePrice(token, answer);
+        }
+        if (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days) {
+            revert StaleOraclePrice(token, updatedAt);
+        }
+
+        uint8 dec = AggregatorV3Interface(feed).decimals();
+        return (uint256(answer), dec);
+    }
+
+    /**
+     * @dev Internal helper to calculate USD value normalized to 8 decimals.
+     */
+    function _calculateUSD(
+        uint256 amount,
+        uint8 tokenDecimals,
+        uint256 priceUSD,
+        uint8 feedDecimals
+    ) internal pure returns (uint256) {
+        if (amount == 0 || priceUSD == 0) return 0;
+        uint256 val = (amount * priceUSD) / (10 ** tokenDecimals);
+        if (feedDecimals != 8 && feedDecimals > 0) {
+            if (feedDecimals > 8) {
+                val = val / (10 ** (feedDecimals - 8));
+            } else {
+                val = val * (10 ** (8 - feedDecimals));
+            }
+        }
+        return val;
+    }
+
+    /**
+     * @dev Safe oracle lookup helper for read-only portfolio views without reverting.
+     */
+    function _safeGetPrice(address account, address token) internal view returns (uint256 priceUSD, uint8 feedDecimals) {
+        address feed = getPriceFeed(account, token);
+        if (feed == address(0)) return (0, 0);
+
+        try AggregatorV3Interface(feed).latestRoundData() returns (
+            uint80,
+            int256 answer,
+            uint256,
+            uint256 updatedAt,
+            uint80
+        ) {
+            if (answer <= 0) return (0, 0);
+            if (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days) return (0, 0);
+            uint8 dec = 8;
+            try AggregatorV3Interface(feed).decimals() returns (uint8 d) {
+                dec = d;
+            } catch {}
+            return (uint256(answer), dec);
+        } catch {
+            return (0, 0);
+        }
+    }
+
+    /**
+     * @notice Inspects call calldata to extract token transfers (ERC-20 transfer, approve, transferFrom)
+     *         and normalizes the value into 8-decimal USD via Chainlink Price Feeds.
+     * @dev If feeds are configured, returns the total USD value of the call.
+     *      If no feeds are configured, falls back to raw nativeValue/tokenAmount for backwards compatibility.
+     */
+    function calculateCallUSDValue(
+        address account,
+        address target,
+        uint256 nativeValue,
+        bytes calldata msgData
+    ) public view returns (uint256 effectiveAmount, bool isUSD) {
+        address ethFeed = getPriceFeed(account, NATIVE_ETH);
+        uint256 nativeUSD = 0;
+        bool hasFeed = false;
+
+        if (nativeValue > 0) {
+            if (ethFeed != address(0)) {
+                (uint256 ethPrice, uint8 ethFeedDec) = getLatestPrice(account, NATIVE_ETH);
+                nativeUSD = _calculateUSD(nativeValue, 18, ethPrice, ethFeedDec);
+                hasFeed = true;
+            }
+        }
+
+        // Inspect inner calldata for ERC-20 method calls
+        // In TecAccount execution format, msgData is: target (20) || nativeValue (32) || callData (variable)
+        uint256 tokenAmount = 0;
+        if (msgData.length >= 56) {
+            bytes4 selector = bytes4(msgData[52:56]);
+
+            // transfer(address to, uint256 amount) - 0xa9059cbb
+            // approve(address spender, uint256 amount) - 0x095ea7b3
+            if ((selector == 0xa9059cbb || selector == 0x095ea7b3) && msgData.length >= 120) {
+                tokenAmount = abi.decode(msgData[88:120], (uint256));
+            }
+            // transferFrom(address from, address to, uint256 amount) - 0x23b872dd
+            else if (selector == 0x23b872dd && msgData.length >= 152) {
+                tokenAmount = abi.decode(msgData[120:152], (uint256));
+            }
+        }
+
+        if (tokenAmount > 0) {
+            address tokenFeed = getPriceFeed(account, target);
+            if (tokenFeed != address(0)) {
+                (uint256 tokenPrice, uint8 tokenFeedDec) = getLatestPrice(account, target);
+                uint8 tokDec = 18;
+                try IERC20Metadata(target).decimals() returns (uint8 d) {
+                    tokDec = d;
+                } catch {}
+
+                uint256 erc20USD = _calculateUSD(tokenAmount, tokDec, tokenPrice, tokenFeedDec);
+                return (nativeUSD + erc20USD, true);
+            } else if (ethFeed != address(0)) {
+                // Account is operating with USD oracles, but this token has no price feed configured!
+                revert MissingOraclePriceFeed(target);
+            } else {
+                // Legacy non-oracle mode: return raw tokenAmount if nativeValue == 0, else nativeValue + tokenAmount
+                return (nativeValue > 0 ? nativeValue : tokenAmount, false);
+            }
+        }
+
+        if (hasFeed) {
+            return (nativeUSD, true);
+        }
+
+        return (nativeValue, false);
+    }
+
+    /**
+     * @notice Comprehensive Portfolio Valuation: Returns total account portfolio value in USD (8 decimals)
+     *         and full breakdown for all queried assets (ETH + ERC-20 tokens).
+     * @param account The Tec-C Smart Account address.
+     * @param tokens Array of token addresses to inspect (can include NATIVE_ETH or address(0) for ETH).
+     * @return totalValueUSD Total portfolio valuation in 8-decimal USD.
+     * @return details Array of TokenBalanceDetail structs with balances, prices, and USD values.
+     */
+    function getTotalPortfolioValueUSD(
+        address account,
+        address[] calldata tokens
+    ) external view returns (uint256 totalValueUSD, TokenBalanceDetail[] memory details) {
+        details = new TokenBalanceDetail[](tokens.length);
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
+            if (token == address(0) || token == NATIVE_ETH) {
+                uint256 bal = account.balance;
+                (uint256 price, uint8 feedDec) = _safeGetPrice(account, NATIVE_ETH);
+                uint256 val = _calculateUSD(bal, 18, price, feedDec);
+
+                details[i] = TokenBalanceDetail({
+                    token: NATIVE_ETH,
+                    symbol: "ETH",
+                    decimals: 18,
+                    balance: bal,
+                    priceUSD: price,
+                    valueUSD: val
+                });
+                totalValueUSD += val;
+            } else {
+                uint256 bal = 0;
+                try IERC20(token).balanceOf(account) returns (uint256 b) {
+                    bal = b;
+                } catch {}
+
+                string memory sym = "TOKEN";
+                try IERC20Metadata(token).symbol() returns (string memory s) {
+                    sym = s;
+                } catch {}
+
+                uint8 dec = 18;
+                try IERC20Metadata(token).decimals() returns (uint8 d) {
+                    dec = d;
+                } catch {}
+
+                (uint256 price, uint8 feedDec) = _safeGetPrice(account, token);
+                uint256 val = _calculateUSD(bal, dec, price, feedDec);
+
+                details[i] = TokenBalanceDetail({
+                    token: token,
+                    symbol: sym,
+                    decimals: dec,
+                    balance: bal,
+                    priceUSD: price,
+                    valueUSD: val
+                });
+                totalValueUSD += val;
+            }
+        }
+    }
+
     /**
      * @notice ERC-7579 Pre-execution Hook verification.
      * @dev Enforces The Tether Radius, target whitelist, risk tiers, and the 5-minute Biometric Verification / Sign Approval protocol.
@@ -398,12 +659,15 @@ contract TetherGuardHook is IERC7579Hook {
 
         uint256 remainingRadius = p.tetherRadius > p.dailySpent ? p.tetherRadius - p.dailySpent : 0;
 
+        // Calculate USD Normalized effective amount (ERC-20 and/or Native ETH via Chainlink)
+        (uint256 effectiveAmount, ) = calculateCallUSDValue(account, target, value, msgData);
+
         // Determine if this transaction breaks the tether:
         // A breakout occurs if:
         //  (a) spending exceeds remaining daily tether radius, OR
         //  (b) target is not whitelisted and account is not in Tier 3 (Unrestricted), OR
         //  (c) target risk tier exceeds account's risk tier setting.
-        bool isBreakout = (value > remainingRadius);
+        bool isBreakout = (effectiveAmount > remainingRadius);
         if (!isBreakout && p.riskTier != RISK_TIER_UNRESTRICTED) {
             if (!whitelistedTargets[account][target] || targetRiskTiers[account][target] > p.riskTier) {
                 isBreakout = true;
@@ -419,13 +683,13 @@ contract TetherGuardHook is IERC7579Hook {
                 if (block.timestamp > biometricVerifiedUntil[account]) {
                     revert BiometricVerificationRequired();
                 }
-                emit TetherBroken(account, p.rootOwner, value, target);
-                return abi.encode(true, account, value, target);
+                emit TetherBroken(account, p.rootOwner, effectiveAmount, target);
+                return abi.encode(true, account, effectiveAmount, target);
             } else {
                 // Safe execution within tether radius
-                p.dailySpent += value;
-                emit TetherRadiusConsumed(account, value, remainingRadius - value, currentEpoch);
-                return abi.encode(true, account, value, target);
+                p.dailySpent += effectiveAmount;
+                emit TetherRadiusConsumed(account, effectiveAmount, remainingRadius - effectiveAmount, currentEpoch);
+                return abi.encode(true, account, effectiveAmount, target);
             }
         }
 
@@ -453,8 +717,8 @@ contract TetherGuardHook is IERC7579Hook {
             // Consume one-time approval to protect against replay
             signApprovals[account][execHash] = false;
 
-            emit TetherBroken(account, msgSender, value, target);
-            return abi.encode(true, account, value, target);
+            emit TetherBroken(account, msgSender, effectiveAmount, target);
+            return abi.encode(true, account, effectiveAmount, target);
         }
 
         // 4. Normal autonomous AI execution within limits (No Sign Approval):
@@ -471,14 +735,14 @@ contract TetherGuardHook is IERC7579Hook {
         }
 
         // Enforce The Tether Radius (Daily Velocity Limit)
-        if (value > remainingRadius) {
-            revert TetherRadiusExceeded(value, remainingRadius);
+        if (effectiveAmount > remainingRadius) {
+            revert TetherRadiusExceeded(effectiveAmount, remainingRadius);
         }
 
-        p.dailySpent += value;
-        emit TetherRadiusConsumed(account, value, remainingRadius - value, currentEpoch);
+        p.dailySpent += effectiveAmount;
+        emit TetherRadiusConsumed(account, effectiveAmount, remainingRadius - effectiveAmount, currentEpoch);
 
-        return abi.encode(false, account, value, target);
+        return abi.encode(false, account, effectiveAmount, target);
     }
 
     /**

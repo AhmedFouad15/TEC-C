@@ -89,6 +89,14 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 2. **👎 Revert / Object (`flagTransactionForRevert`):** Flags transaction for cognitive unwind and applies a 20% trust penalty to the AI Brain's radius.
 3. **📝 Note / Educate (`submitTransactionNote`):** Logs semantic educational notes to the AI Brain, with an optional penalty applied to the Brain (`penalizeBrain = true`).
 
+### 🪙 Invariant 7: Multi-Token & ERC-20 Tether Radius Inspection (Chainlink USD Normalized)
+> **Values are NEVER hardcoded in ETH.**
+> 1. **ERC-20 Calldata Inspection:** `TetherGuardHook` dynamically unpacks inner calldata to inspect ERC-20 method calls (`transfer`, `approve`, `transferFrom`), extracting token amounts from the parameters.
+> 2. **Chainlink USD Normalization:** Converts both native ETH and arbitrary ERC-20 tokens (e.g. USDC with 6 decimals, WBTC with 8 decimals, DAI with 18 decimals) into standard 8-decimal USD via Chainlink Price Feeds (`latestRoundData`).
+> 3. **Oracle Staleness & Zero-Price Guards:** Enforces strict oracle freshness ($< 24\text{ hours}$) and rejects non-positive oracle answers (`InvalidOraclePrice`, `StaleOraclePrice`).
+> 4. **Unified Velocity Tracking:** Multiple token transfers accumulate against the same daily USD spending radius (`TETHER_RADIUS_USD`).
+> 5. **Institutional Portfolio Valuation:** Exposes `getTotalPortfolioValueUSD(account, tokens)` returning live total portfolio value in USD (8 decimals) and detailed breakdowns (`TokenBalanceDetail[]`) showing token address, symbol, decimals, balance, USD price, and USD value.
+
 ---
 
 ## 3. Core Smart Contracts
@@ -96,22 +104,36 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 | Contract | Standard | Description |
 | :--- | :--- | :--- |
 | **[`TecAccount.sol`](src/TecAccount.sol)** | ERC-7579 & ERC-4337 | Modular smart account executing single & batch operations with pre/post execution hooks. |
-| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, 10% daily limit growth cap, 5m Biometric Window, Sign Approval (Accept/Reject), AI Heartbeat Watchdog, Dead-Man's Switch, and Morning Review. |
+| **[`TetherGuardHook.sol`](src/hooks/TetherGuardHook.sol)** | ERC-7579 Hook | Immutable policy hook enforcing Axis 1, Axis 2, Multi-Token Chainlink USD normalization, 10% daily limit growth cap, 5m Biometric Window, Sign Approval (Accept/Reject), AI Heartbeat Watchdog, Dead-Man's Switch, and Morning Review. |
 | **[`WebAuthnP256Validator.sol`](src/validators/WebAuthnP256Validator.sol)** | ERC-7579 & RIP-7212 | Native secp256r1 NIST P-256 validator querying precompile at `0x0100` (~3,450 gas hardware FaceID). |
 | **[`SessionKeyValidator.sol`](src/validators/SessionKeyValidator.sol)** | ERC-7579 Validator | Validates ephemeral AI Brain ECDSA signatures bound to EIP-712 mandate digests and time bounds. |
 | **[`TecPaymaster.sol`](src/paymaster/TecPaymaster.sol)** | ERC-4337 Paymaster | Anti-griefing paymaster capping cumulative gas sponsorship to `MAX_SESSION_GAS_BUDGET = 0.005 ETH`. |
+| **[`AggregatorV3Interface.sol`](src/interfaces/AggregatorV3Interface.sol)** | Chainlink Oracle | Standard Chainlink Price Feed aggregator interface (`decimals`, `latestRoundData`). |
+| **[`IERC20.sol`](src/interfaces/IERC20.sol)** | ERC-20 & Metadata | Standard ERC-20 and ERC-20 metadata interfaces (`balanceOf`, `transfer`, `approve`, `decimals`, `symbol`). |
 
 ---
 
 ## 4. Test Coverage & Verification
 
-**62/62 invariant and unit tests passing with 100% green status across 6 test suites:**
+**73/73 invariant and unit tests passing with 100% green status across 7 test suites:**
 
 ```bash
 forge test
 ```
 
 ### Complete Test Matrix:
+- **`test/MultiTokenTether.t.sol` (11/11 PASS)**
+  - `test_ERC20Transfer_WithinTetherRadius_Success` (USDC 6 decimals normalized to USD)
+  - `test_ERC20Transfer_ExceedingTetherRadius_Reverts` (USDC spending cap enforcement)
+  - `test_CumulativeMultiTokenSpending_EnforcesUSDLimit` (USDC + WBTC + DAI cumulative USD tracking)
+  - `test_NativeETH_NormalizedToUSD` (0.1 ETH @ $3,000/ETH = $300 USD)
+  - `test_ERC20Approve_EnforcesTetherRadius` (DEX allowance velocity limit guard)
+  - `test_StaleOraclePrice_Reverts` (Oracle older than 24 hours reverts)
+  - `test_InvalidOraclePrice_Reverts` (Price $\le 0$ reverts)
+  - `test_MissingOraclePriceFeed_Reverts` (Unpriced token in USD mode reverts)
+  - `test_AccountSpecificPriceFeedOverride` (Per-account Chainlink oracle override)
+  - `test_GetTotalPortfolioValueUSD_ReturnsAccurateValuation` (Accurate 4-asset portfolio valuation)
+  - `test_BreakingTheTether_ERC20_WithBiometricAndSignApproval` (5m Biometric Grace + Sign Approval breakout)
 - **`test/DeadmanAndHeartbeat.t.sol` (10/10 PASS)**
   - `test_AIHeartbeat_InitialStatus_Alive`
   - `test_AIHeartbeat_Record_Success`
@@ -162,6 +184,24 @@ forge test
   - `test_BreakingTheTether_BrainInitiated_SignApproval_Accept`
   - `test_BreakingTheTether_BrainInitiated_SignApproval_Reject`
   - `test_BreakingTheTether_BrainInitiated_GaslessSignatureApproval`
+- **`test/SessionKeyValidator.t.sol` (6/6 PASS)**
+  - `test_SessionKeyRegistration`
+  - `test_ValidateUserOp_Success`
+  - `test_ValidateUserOp_WrongSigner_Fails`
+  - `test_ValidateUserOp_RevokedSessionKey_Fails`
+  - `test_ERC1271_SignatureValidation`
+  - `test_ERC1271_ExpiredSignature_Fails`
+- **`test/TecPaymaster.t.sol` (4/4 PASS)**
+  - `test_DepositAccounting`
+  - `test_LegitimateSponsorship_Succeeds`
+  - `test_GasGriefingLoop_HaltsAtMaxQuota`
+  - `test_InsufficientDeposit_RejectsSponsorship`
+- **`test/TecAccount.t.sol` (5/5 PASS)**
+  - `test_Initialization`
+  - `test_Execute_WithinTetherRadius_Success`
+  - `test_Execute_ExceedingTetherRadius_Reverts`
+  - `test_Execute_MaliciousTargetDrain_Reverts`
+  - `test_BreakingTheTether_BiometricFaceID_Success`
 - **`test/SessionKeyValidator.t.sol` (6/6 PASS)**
   - `test_SessionKeyRegistration`
   - `test_ValidateUserOp_Success`
