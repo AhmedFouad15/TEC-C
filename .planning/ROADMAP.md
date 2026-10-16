@@ -23,6 +23,7 @@ None
 - [x] **Phase 3: Portfolio & Strategy** - Contagion, cluster caps, playbook, Good/Better/Best, autonomy gate, backtest
 - [x] **Phase 4: Intent & Privacy** - Offline mandate parser, prompt-injection firewall, privacy sieve, pluggable LLM
 - [ ] **Phase 5: Adaptive Learning** - UserModel, reward/penalty updates, note parsing, onboarding, on-chain lever policy
+- [ ] **Phase 5.1: Sharpe & CVaR (INSERTED)** - Classic risk metrics on every card from the regime model's return distribution
 - [ ] **Phase 6: API Layer** - FastAPI pipeline + all endpoints + OpenAPI spec for Member 3
 - [ ] **Phase 7: On-Chain Integration** - Anvil deploy, EIP-712 mandate, session-key signing, execute, event → learning
 - [ ] **Phase 8: Live Data, Demo Page & Freeze** - Public data adapters, Brain demo page, README, requirements freeze
@@ -83,10 +84,19 @@ Plans:
 - [ ] 05-02: Note parsing into structured preferences (rule-based, LLM-optional) treated as data + 5-question onboarding quiz → tier & λ prior
 - [ ] 05-03: On-chain lever policy (when to calibrate / shrink radius / heartbeat) as pure decision functions + learning wired into scoring (affinity, θ)
 
+### Phase 5.1: Sharpe & CVaR (INSERTED)
+**Goal**: Every scored option also shows Sharpe ratio and 95% CVaR, matching the team's architecture notes ("Econometric & Liquidity agent: Sharpe, CVaR")
+**Depends on**: Phase 2
+**Research**: Unlikely (mixture of normal-times return and impairment jump; stdlib NormalDist)
+**Plans**: 1 plan
+
+Plans:
+- [ ] 05.1-01: `risk/metrics.py` (return distribution, Sharpe vs Shibor, CVaR95) + venue volatility data + cards/ScoreBreakdown fields — TDD
+
 ### Phase 6: API Layer
 **Goal**: A documented FastAPI service Member 3 can build against today, running the full pipeline end-to-end on offline data
 **Depends on**: Phases 3, 4, 5
-**Research**: Likely (decide LangGraph vs plain typed pipeline)
+**Research**: Likely (LangGraph chosen: team notes name it; nodes = Sentinel → Econometric/Liquidity → Gatekeeper → Executor)
 **Research topics**: Current LangGraph StateGraph API and its cost in deps/reliability vs a plain node pipeline with the same shape
 **Plans**: 3 plans
 
@@ -132,6 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 3. Portfolio & Strategy | 4/4 | Complete | 2026-10-16 |
 | 4. Intent & Privacy | 2/2 | Complete | 2026-10-16 |
 | 5. Adaptive Learning | 0/3 | Not started | - |
+| 5.1 Sharpe & CVaR | 0/1 | Not started | - |
 | 6. API Layer | 0/3 | Not started | - |
 | 7. On-Chain Integration | 0/3 | Not started | - |
 | 8. Live Data, Demo Page & Freeze | 0/3 | Not started | - |
