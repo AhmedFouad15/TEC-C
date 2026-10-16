@@ -72,10 +72,10 @@ def test_usdc_distress_raises_pd_of_usdc_venues():
 
 @pytest.mark.parametrize(
     "venue_id, expected",
-    [("lido_stake", 0.0055), ("curve_steth_eth", 0.0300), ("aave_v3_usdc", 0.0160), ("paxg_hold", -0.0064)],
+    [("lido_stake", 0.0054), ("curve_steth_eth", 0.0298), ("aave_v3_usdc", 0.0159), ("paxg_hold", -0.0064)],
 )
 def test_demo_scores_match_the_pitch(venue_id, expected):
-    assert _score(venue_id).total == pytest.approx(expected, abs=0.0003)
+    assert _score(venue_id).total == pytest.approx(expected, abs=0.0001)
 
 
 def test_curve_beats_lido_for_a_balanced_user():
@@ -126,6 +126,15 @@ def test_buying_ust_at_95_cents_is_strongly_negative():
 
 
 def test_edge_shrinks_as_failure_risk_grows():
-    probs_low = regime_probabilities(gap=0.05, sentiment=0.3, redemption=0, quality=0.9, liquidity_stress=0.5)
-    probs_high = regime_probabilities(gap=0.05, sentiment=0.9, redemption=1, quality=0.9, liquidity_stress=0.5)
-    assert probs_high.p_failure > probs_low.p_failure
+    from tecc_brain.risk.regime import PegAssessment
+
+    def edge(sentiment, redemption):
+        probs = regime_probabilities(
+            gap=0.05, sentiment=sentiment, redemption=redemption, quality=0.9, liquidity_stress=0.5
+        )
+        assessment = PegAssessment(
+            symbol="X", price=0.95, fair_value=1.0, gap=0.05, discount_to_fv=0.05, probs=probs, failure_excess=0.0
+        )
+        return recovery_edge(0.95, assessment, quality=0.9, costs=0.005, hurdle=HURDLE)
+
+    assert edge(sentiment=0.9, redemption=1.0) < edge(sentiment=0.3, redemption=0.0)

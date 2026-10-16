@@ -109,12 +109,13 @@ recommends the money-market rail instead of forcing a trade.
 
 | Option | APY | excess | PD · LGD | (1+λ)·EL | c_out_stress | score |
 |---|---|---|---|---|---|---|
-| Lido stake | 3.10 | 0.95 | 0.5% · 0.30 = 0.15 | 0.30 | 0.10 | **+0.55** |
-| Curve stETH/ETH LP | 6.85 | 4.70 | 1.5% · 0.40 = 0.60 | 1.20 | 0.50 | **+3.00** → Best |
-| Aave USDC | 4.20 | 2.05 | 0.8% · 0.25 = 0.20 | 0.40 | 0.05 | **+1.60** → wins the USDC scene |
-| PAXG carry | 1.80 | −0.35 | 0.3% · 0.10 = 0.03 | 0.06 | 0.20 | **−0.61** |
+| Lido stake | 3.10 | 0.95 | 0.5% · 0.30 = 0.15 | 0.31 | 0.10 | **+0.54** |
+| Curve stETH/ETH LP | 6.85 | 4.70 | 1.5% · 0.40 = 0.60 | 1.22 | 0.50 | **+2.98** → Best |
+| Aave USDC | 4.20 | 2.05 | 0.8% · 0.25 = 0.20 | 0.41 | 0.05 | **+1.59** → wins the USDC scene |
+| PAXG carry | 1.80 | −0.35 | 0.3% · 0.10 = 0.03 | 0.06 | 0.20 (+0.03 entry) | **−0.64** |
 
-Both demo scripts fall out of the formula, and the cards can now say *"Curve: +3.0%/yr after expected
+These are the exact outputs of `score_venue` on the demo snapshot (unit-tested); the small (1+λ)·EL uplift over
+PD·LGD comes from today's live peg risk above its calm-day floor. Both demo scripts fall out of the formula, and the cards can now say *"Curve: +3.0%/yr after expected
 losses and panic-exit cost"* instead of an unitless score.
 
 ### 2.3 Autonomy gate (act alone vs ask)
