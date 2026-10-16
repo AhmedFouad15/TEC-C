@@ -21,7 +21,7 @@ None
 - [x] **Phase 1: Foundation** - `/agent` package, typed models, static protocol table, offline market snapshot
 - [x] **Phase 2: Risk Engine** - Fair value, 3-regime model, recovery edge, %/yr score, hard filters (TDD on spec numbers)
 - [x] **Phase 3: Portfolio & Strategy** - Contagion, cluster caps, playbook, Good/Better/Best, autonomy gate, backtest
-- [ ] **Phase 4: Intent & Privacy** - Offline mandate parser, prompt-injection firewall, privacy sieve, pluggable LLM
+- [x] **Phase 4: Intent & Privacy** - Offline mandate parser, prompt-injection firewall, privacy sieve, pluggable LLM
 - [ ] **Phase 5: Adaptive Learning** - UserModel, reward/penalty updates, note parsing, onboarding, on-chain lever policy
 - [ ] **Phase 6: API Layer** - FastAPI pipeline + all endpoints + OpenAPI spec for Member 3
 - [ ] **Phase 7: On-Chain Integration** - Anvil deploy, EIP-712 mandate, session-key signing, execute, event → learning
@@ -70,7 +70,7 @@ Plans:
 
 Plans:
 - [x] 04-01: Rule-based mandate parser (demo sentences + variants) + prompt-injection firewall (TDD with attack strings from the demo script)
-- [ ] 04-02: Privacy sieve (mask/restore balances, addresses, DIDs) + `IntentParser` protocol with optional LLM adapter that falls back to rules
+- [x] 04-02: Privacy sieve (mask/restore balances, addresses, DIDs) + `IntentParser` protocol with optional LLM adapter that falls back to rules
 
 ### Phase 5: Adaptive Learning
 **Goal**: The Brain personalises λ, τ and per-protocol approval from rewards and penalties, safely bounded
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 1. Foundation | 2/2 | Complete | 2026-10-16 |
 | 2. Risk Engine | 3/3 | Complete | 2026-10-16 |
 | 3. Portfolio & Strategy | 4/4 | Complete | 2026-10-16 |
-| 4. Intent & Privacy | 1/2 | In progress | - |
+| 4. Intent & Privacy | 2/2 | Complete | 2026-10-16 |
 | 5. Adaptive Learning | 0/3 | Not started | - |
 | 6. API Layer | 0/3 | Not started | - |
 | 7. On-Chain Integration | 0/3 | Not started | - |

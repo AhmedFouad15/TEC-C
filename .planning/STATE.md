@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** The risk engine must be right and defensible — 3-regime peg model, fundamental fair value, loss-averse %/yr scoring reproducing the spec numbers.
-**Current focus:** Phase 4 — Intent & Privacy
+**Current focus:** Phase 5 — Adaptive Learning
 
 ## Current Position
 
-Phase: 4 of 8 (Intent & Privacy)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-10-16 — Completed 04-01-PLAN.md
+Phase: 5 of 8 (Adaptive Learning)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-16 — Phase 4 complete (221 tests)
 
-Progress: ████░░░░░░ 43% (10/23 plans)
+Progress: █████░░░░░ 48% (11/23 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 9 min
-- Total execution time: 1.6 hours
+- Total plans completed: 11
+- Average duration: 10 min
+- Total execution time: 2.0 hours
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: ████░░░░░░ 43% (10/23 plans)
 | 01-foundation | 2/2 | 22 min | 11 min |
 | 02-risk-engine | 3/3 | 19 min | 6 min |
 | 03-portfolio-strategy | 4/4 | 46 min | 12 min |
-| 04-intent-privacy | 1/2 | 10 min | 10 min |
+| 04-intent-privacy | 2/2 | 35 min | 18 min |
 
 **Recent Trend:**
 - Last 5 plans: —
@@ -47,6 +47,7 @@ Recent decisions affecting current work:
 - Init: no ERC-4337 bundler — direct account.execute on Anvil
 - Init: local branch member2/brain, no push without approval
 - 01-01: keep httpx (not httpx2) for TestClient — supply-chain caution
+- 04: downstream consumes only firewall-normalized text; only known DIDs exempt
 - 03: planner sizing fails closed; opportunities need edge ≥ 1%; T_rec 7/30/180d by redemption status
 - 03: demo profile pre-seeded with Aave history (Beta(5,2)); new users never get AUTO
 - 02: PD adds only regime failure above the quiet-state floor (no double count with pd_base)
@@ -54,7 +55,7 @@ Recent decisions affecting current work:
 
 ### Deferred Issues
 
-None yet.
+- ISS-001 (Phase 4): regex firewall cannot be complete — add LLM classifier pass later
 
 ### Blockers/Concerns
 
@@ -64,5 +65,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-10-16
-Stopped at: Completed 04-01-PLAN.md
+Stopped at: Phase 4 complete — next: /gsd:plan-phase 5
 Resume file: None
