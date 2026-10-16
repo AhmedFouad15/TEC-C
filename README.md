@@ -121,7 +121,26 @@ Overnight autonomous trades are recorded as `PENDING_REVIEW`. The user wakes up 
 forge test
 ```
 
-### Complete Test Matrix (119 / 119 PASS - 100% Green across 10 Suites):
+### Complete Test Matrix (137 / 137 PASS - 100% Green across 11 Suites):
+- **`test/VaultSecurityHardening.t.sol` (18/18 PASS - Core Security & Invariant Hardening)**
+  - `test_LegitimateSwap_UnderLimit_Success`: (1) Legitimate swap executes under limit on DEX Router within Tether Radius.
+  - `testFuzz_LegitimateSwap_UnderLimit`: Fuzzes swap amounts up to Tether Radius proving deterministic velocity deduction.
+  - `test_BreachingTetherRadius_Reverts`: (2) Breaching Tether Radius strictly reverts with `TetherRadiusExceeded()`.
+  - `testFuzz_BreachingTetherRadius_Reverts`: Fuzzes amounts exceeding Tether Radius proving unauthorized breakouts revert.
+  - `test_UnauthorizedTarget_Reverts`: (3) Unwhitelisted target address strictly reverts with `UnauthorizedTarget()`.
+  - `testFuzz_UnauthorizedTarget_Reverts`: Fuzzes arbitrary targets proving whitelist enforcement across address space.
+  - `test_GasGriefing_HaltsAtMaxQuota`: (4) Algorithmic prompt-injection gas griefing halts strictly at 0.005 ETH per session.
+  - `testFuzz_GasGriefing_Cap`: Fuzzes multi-step userOps proving session sponsorship never exceeds 0.005 ETH.
+  - `test_SEC01_BiometricChallenge_Replay_Reverts`: Replaying a P-256 biometric challenge reverts with `ChallengeAlreadyUsed`.
+  - `test_SEC01_BiometricChallenge_ExpiredDeadline_Reverts`: Expired biometric challenges revert with `ExpiredSignature`.
+  - `test_SEC02_Paymaster_OwnerCannotWithdrawUserDeposits`: Owner cannot withdraw user deposits, strictly bounded by surplus.
+  - `test_SEC02_Paymaster_OwnerCanWithdrawSurplus`: Owner safely withdraws surplus funds while user deposits remain fully protected.
+  - `test_SEC03_Paymaster_EntryPointDepositAndWithdrawal`: Safe forwarding of deposits and withdrawals through EntryPoint.
+  - `test_SEC04_Paymaster_RootOwnerECDSA_ExemptFromSessionCap`: 65-byte direct root owner ECDSA signatures exempt from session cap.
+  - `test_SEC05_SessionKeyValidator_MandateBinding`: 117-byte userOps strictly verify WeIdentity mandate root commitment binding.
+  - `test_SEC06_TecAccount_UninitializedRootOwner_RejectsUserOp`: Uninitialized TecAccount (`rootOwner == address(0)`) rejects validation.
+  - `test_SEC07_CrossHook_SignatureReplay_Reverts`: Cross-contract signature replays rejected via `address(this)` domain separation.
+  - `test_SEC08_ChainlinkOracle_IncompleteRound_Reverts`: Incomplete oracle rounds (`answeredInRound < roundId` or `updatedAt == 0`) revert.
 - **`test/VaultLifecycleScenarios.t.sol` (4/4 PASS - Complex E2E Scenarios)**
   - `test_Scenario_EnterpriseMultiDayLifecycle`: 3-day corporate operational simulation (Day 1 bounded spending, overnight pending reviews, Day 2 user ratification & dynamic 10% elasticity step-up, Day 3 breakout with biometric & sign approval).
   - `test_Scenario_AttackSandbox_DefensesHold`: Comprehensive adversarial sandbox test (unauthorized initialization front-run rejection, self-targeting hook hijack rejection, unwhitelisted target denial, budget exhaustion denial, stale biometric window denial, spoofed guardian denial).

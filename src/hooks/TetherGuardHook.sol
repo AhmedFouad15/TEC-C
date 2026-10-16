@@ -94,6 +94,9 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Gasless sign approval nonces per account for replay protection
     mapping(address => uint256) public signApprovalNonces;
 
+    /// @notice Used biometric challenges per account to prevent replay attacks
+    mapping(address => mapping(bytes32 => bool)) public usedBiometricChallenges;
+
     /// @notice Timestamp until which the account has an active biometric verification window (FaceID/TouchID/Passkey)
     mapping(address => uint256) public biometricVerifiedUntil;
 
@@ -205,6 +208,7 @@ contract TetherGuardHook is IERC7579Hook {
     error MissingOraclePriceFeed(address token);
     error UnauthorizedPasskey();
     error ExpiredSignature();
+    error ChallengeAlreadyUsed();
 
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -461,9 +465,13 @@ contract TetherGuardHook is IERC7579Hook {
         address feed = getPriceFeed(account, token);
         require(feed != address(0), "PRICE_FEED_NOT_FOUND");
 
-        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(feed).latestRoundData();
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+            AggregatorV3Interface(feed).latestRoundData();
         if (answer <= 0) {
             revert InvalidOraclePrice(token, answer);
+        }
+        if (updatedAt == 0 || answeredInRound < roundId) {
+            revert StaleOraclePrice(token, updatedAt);
         }
         if (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days) {
             revert StaleOraclePrice(token, updatedAt);
@@ -505,9 +513,9 @@ contract TetherGuardHook is IERC7579Hook {
         if (feed == address(0)) return (0, 0);
 
         try AggregatorV3Interface(feed).latestRoundData() returns (
-            uint80, int256 answer, uint256, uint256 updatedAt, uint80
+            uint80 roundId, int256 answer, uint256, uint256 updatedAt, uint80 answeredInRound
         ) {
-            if (answer <= 0) return (0, 0);
+            if (answer <= 0 || updatedAt == 0 || answeredInRound < roundId) return (0, 0);
             if (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days) return (0, 0);
             uint8 dec = 8;
             try AggregatorV3Interface(feed).decimals() returns (uint8 d) {
@@ -1016,7 +1024,9 @@ contract TetherGuardHook is IERC7579Hook {
 
         AccountPolicy storage p = policies[account];
         bytes32 messageHash = keccak256(
-            abi.encode(account, executionHash, approve, signApprovalNonces[account]++, deadline, block.chainid)
+            abi.encode(
+                account, executionHash, approve, signApprovalNonces[account]++, deadline, block.chainid, address(this)
+            )
         );
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         address signer = _recoverSigner(ethSignedMessageHash, signature);
@@ -1175,6 +1185,7 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 precompile at 0x100.
      * @dev Opens the 5-minute Biometric Verification window upon successful hardware verification.
      *      Coordinates (qx, qy) must strictly match the account's registered passkey.
+     *      SEC-01: Enforces deadline and tracks challenge replay protection.
      */
     function completeBiometricVerificationWithP256(
         address account,
@@ -1182,8 +1193,16 @@ contract TetherGuardHook is IERC7579Hook {
         uint256 r,
         uint256 s,
         uint256 qx,
-        uint256 qy
-    ) external {
+        uint256 qy,
+        uint256 deadline
+    ) public {
+        if (block.timestamp > deadline) {
+            revert ExpiredSignature();
+        }
+        if (usedBiometricChallenges[account][messageHash]) {
+            revert ChallengeAlreadyUsed();
+        }
+
         // Enforce that public key coordinates strictly match registered passkey for this account
         WebAuthnPasskey storage pk = accountPasskeys[account];
         if (!pk.isRegistered || pk.qx != qx || pk.qy != qy) {
@@ -1197,12 +1216,31 @@ contract TetherGuardHook is IERC7579Hook {
             revert InvalidP256Signature();
         }
 
+        // Mark challenge as consumed to prevent replay attacks
+        usedBiometricChallenges[account][messageHash] = true;
+
         // 2. Open 5-minute Biometric Verification Window
         uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
         biometricVerifiedUntil[account] = validUntil;
         lastUserActivity[account] = block.timestamp;
 
         emit BiometricVerificationCompleted(account, msg.sender, validUntil);
+    }
+
+    /**
+     * @notice Backward-compatible overload for WebAuthn P-256 biometric verification.
+     */
+    function completeBiometricVerificationWithP256(
+        address account,
+        bytes32 messageHash,
+        uint256 r,
+        uint256 s,
+        uint256 qx,
+        uint256 qy
+    ) external {
+        completeBiometricVerificationWithP256(
+            account, messageHash, r, s, qx, qy, block.timestamp + BIOMETRIC_VERIFICATION_WINDOW
+        );
     }
 
     /**

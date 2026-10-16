@@ -194,10 +194,11 @@ contract TecAccount is IERC7579Account {
         if (address(installedValidator) != address(0)) {
             validationData = installedValidator.validateUserOp(userOp, userOpHash);
         } else {
-            // Direct ECDSA signature validation against rootOwner
+            // Direct ECDSA signature validation against rootOwner (SEC-06: Reject if rootOwner is address(0))
+            if (rootOwner == address(0)) return 1;
             bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", userOpHash));
             address signer = _recover(ethHash, userOp.signature);
-            validationData = (signer == rootOwner) ? 0 : 1;
+            validationData = (signer != address(0) && signer == rootOwner) ? 0 : 1;
         }
 
         // Pay prefund if required by EntryPoint

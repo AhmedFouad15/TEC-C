@@ -102,11 +102,19 @@ contract SessionKeyValidator is IERC7579Validator {
         }
 
         address sessionKey = address(bytes20(userOp.signature[0:20]));
-        bytes memory sig = bytes(userOp.signature[20:]);
+        bytes memory sig = bytes(userOp.signature[20:85]);
 
         SessionKeyData storage sk = sessionKeys[userOp.sender][sessionKey];
         if (!sk.isActive) {
             return 1; // Inactive session key
+        }
+
+        // SEC-05: If mandate commitment is registered and signature includes mandate digest, verify binding
+        if (sk.mandateRoot != bytes32(0) && userOp.signature.length >= 117) {
+            bytes32 mandateDigest = bytes32(userOp.signature[85:117]);
+            if (mandateDigest != sk.mandateRoot) {
+                return 1; // Mandate commitment mismatch
+            }
         }
 
         // Verify ECDSA signature of userOpHash by sessionKey
@@ -132,11 +140,16 @@ contract SessionKeyValidator is IERC7579Validator {
         if (data.length < 85) return EIP1271_FAILED;
 
         address sessionKey = address(bytes20(data[0:20]));
-        bytes memory sig = bytes(data[20:]);
+        bytes memory sig = bytes(data[20:85]);
 
         SessionKeyData storage sk = sessionKeys[sender][sessionKey];
         if (!sk.isActive) return EIP1271_FAILED;
         if (block.timestamp < sk.validAfter || block.timestamp > sk.validUntil) return EIP1271_FAILED;
+
+        if (sk.mandateRoot != bytes32(0) && data.length >= 117) {
+            bytes32 mandateDigest = bytes32(data[85:117]);
+            if (mandateDigest != sk.mandateRoot) return EIP1271_FAILED;
+        }
 
         bytes32 ethSignedMessageHash = _toEthSignedMessageHash(hash);
         address recovered = _recoverSigner(ethSignedMessageHash, sig);

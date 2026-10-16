@@ -255,7 +255,15 @@ contract TetherGuardHookTest is Test {
         uint256 deadline = block.timestamp + 10 minutes;
         {
             bytes32 messageHash = keccak256(
-                abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid)
+                abi.encode(
+                    tecAccount,
+                    execHash,
+                    true,
+                    hook.signApprovalNonces(tecAccount),
+                    deadline,
+                    block.chainid,
+                    address(hook)
+                )
             );
             bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
@@ -284,7 +292,15 @@ contract TetherGuardHookTest is Test {
         bytes memory signature;
         {
             bytes32 messageHash = keccak256(
-                abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid)
+                abi.encode(
+                    tecAccount,
+                    execHash,
+                    true,
+                    hook.signApprovalNonces(tecAccount),
+                    deadline,
+                    block.chainid,
+                    address(hook)
+                )
             );
             bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
@@ -307,7 +323,15 @@ contract TetherGuardHookTest is Test {
         bytes memory signature;
         {
             bytes32 messageHash = keccak256(
-                abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid)
+                abi.encode(
+                    tecAccount,
+                    execHash,
+                    true,
+                    hook.signApprovalNonces(tecAccount),
+                    deadline,
+                    block.chainid,
+                    address(hook)
+                )
             );
             bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
