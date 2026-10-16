@@ -19,7 +19,7 @@ None
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Foundation** - `/agent` package, typed models, static protocol table, offline market snapshot
-- [ ] **Phase 2: Risk Engine** - Fair value, 3-regime model, recovery edge, %/yr score, hard filters (TDD on spec numbers)
+- [x] **Phase 2: Risk Engine** - Fair value, 3-regime model, recovery edge, %/yr score, hard filters (TDD on spec numbers)
 - [ ] **Phase 3: Portfolio & Strategy** - Contagion, cluster caps, playbook, Good/Better/Best, autonomy gate, backtest
 - [ ] **Phase 4: Intent & Privacy** - Offline mandate parser, prompt-injection firewall, privacy sieve, pluggable LLM
 - [ ] **Phase 5: Adaptive Learning** - UserModel, reward/penalty updates, note parsing, onboarding, on-chain lever policy
@@ -48,7 +48,7 @@ Plans:
 Plans:
 - [x] 02-01: Fair value + 3-regime softmax model — tests reproduce the 4 episode rows (USDC-SVB, stETH, UST, normal)
 - [x] 02-02: Recovery-adjusted edge (+3.1% / −14%) + %/yr score with (1+λ)·PD·LGD and stressed exit cost — tests reproduce the demo table
-- [ ] 02-03: Hard filters (tier, whitelist, failure veto, negative edge, slippage/depth, heartbeat) with reason codes
+- [x] 02-03: Hard filters (tier, whitelist, failure veto, negative edge, slippage/depth, heartbeat) with reason codes
 
 ### Phase 3: Portfolio & Strategy
 **Goal**: Turn per-asset scores into portfolio-aware, explainable decisions: what to show and whether to act alone
@@ -127,7 +127,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-10-16 |
-| 2. Risk Engine | 2/3 | In progress | - |
+| 2. Risk Engine | 3/3 | Complete | 2026-10-16 |
 | 3. Portfolio & Strategy | 0/3 | Not started | - |
 | 4. Intent & Privacy | 0/2 | Not started | - |
 | 5. Adaptive Learning | 0/3 | Not started | - |

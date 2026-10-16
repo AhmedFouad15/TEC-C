@@ -5,34 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** The risk engine must be right and defensible — 3-regime peg model, fundamental fair value, loss-averse %/yr scoring reproducing the spec numbers.
-**Current focus:** Phase 2 — Risk Engine
+**Current focus:** Phase 3 — Portfolio & Strategy
 
 ## Current Position
 
-Phase: 2 of 8 (Risk Engine)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-10-16 — Completed 02-02-PLAN.md
+Phase: 3 of 8 (Portfolio & Strategy)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-16 — Phase 2 complete (risk engine, 91 tests)
 
-Progress: ██░░░░░░░░ 18% (4/22 plans)
+Progress: ██░░░░░░░░ 23% (5/22 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 9 min
-- Total execution time: 0.6 hours
+- Total plans completed: 5
+- Average duration: 8 min
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 2/2 | 22 min | 11 min |
-| 02-risk-engine | 2/3 | 14 min | 7 min |
+| 02-risk-engine | 3/3 | 19 min | 6 min |
 
 **Recent Trend:**
 - Last 5 plans: —
-- Trend: —
+- Trend: Stable/improving
 
 ## Accumulated Context
 
@@ -60,5 +60,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-10-16
-Stopped at: Completed 02-02-PLAN.md
+Stopped at: Phase 2 complete — next: /gsd:plan-phase 3
 Resume file: None
