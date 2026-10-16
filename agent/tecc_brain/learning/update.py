@@ -17,8 +17,10 @@ from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel
 
+from tecc_brain.learning.notes import NoteOutcome, parse_note
 from tecc_brain.models import (
     APPROVAL_PRIOR,
+    COST_FACTOR_BOUNDS,
     LAMBDA_BANDS,
     LAMBDA_START,
     BrainProfile,
@@ -26,6 +28,7 @@ from tecc_brain.models import (
     RiskTier,
     Signal,
 )
+from tecc_brain.reference import Reference, load_reference
 
 __all__ = ["FeedbackEvent", "LearningResult", "Signal", "decay", "learn", "new_profile", "value_weight"]
 
@@ -33,6 +36,10 @@ START_TAU = 0.6
 TAU_DAILY_GAIN_CAP = 0.05  # mirrors the vault's ≤10 %/day radius growth: autonomy is earned slowly
 DECAY_HALF_LIFE_DAYS = 30.0
 HISTORY_DAYS = 90
+MAX_PREFERENCES = 20
+NOTE_SENTIMENT_WEIGHT = 0.5  # a plain note nudges the reviewed venue's approval by ±0.5
+NOTE_PROTOCOL_WEIGHT = 1.0  # a protocol named in a note: dislike β += 1 (like α += 1 only if already used)
+NOTE_COST_STEP = 1.10  # a disliked cost weighs 10% more for this user (bounded by COST_FACTOR_BOUNDS)
 MAX_SEEN_EVENTS = 2000
 VALUE_WEIGHT_MIN, VALUE_WEIGHT_MAX = 0.5, 2.0
 
@@ -93,8 +100,17 @@ def _day(at: datetime) -> str:
     return at.astimezone(timezone.utc).date().isoformat()
 
 
-def learn(profile: BrainProfile, event: FeedbackEvent) -> LearningResult:
-    """Apply one signal. Pure: returns a new profile and human-readable change lines for "Your Brain"."""
+def learn(
+    profile: BrainProfile,
+    event: FeedbackEvent,
+    ref: Reference | None = None,
+    note: NoteOutcome | None = None,
+) -> LearningResult:
+    """Apply one signal. Pure: returns a new profile and human-readable change lines for "Your Brain".
+
+    For NOTE / NOTE_PENALTY the note text is parsed with the offline rules unless an already-parsed `note` (e.g. from
+    the LLM path) is passed in.
+    """
     if event.event_id in profile.seen_events:
         return LearningResult(profile=profile, changes=["Already learned from this event."], applied=False)
 
@@ -134,10 +150,57 @@ def learn(profile: BrainProfile, event: FeedbackEvent) -> LearningResult:
         else:
             changes.append(f"Loss aversion λ stays {p.lam:.2f} (edge of your tier's band).")
 
+    if event.signal in (Signal.NOTE, Signal.NOTE_PENALTY) and event.note.strip():
+        ref = ref if ref is not None else load_reference()
+        note = note if note is not None else parse_note(event.note, ref)
+        changes += _apply_note(p, event, note, ref)
+
     _record(p, event)
     if not changes:
         changes.append(f"Noted ({event.signal.value}); nothing to adjust.")
     return LearningResult(profile=p, changes=changes, applied=True)
+
+
+def _bump(p: BrainProfile, venue_id: str, d_alpha: float, d_beta: float) -> None:
+    a, b = p.approvals.get(venue_id, APPROVAL_PRIOR)
+    p.approvals[venue_id] = (a + d_alpha, b + d_beta)
+
+
+def _apply_note(p: BrainProfile, event: FeedbackEvent, note: NoteOutcome, ref: Reference) -> list[str]:
+    if note.refused:
+        threats = ", ".join(t.value for t in note.threats)
+        return [f"Note ignored: it contained instructions ({threats}). Notes can only teach preferences."]
+    changes: list[str] = []
+    if event.signal == Signal.NOTE and event.venue_id is not None and note.sentiment != 0:
+        weight = NOTE_SENTIMENT_WEIGHT
+        _bump(p, event.venue_id, weight if note.sentiment > 0 else 0.0, weight if note.sentiment < 0 else 0.0)
+        changes.append(f"Your note was {'positive' if note.sentiment > 0 else 'negative'} about {event.venue_id}.")
+    lo, hi = COST_FACTOR_BOUNDS
+    for pref in note.preferences:
+        if pref.protocol is not None:
+            venues = [v.id for v in ref.venues.values() if v.protocol == pref.protocol]
+            if pref.polarity < 0:
+                for venue_id in venues:
+                    _bump(p, venue_id, 0.0, NOTE_PROTOCOL_WEIGHT)
+                changes.append(f"You dislike {pref.protocol}: it will only be proposed, never run automatically.")
+            else:
+                used = [v for v in venues if v in p.approvals]  # a note never unlocks a protocol never used
+                for venue_id in used:
+                    _bump(p, venue_id, NOTE_PROTOCOL_WEIGHT, 0.0)
+                changes.append(f"You like {pref.protocol}.")
+        if pref.factor in ("c_in", "c_out_stress"):
+            before = p.cost_factors.get(pref.factor, 1.0)
+            step = NOTE_COST_STEP if pref.polarity < 0 else 1.0 / NOTE_COST_STEP
+            p.cost_factors[pref.factor] = min(hi, max(lo, before * step))
+            if p.cost_factors[pref.factor] != before:
+                label = "entry costs" if pref.factor == "c_in" else "panic-exit costs"
+                changes.append(f"{label.capitalize()} now weigh ×{p.cost_factors[pref.factor]:.2f} for you.")
+        p.preferences = [*p.preferences, pref.model_copy(update={"quote": event.note[:200]})][-MAX_PREFERENCES:]
+    if note.lam_factor != 1.0:
+        before = p.lam
+        p.lam = clamp_lambda(p.tier, p.lam * note.lam_factor)
+        changes.append(f"Loss aversion λ: {before:.2f} → {p.lam:.2f} (from your note).")
+    return changes
 
 
 def _record(p: BrainProfile, event: FeedbackEvent) -> None:

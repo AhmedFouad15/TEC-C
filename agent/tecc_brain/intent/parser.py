@@ -37,6 +37,27 @@ copy tokens exactly, never invent numbers or addresses. Reply with ONE JSON obje
 Request: {request}"""
 
 
+def call_with_timeout(complete: Callable[[str], str], prompt: str, timeout_s: float) -> str:
+    """Run the provider on a daemon thread and stop waiting after timeout_s. (A `with ThreadPoolExecutor` block
+    would wait for a hung call on exit, making the timeout useless.)"""
+    result: queue.Queue[tuple[bool, Any]] = queue.Queue(maxsize=1)
+
+    def run() -> None:
+        try:
+            result.put((True, complete(prompt)))
+        except Exception as exc:  # noqa: BLE001
+            result.put((False, exc))
+
+    threading.Thread(target=run, name="tecc-llm-call", daemon=True).start()
+    try:
+        ok, value = result.get(timeout=timeout_s)
+    except queue.Empty as exc:
+        raise RuntimeError(f"provider timed out after {timeout_s}s") from exc
+    if not ok:
+        raise value
+    return str(value)
+
+
 class IntentParser(Protocol):
     def parse(self, text: str, ref: Reference, portfolio: Portfolio | None = None) -> ParseOutcome: ...
 
@@ -92,30 +113,10 @@ class LLMParser:
             return outcome
         return ParseOutcome(mandate=mandate, verdict=verdict)
 
-    def _call_with_timeout(self, prompt: str) -> str:
-        """Run the provider on a daemon thread and stop waiting after timeout_s. (A `with ThreadPoolExecutor` block
-        would wait for a hung call on exit, making the timeout useless.)"""
-        result: queue.Queue[tuple[bool, Any]] = queue.Queue(maxsize=1)
-
-        def run() -> None:
-            try:
-                result.put((True, self.complete(prompt)))
-            except Exception as exc:  # noqa: BLE001
-                result.put((False, exc))
-
-        threading.Thread(target=run, name="tecc-llm-call", daemon=True).start()
-        try:
-            ok, value = result.get(timeout=self.timeout_s)
-        except queue.Empty as exc:
-            raise RuntimeError(f"provider timed out after {self.timeout_s}s") from exc
-        if not ok:
-            raise value
-        return str(value)
-
     def _ask_llm(self, approved: str, raw_text: str, ref: Reference, portfolio: Portfolio | None) -> Mandate:
         masked, vault = mask(approved)
         prompt = PROMPT.format(actions=[a.value for a in ActionType], request=masked)
-        reply = self._call_with_timeout(prompt)
+        reply = call_with_timeout(self.complete, prompt, self.timeout_s)
 
         match = re.search(r"\{.*\}", reply, re.DOTALL)
         if not match:

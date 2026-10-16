@@ -288,6 +288,22 @@ class FeedbackEvent(BaseModel):
         return value
 
 
+CostFactor = Literal["c_out_stress", "c_in", "loss", "yield"]
+COST_FACTOR_BOUNDS = (1.0, 1.5)  # a note can make a cost weigh at most 50% more for this user, never less than the market
+
+
+class NotePreference(BaseModel):
+    """A structured preference learned from a Morning Review note. Data only: it can never raise a limit or add a
+    recipient, because no such field exists here."""
+
+    model_config = ConfigDict(frozen=True)
+
+    protocol: str | None = Field(None, description="Venue protocol, or None for a general preference")
+    polarity: Literal[-1, 1]
+    factor: CostFactor | None = None
+    quote: str = Field("", max_length=200, description="The user's words, shown back in card explanations")
+
+
 class BrainProfile(BaseModel):
     """What the Brain has learned about one user (Phase 5 adds the update rules and persistence)."""
 
@@ -304,6 +320,8 @@ class BrainProfile(BaseModel):
     tau_gains: dict[str, float] = Field(default_factory=dict, description="UTC date -> trust gained that day (daily cap)")
     history: list[FeedbackEvent] = Field(default_factory=list, description="Signals from the last 90 days")
     seen_events: list[str] = Field(default_factory=list, description="Applied event ids, so a re-sync is harmless")
+    preferences: list[NotePreference] = Field(default_factory=list, description="Last 20 note preferences; latest wins")
+    cost_factors: dict[str, float] = Field(default_factory=dict, description="c_in / c_out_stress multipliers (1.0–1.5)")
 
     def _beta(self, venue_id: str) -> tuple[float, float]:
         return self.approvals.get(venue_id, APPROVAL_PRIOR)
