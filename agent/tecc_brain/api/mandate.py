@@ -16,6 +16,7 @@ from tecc_brain.learning.update import FeedbackEvent, Signal, learn
 from tecc_brain.market import SnapshotSource
 from tecc_brain.models import AutonomyMode, Card, CardLabel, ExecutionIntent, usd_to_onchain
 from tecc_brain.reference import Reference
+from tecc_brain.sentinel import LexiconSentinel, apply_signal
 from tecc_brain.strategy.portfolio import load_demo_portfolio
 
 router = APIRouter(prefix="/api/mandate", tags=["mandate"])
@@ -29,6 +30,7 @@ class ParseRequest(BaseModel):
 class ProposeRequest(ParseRequest):
     scenario: Scenario = "demo"
     vault: VaultIn = VaultIn()
+    headline: str | None = Field(None, max_length=500, description="Optional breaking headline for the NLP Risk Sentinel")
 
 
 class ProposeResponse(PipelineResult):
@@ -37,6 +39,7 @@ class ProposeResponse(PipelineResult):
 
 class ExecuteRequest(BaseModel):
     proposal_id: str = Field(min_length=1, max_length=64)
+    account: Account = Field("demo", description="Must be the account the proposal was made for")
     label: CardLabel
     venue_id: str | None = Field(None, description="Needed only when several cards share a label")
 
@@ -62,7 +65,10 @@ def propose(
     ref: Reference = Depends(get_ref),
 ) -> ProposeResponse:
     vault = req.vault.to_state()
-    result = run_pipeline(req.text, req.account, market=SnapshotSource(req.scenario), store=store, vault=vault, ref=ref)
+    signal = LexiconSentinel(ref).score(req.headline) if req.headline else None
+    news_hook = (lambda snap: apply_signal(snap, signal)) if signal is not None else None
+    result = run_pipeline(req.text, req.account, market=SnapshotSource(req.scenario), store=store, vault=vault, ref=ref,
+                          news_hook=news_hook)
     pid = proposals.add(req.account, result, vault) if result.decision is not None and result.decision.cards else None
     return ProposeResponse(**result.model_dump(), proposal_id=pid)
 
@@ -86,6 +92,9 @@ def execute(
     proposals: ProposalCache = Depends(get_proposals),
     ref: Reference = Depends(get_ref),
 ) -> ExecuteResponse:
+    peek = proposals.get(req.proposal_id)
+    if peek is None or peek.account != req.account:  # same answer either way: don't reveal other accounts' ids
+        raise HTTPException(404, "unknown or expired proposal")
     proposal, first = proposals.claim(req.proposal_id)
     if proposal is None:
         raise HTTPException(404, "unknown or expired proposal")

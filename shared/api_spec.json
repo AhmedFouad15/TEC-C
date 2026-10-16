@@ -1,0 +1,2381 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Tec-C Brain",
+    "description": "Cognitive planner and risk engine for the Tec-C agent wallet (Member 2).",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/mandate/parse": {
+      "post": {
+        "tags": [
+          "mandate"
+        ],
+        "summary": "Parse",
+        "operationId": "parse_api_mandate_parse_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseOutcome"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mandate/propose": {
+      "post": {
+        "tags": [
+          "mandate"
+        ],
+        "summary": "Propose",
+        "operationId": "propose_api_mandate_propose_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mandate/execute": {
+      "post": {
+        "tags": [
+          "mandate"
+        ],
+        "summary": "Execute",
+        "operationId": "execute_api_mandate_execute_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/risk/regimes": {
+      "get": {
+        "tags": [
+          "risk"
+        ],
+        "summary": "Regimes",
+        "operationId": "regimes_api_risk_regimes_get",
+        "parameters": [
+          {
+            "name": "scenario",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "demo",
+                "usdc_distress"
+              ],
+              "type": "string",
+              "default": "demo",
+              "title": "Scenario"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegimesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/quiz": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Quiz",
+        "operationId": "quiz_api_profile_quiz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuizQuestion"
+                  },
+                  "type": "array",
+                  "title": "Response Quiz Api Profile Quiz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/onboard": {
+      "post": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Onboard User",
+        "operationId": "onboard_user_api_profile_onboard_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/{account}": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile",
+        "operationId": "get_profile_api_profile__account__get",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account"
+            }
+          },
+          {
+            "name": "radius_usd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1000000000.0,
+              "minimum": 0,
+              "default": 500.0,
+              "title": "Radius Usd"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/review/sync": {
+      "post": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Review Sync",
+        "description": "Apply Morning Review events (Phase 7 pulls them from the chain; until then the UI/simulator posts them).",
+        "operationId": "review_sync_api_review_sync_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/levers/{account}": {
+      "post": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Levers",
+        "operationId": "levers_api_levers__account__post",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeverState"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeversResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest": {
+      "get": {
+        "tags": [
+          "insight"
+        ],
+        "summary": "Backtests",
+        "operationId": "backtests_api_backtest_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Backtests Api Backtest Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backtest/{episode}": {
+      "post": {
+        "tags": [
+          "insight"
+        ],
+        "summary": "Backtest",
+        "operationId": "backtest_api_backtest__episode__post",
+        "parameters": [
+          {
+            "name": "episode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Episode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sentinel/headline": {
+      "post": {
+        "tags": [
+          "insight"
+        ],
+        "summary": "Headline",
+        "operationId": "headline_api_sentinel_headline_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeadlineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeadlineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActionType": {
+        "type": "string",
+        "enum": [
+          "stake",
+          "deposit",
+          "optimize_yield",
+          "swap",
+          "withdraw",
+          "transfer",
+          "reduce_exposure",
+          "buy_discount"
+        ],
+        "title": "ActionType"
+      },
+      "AgentReport": {
+        "properties": {
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent",
+          "title",
+          "lines"
+        ],
+        "title": "AgentReport"
+      },
+      "AutonomyMode": {
+        "type": "string",
+        "enum": [
+          "AUTO",
+          "PROPOSE",
+          "BREAKOUT",
+          "BLOCKED"
+        ],
+        "title": "AutonomyMode"
+      },
+      "BacktestResult": {
+        "properties": {
+          "episode_id": {
+            "type": "string",
+            "title": "Episode Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "asset": {
+            "type": "string",
+            "title": "Asset"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/BacktestStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "strategies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StrategyResult"
+            },
+            "type": "object",
+            "title": "Strategies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "episode_id",
+          "title",
+          "asset",
+          "steps",
+          "strategies"
+        ],
+        "title": "BacktestResult"
+      },
+      "BacktestStep": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "event": {
+            "type": "string",
+            "title": "Event"
+          },
+          "price": {
+            "type": "number",
+            "title": "Price"
+          },
+          "probs": {
+            "$ref": "#/components/schemas/RegimeProbs"
+          },
+          "dominant": {
+            "type": "string",
+            "title": "Dominant"
+          },
+          "response": {
+            "$ref": "#/components/schemas/Response"
+          },
+          "edge": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge"
+          },
+          "actions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "event",
+          "price",
+          "probs",
+          "dominant",
+          "response",
+          "edge",
+          "actions"
+        ],
+        "title": "BacktestStep"
+      },
+      "Candidate": {
+        "properties": {
+          "venue_id": {
+            "type": "string",
+            "title": "Venue Id",
+            "description": "Destination venue id, or asset symbol for exits/discount buys"
+          },
+          "from_venue_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Venue Id",
+            "description": "Venue being exited, for reduce-exposure moves"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ActionType"
+          },
+          "asset_in": {
+            "type": "string",
+            "title": "Asset In"
+          },
+          "amount_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Amount Usd"
+          },
+          "apy": {
+            "type": "number",
+            "title": "Apy"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScoreBreakdown"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rejected_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rejected Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "venue_id",
+          "action",
+          "asset_in",
+          "amount_usd",
+          "apy"
+        ],
+        "title": "Candidate"
+      },
+      "Card": {
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/CardLabel"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/Candidate"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AutonomyMode"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "explanation": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Explanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "candidate",
+          "mode",
+          "headline"
+        ],
+        "title": "Card"
+      },
+      "CardLabel": {
+        "type": "string",
+        "enum": [
+          "GOOD",
+          "BETTER",
+          "BEST",
+          "REDUCE_EXPOSURE",
+          "OPPORTUNITY"
+        ],
+        "title": "CardLabel"
+      },
+      "ClusterStatus": {
+        "properties": {
+          "cluster": {
+            "type": "string",
+            "title": "Cluster"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "stressed": {
+            "type": "boolean",
+            "title": "Stressed"
+          },
+          "failing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failing"
+          },
+          "worst_member": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst Member"
+          },
+          "contagion_inputs": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Contagion Inputs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster",
+          "members",
+          "stressed",
+          "failing",
+          "worst_member",
+          "contagion_inputs"
+        ],
+        "title": "ClusterStatus"
+      },
+      "Decision": {
+        "properties": {
+          "mandate": {
+            "$ref": "#/components/schemas/Mandate"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AutonomyMode"
+          },
+          "auto_amount_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Auto Amount Usd",
+            "default": 0.0
+          },
+          "proposed_amount_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Proposed Amount Usd",
+            "default": 0.0
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/Card"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "type": "array",
+            "title": "Rejected",
+            "description": "Candidates removed by hard filters, with reasons"
+          },
+          "trace": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Trace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mandate",
+          "mode"
+        ],
+        "title": "Decision"
+      },
+      "ExecuteRequest": {
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Proposal Id"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "Must be the account the proposal was made for",
+            "default": "demo"
+          },
+          "label": {
+            "$ref": "#/components/schemas/CardLabel"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id",
+            "description": "Needed only when several cards share a label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "label"
+        ],
+        "title": "ExecuteRequest"
+      },
+      "ExecuteResponse": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/AutonomyMode"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/ExecutionIntent"
+          },
+          "learned": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Learned"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "intent",
+          "learned",
+          "message"
+        ],
+        "title": "ExecuteResponse"
+      },
+      "ExecutionIntent": {
+        "properties": {
+          "card_label": {
+            "$ref": "#/components/schemas/CardLabel"
+          },
+          "venue_id": {
+            "type": "string",
+            "title": "Venue Id"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ActionType"
+          },
+          "asset_in": {
+            "type": "string",
+            "title": "Asset In"
+          },
+          "amount_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Amount Usd"
+          },
+          "amount_onchain": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Amount Onchain",
+            "description": "USD × 1e8, the unit TetherGuardHook meters the radius in"
+          },
+          "target_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Address",
+            "description": "Venue contract; known after deployment (Phase 7)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_signature",
+              "signed",
+              "submitted",
+              "breakout_required",
+              "failed"
+            ],
+            "title": "Status",
+            "default": "pending_signature"
+          },
+          "tx_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tx Hash"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_label",
+          "venue_id",
+          "action",
+          "asset_in",
+          "amount_usd",
+          "amount_onchain"
+        ],
+        "title": "ExecutionIntent",
+        "description": "What the Gatekeeper hands the Web3 Executor: one vault-metered action, unsigned until Phase 7 signs it."
+      },
+      "FeedbackEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Event Id"
+          },
+          "signal": {
+            "$ref": "#/components/schemas/Signal"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
+          },
+          "amount_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Amount Usd",
+            "default": 0.0
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "signal",
+          "at"
+        ],
+        "title": "FeedbackEvent",
+        "description": "One review signal. `event_id` makes learning idempotent (e.g. tx hash + log index, or record id + kind)."
+      },
+      "FirewallVerdict": {
+        "properties": {
+          "allowed": {
+            "type": "boolean",
+            "title": "Allowed"
+          },
+          "threats": {
+            "items": {
+              "$ref": "#/components/schemas/Threat"
+            },
+            "type": "array",
+            "title": "Threats"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recipients"
+          },
+          "normalized": {
+            "type": "string",
+            "title": "Normalized"
+          },
+          "screened": {
+            "type": "boolean",
+            "title": "Screened",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "allowed",
+          "threats",
+          "recipients",
+          "normalized"
+        ],
+        "title": "FirewallVerdict"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HeadlineRequest": {
+        "properties": {
+          "headline": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Headline"
+          },
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "usdc_distress"
+            ],
+            "title": "Scenario",
+            "default": "demo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "headline"
+        ],
+        "title": "HeadlineRequest"
+      },
+      "HeadlineResponse": {
+        "properties": {
+          "signal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeadlineSignal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimeView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimeView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signal",
+          "before",
+          "after",
+          "source",
+          "note"
+        ],
+        "title": "HeadlineResponse"
+      },
+      "HeadlineSignal": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "entity": {
+            "type": "string",
+            "title": "Entity",
+            "description": "The name that matched in the headline"
+          },
+          "p_negative": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Negative"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "matched_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matched Terms"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "offline lexicon (FinBERT fallback)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "entity",
+          "p_negative",
+          "headline",
+          "matched_terms"
+        ],
+        "title": "HeadlineSignal"
+      },
+      "LeverAction": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "heartbeat",
+              "calibrate",
+              "shrink"
+            ],
+            "title": "Kind"
+          },
+          "new_radius_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Radius Usd"
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Rationale",
+            "description": "Short: it is written on-chain in AutonomousRadiusAdjusted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "rationale"
+        ],
+        "title": "LeverAction"
+      },
+      "LeverState": {
+        "properties": {
+          "radius_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Radius Usd"
+          },
+          "elasticity_enabled": {
+            "type": "boolean",
+            "title": "Elasticity Enabled",
+            "default": false
+          },
+          "last_step_up_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Step Up At"
+          },
+          "last_shrink_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Shrink At"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          },
+          "heartbeat_alive": {
+            "type": "boolean",
+            "title": "Heartbeat Alive",
+            "default": true
+          },
+          "held_cluster_stressed": {
+            "type": "boolean",
+            "title": "Held Cluster Stressed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "radius_usd"
+        ],
+        "title": "LeverState",
+        "description": "What the Brain knows about the vault's levers for one account (Phase 7 reads it from TetherGuardHook)."
+      },
+      "LeversResponse": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/LeverAction"
+            },
+            "type": "array",
+            "title": "Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "actions"
+        ],
+        "title": "LeversResponse"
+      },
+      "Mandate": {
+        "properties": {
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ActionType"
+          },
+          "asset": {
+            "type": "string",
+            "title": "Asset"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Amount",
+            "description": "In units of `asset`"
+          },
+          "amount_usd": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Usd"
+          },
+          "horizon_days": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Horizon Days",
+            "default": 365
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recipients",
+            "description": "Must stay empty unless whitelisted"
+          },
+          "constraints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Constraints"
+          },
+          "parser": {
+            "type": "string",
+            "enum": [
+              "rules",
+              "llm"
+            ],
+            "title": "Parser",
+            "default": "rules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_text",
+          "action",
+          "asset",
+          "amount"
+        ],
+        "title": "Mandate",
+        "description": "A user's request, parsed into typed form."
+      },
+      "OnboardRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "answers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "reset": {
+            "type": "boolean",
+            "title": "Reset",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "answers"
+        ],
+        "title": "OnboardRequest"
+      },
+      "OnboardResponse": {
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/OnboardingResult"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result",
+          "profile"
+        ],
+        "title": "OnboardResponse"
+      },
+      "OnboardingResult": {
+        "properties": {
+          "tier": {
+            "$ref": "#/components/schemas/RiskTier"
+          },
+          "lam": {
+            "type": "number",
+            "title": "Lam"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "rationale": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rationale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tier",
+          "lam",
+          "points",
+          "rationale"
+        ],
+        "title": "OnboardingResult"
+      },
+      "ParseOutcome": {
+        "properties": {
+          "mandate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Mandate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/FirewallVerdict"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mandate",
+          "verdict"
+        ],
+        "title": "ParseOutcome"
+      },
+      "ParseRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ParseRequest"
+      },
+      "ProfileSummary": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/RiskTier"
+          },
+          "lam": {
+            "type": "number",
+            "title": "Lam"
+          },
+          "tau": {
+            "type": "number",
+            "title": "Tau"
+          },
+          "soft_limit_usd": {
+            "type": "number",
+            "title": "Soft Limit Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "tier",
+          "lam",
+          "tau",
+          "soft_limit_usd"
+        ],
+        "title": "ProfileSummary"
+      },
+      "ProfileView": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/RiskTier"
+          },
+          "tier_name": {
+            "type": "string",
+            "title": "Tier Name"
+          },
+          "lam": {
+            "type": "number",
+            "title": "Lam"
+          },
+          "lam_band": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Lam Band"
+          },
+          "tau": {
+            "type": "number",
+            "title": "Tau"
+          },
+          "soft_limit_usd": {
+            "type": "number",
+            "title": "Soft Limit Usd"
+          },
+          "approval_rate_7d": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Rate 7D"
+          },
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/VenueApproval"
+            },
+            "type": "array",
+            "title": "Approvals"
+          },
+          "likes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Likes"
+          },
+          "dislikes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dislikes"
+          },
+          "cost_factors": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Cost Factors"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackEvent"
+            },
+            "type": "array",
+            "title": "Recent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "tier",
+          "tier_name",
+          "lam",
+          "lam_band",
+          "tau",
+          "soft_limit_usd",
+          "approval_rate_7d",
+          "approvals",
+          "likes",
+          "dislikes",
+          "cost_factors",
+          "recent"
+        ],
+        "title": "ProfileView"
+      },
+      "ProposeRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "usdc_distress"
+            ],
+            "title": "Scenario",
+            "default": "demo"
+          },
+          "vault": {
+            "$ref": "#/components/schemas/VaultIn",
+            "default": {
+              "tether_radius_usd": 500.0,
+              "spent_today_usd": 0.0,
+              "heartbeat_alive": true
+            }
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline",
+            "description": "Optional breaking headline for the NLP Risk Sentinel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ProposeRequest"
+      },
+      "ProposeResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "refused",
+              "unparsed",
+              "blocked",
+              "decided"
+            ],
+            "title": "Status"
+          },
+          "parse": {
+            "$ref": "#/components/schemas/ParseOutcome"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Decision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionIntent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regimes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RegimeView"
+            },
+            "type": "object",
+            "title": "Regimes",
+            "default": {}
+          },
+          "clusters": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ClusterStatus"
+            },
+            "type": "object",
+            "title": "Clusters",
+            "default": {}
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentReport"
+            },
+            "type": "array",
+            "title": "Agents",
+            "default": []
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "parse"
+        ],
+        "title": "ProposeResponse"
+      },
+      "QuizOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "points"
+        ],
+        "title": "QuizOption"
+      },
+      "QuizQuestion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/QuizOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "options"
+        ],
+        "title": "QuizQuestion"
+      },
+      "RegimeProbs": {
+        "properties": {
+          "p_normal": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Normal"
+          },
+          "p_distress": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Distress"
+          },
+          "p_failure": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Failure"
+          },
+          "z_distress": {
+            "type": "number",
+            "title": "Z Distress"
+          },
+          "z_failure": {
+            "type": "number",
+            "title": "Z Failure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "p_normal",
+          "p_distress",
+          "p_failure",
+          "z_distress",
+          "z_failure"
+        ],
+        "title": "RegimeProbs"
+      },
+      "RegimeView": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "price": {
+            "type": "number",
+            "title": "Price"
+          },
+          "fair_value": {
+            "type": "number",
+            "title": "Fair Value"
+          },
+          "p_normal": {
+            "type": "number",
+            "title": "P Normal"
+          },
+          "p_distress": {
+            "type": "number",
+            "title": "P Distress"
+          },
+          "p_failure": {
+            "type": "number",
+            "title": "P Failure"
+          },
+          "regime": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "distress",
+              "failure"
+            ],
+            "title": "Regime"
+          },
+          "cluster": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "price",
+          "fair_value",
+          "p_normal",
+          "p_distress",
+          "p_failure",
+          "regime",
+          "cluster"
+        ],
+        "title": "RegimeView"
+      },
+      "RegimesResponse": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "hurdle_rate": {
+            "type": "number",
+            "title": "Hurdle Rate"
+          },
+          "regimes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RegimeView"
+            },
+            "type": "object",
+            "title": "Regimes"
+          },
+          "clusters": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ClusterStatus"
+            },
+            "type": "object",
+            "title": "Clusters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "as_of",
+          "hurdle_rate",
+          "regimes",
+          "clusters"
+        ],
+        "title": "RegimesResponse"
+      },
+      "Response": {
+        "type": "string",
+        "enum": [
+          "HOLD",
+          "HOLD_NO_NEW_DEPOSITS",
+          "EXIT"
+        ],
+        "title": "Response"
+      },
+      "RiskTier": {
+        "type": "integer",
+        "enum": [
+          1,
+          2,
+          3
+        ],
+        "title": "RiskTier",
+        "description": "Matches TetherGuardHook RISK_TIER_* constants."
+      },
+      "ScoreBreakdown": {
+        "properties": {
+          "excess_yield": {
+            "type": "number",
+            "title": "Excess Yield"
+          },
+          "pd": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Pd"
+          },
+          "lgd": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Lgd"
+          },
+          "expected_loss": {
+            "type": "number",
+            "title": "Expected Loss"
+          },
+          "loss_weighted": {
+            "type": "number",
+            "title": "Loss Weighted"
+          },
+          "c_in": {
+            "type": "number",
+            "title": "C In"
+          },
+          "c_out_stress": {
+            "type": "number",
+            "title": "C Out Stress"
+          },
+          "affinity_term": {
+            "type": "number",
+            "title": "Affinity Term",
+            "default": 0.0
+          },
+          "total": {
+            "type": "number",
+            "title": "Total"
+          },
+          "sharpe": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe",
+            "description": "(E[R] − Shibor) / sd(R) over one year"
+          },
+          "cvar_95": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvar 95",
+            "description": "Average loss in the worst 5% of years, fraction (negative = gain)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "excess_yield",
+          "pd",
+          "lgd",
+          "expected_loss",
+          "loss_weighted",
+          "c_in",
+          "c_out_stress",
+          "total"
+        ],
+        "title": "ScoreBreakdown",
+        "description": "Every term of score = excess − (1+λ)·PD·LGD − c_in − c_out_stress + w_a·a, fractions per year."
+      },
+      "Signal": {
+        "type": "string",
+        "enum": [
+          "ratify",
+          "flag",
+          "note_penalty",
+          "note",
+          "breakout_accept",
+          "breakout_reject",
+          "pick_safer",
+          "pick_riskier",
+          "ignored"
+        ],
+        "title": "Signal",
+        "description": "A review signal: an on-chain Morning Review event or an explicit UI choice (BRAIN_DESIGN §3.2)."
+      },
+      "StrategyResult": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "invested_usd": {
+            "type": "number",
+            "title": "Invested Usd"
+          },
+          "final_value_usd": {
+            "type": "number",
+            "title": "Final Value Usd"
+          },
+          "pnl_pct": {
+            "type": "number",
+            "title": "Pnl Pct"
+          },
+          "exited_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exited At"
+          },
+          "bought_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bought At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "invested_usd",
+          "final_value_usd",
+          "pnl_pct",
+          "exited_at",
+          "bought_at"
+        ],
+        "title": "StrategyResult"
+      },
+      "SyncItem": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "applied": {
+            "type": "boolean",
+            "title": "Applied"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "applied",
+          "changes"
+        ],
+        "title": "SyncItem"
+      },
+      "SyncRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackEvent"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "events"
+        ],
+        "title": "SyncRequest"
+      },
+      "SyncResponse": {
+        "properties": {
+          "applied": {
+            "type": "integer",
+            "title": "Applied"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SyncItem"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied",
+          "duplicates",
+          "results",
+          "profile"
+        ],
+        "title": "SyncResponse"
+      },
+      "Threat": {
+        "type": "string",
+        "enum": [
+          "OVERRIDE_INSTRUCTION",
+          "LIMIT_CHANGE",
+          "UNLIMITED_APPROVAL",
+          "DRAIN",
+          "UNKNOWN_RECIPIENT",
+          "OBFUSCATION"
+        ],
+        "title": "Threat"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VaultIn": {
+        "properties": {
+          "tether_radius_usd": {
+            "type": "number",
+            "maximum": 1000000000.0,
+            "minimum": 0.0,
+            "title": "Tether Radius Usd",
+            "default": 500.0
+          },
+          "spent_today_usd": {
+            "type": "number",
+            "maximum": 1000000000.0,
+            "minimum": 0.0,
+            "title": "Spent Today Usd",
+            "default": 0.0
+          },
+          "heartbeat_alive": {
+            "type": "boolean",
+            "title": "Heartbeat Alive",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "VaultIn",
+        "description": "What the UI knows about the vault today (Phase 7 reads it from TetherGuardHook instead)."
+      },
+      "VenueApproval": {
+        "properties": {
+          "venue_id": {
+            "type": "string",
+            "title": "Venue Id"
+          },
+          "approval": {
+            "type": "number",
+            "title": "Approval"
+          },
+          "affinity": {
+            "type": "number",
+            "title": "Affinity"
+          },
+          "alpha": {
+            "type": "number",
+            "title": "Alpha"
+          },
+          "beta": {
+            "type": "number",
+            "title": "Beta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "venue_id",
+          "approval",
+          "affinity",
+          "alpha",
+          "beta"
+        ],
+        "title": "VenueApproval"
+      }
+    }
+  }
+}

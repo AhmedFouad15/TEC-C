@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+import os
 import threading
 import time
 import uuid
@@ -9,6 +11,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Annotated, Literal
 
+from fastapi import HTTPException, Request
 from pydantic import AfterValidator, BaseModel, Field
 
 from tecc_brain.graph.pipeline import PipelineResult
@@ -116,3 +119,24 @@ def get_proposals() -> ProposalCache:
 @lru_cache(maxsize=1)
 def get_ref() -> Reference:
     return load_reference()
+
+
+LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
+
+def require_client(request: Request) -> None:
+    """Who may drive the Brain. With TECC_API_TOKEN set, every /api call needs `Authorization: Bearer <token>`.
+    Without it the API answers loopback clients only (the default local demo), never the network.
+
+    The vault stays the real authority: nothing here can sign or move funds, and every on-chain action is still
+    checked by TetherGuardHook. This gate protects the learned profile and proposals from other machines.
+    """
+    token = os.environ.get("TECC_API_TOKEN")
+    if token:
+        given = request.headers.get("authorization", "")
+        if not hmac.compare_digest(given.encode(), f"Bearer {token}".encode()):
+            raise HTTPException(401, "missing or wrong API token")
+        return
+    host = request.client.host if request.client else ""
+    if host not in LOOPBACK:
+        raise HTTPException(403, "the Brain API only answers this machine unless TECC_API_TOKEN is set")
