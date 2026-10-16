@@ -47,7 +47,7 @@ Plans:
 
 Plans:
 - [x] 02-01: Fair value + 3-regime softmax model — tests reproduce the 4 episode rows (USDC-SVB, stETH, UST, normal)
-- [ ] 02-02: Recovery-adjusted edge (+3.1% / −14%) + %/yr score with (1+λ)·PD·LGD and stressed exit cost — tests reproduce the demo table
+- [x] 02-02: Recovery-adjusted edge (+3.1% / −14%) + %/yr score with (1+λ)·PD·LGD and stressed exit cost — tests reproduce the demo table
 - [ ] 02-03: Hard filters (tier, whitelist, failure veto, negative edge, slippage/depth, heartbeat) with reason codes
 
 ### Phase 3: Portfolio & Strategy
@@ -127,7 +127,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-10-16 |
-| 2. Risk Engine | 1/3 | In progress | - |
+| 2. Risk Engine | 2/3 | In progress | - |
 | 3. Portfolio & Strategy | 0/3 | Not started | - |
 | 4. Intent & Privacy | 0/2 | Not started | - |
 | 5. Adaptive Learning | 0/3 | Not started | - |
