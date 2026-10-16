@@ -147,3 +147,43 @@ def test_personal_history_shows_up_in_the_explanation():
 def test_opportunities_are_ranked_by_edge():
     edges = [c.candidate.apy for c in _plan(SCENE_1, snapshot=DISTRESS).cards if c.label == CardLabel.OPPORTUNITY]
     assert len(edges) >= 2 and edges == sorted(edges, reverse=True)
+
+
+# --- fail-closed sizing (security review) --------------------------------------------------------
+
+
+def _without(snapshot, *, price=None, peg=None):
+    update = {}
+    if price:
+        update["prices_usd"] = {k: v for k, v in snapshot.prices_usd.items() if k != price}
+    if peg:
+        update["pegs"] = {k: v for k, v in snapshot.pegs.items() if k != peg}
+    return snapshot.model_copy(update=update)
+
+
+def test_unpriced_asset_is_blocked_instead_of_valued_at_one_dollar():
+    mandate = Mandate(raw_text="Stake my 10 WBTC", action=ActionType.STAKE, asset="WBTC", amount=10)
+    decision = _plan(mandate, snapshot=_without(DEMO, price="WBTC"))
+    assert decision.mode == AutonomyMode.BLOCKED
+    assert decision.auto_amount_usd == 0
+
+
+def test_understated_usd_value_is_overridden_by_market_value():
+    lowballed = SCENE_1.model_copy(update={"amount_usd": 10.0})
+    decision = _plan(lowballed)
+    assert decision.auto_amount_usd == pytest.approx(400)
+    assert decision.proposed_amount_usd == pytest.approx(1100)
+
+
+def test_stated_value_without_a_market_price_never_runs_automatically():
+    stated = SCENE_1.model_copy(update={"amount_usd": 1500.0})
+    decision = _plan(stated, snapshot=_without(DEMO, price="USDC"))
+    assert decision.auto_amount_usd == 0
+    assert all(card.mode != AutonomyMode.AUTO for card in decision.cards)
+
+
+def test_missing_peg_data_removes_autonomy():
+    decision = _plan(SCENE_1, snapshot=_without(DEMO, peg="USDC"))
+    assert decision.auto_amount_usd == 0
+    best = _card(decision, CardLabel.BEST)
+    assert any("no live peg data for USDC" in line for line in best.explanation)

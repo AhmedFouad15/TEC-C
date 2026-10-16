@@ -42,10 +42,16 @@ def soft_limit(profile: BrainProfile, vault: VaultState) -> float:
     return (0.5 + 0.5 * profile.tau) * vault.remaining_usd
 
 
-def mandate_amount_usd(mandate: Mandate, snapshot: MarketSnapshot) -> float:
-    if mandate.amount_usd is not None:
-        return mandate.amount_usd
-    return mandate.amount * snapshot.prices_usd.get(mandate.asset, 1.0)
+def mandate_amount_usd(mandate: Mandate, snapshot: MarketSnapshot) -> tuple[float | None, bool]:
+    """(USD value, verified). Fails closed: never guesses a price, and never trusts a caller-supplied
+    amount_usd that is smaller than units × market price (an understated value could slip under the tether)."""
+    price = snapshot.prices_usd.get(mandate.asset)
+    computed = mandate.amount * price if price is not None else None
+    if computed is None:
+        return mandate.amount_usd, False
+    if mandate.amount_usd is None:
+        return computed, True
+    return max(computed, mandate.amount_usd), True
 
 
 def _auto_blockers(venue: Venue, profile: BrainProfile, view: MarketView, snapshot: MarketSnapshot, ref: Reference) -> list[str]:
@@ -58,6 +64,7 @@ def _auto_blockers(venue: Venue, profile: BrainProfile, view: MarketView, snapsh
     for symbol in venue.exposures:
         a = view.assessments.get(symbol)
         if a is None:
+            blockers.append(f"no live peg data for {symbol}")
             continue
         if a.probs.p_normal < AUTO_MIN_P_NORMAL:
             blockers.append(f"{symbol} is not trading normally (P normal {a.probs.p_normal:.0%})")
@@ -105,7 +112,10 @@ def plan(
     ref: Reference,
 ) -> Decision:
     trace: list[str] = []
-    amount = mandate_amount_usd(mandate, snapshot)
+    amount, verified = mandate_amount_usd(mandate, snapshot)
+    if amount is None:
+        trace.append(f"Blocked: no market price for {mandate.asset}, so the request cannot be sized safely.")
+        return Decision(mandate=mandate, mode=AutonomyMode.BLOCKED, trace=trace)
     view = assess_market(snapshot, ref)
     stressed = [c.cluster for c in view.clusters.values() if c.stressed]
     trace.append(f"Request: {mandate.action.value} ${amount:,.0f} of {mandate.asset}.")
@@ -133,6 +143,8 @@ def plan(
         trace.append(f"Scored {venue.id}: {candidate.score.total * 100:+.2f}%/yr.")
 
     limit = soft_limit(profile, vault)
+    if not verified:
+        trace.append(f"No market price for {mandate.asset}: the stated value cannot be verified, so nothing runs automatically.")
     trace.append(f"Soft tether: (0.5 + 0.5·τ={profile.tau:.2f}) × ${vault.remaining_usd:,.0f} remaining = ${limit:,.0f}.")
 
     def total(vc: tuple[Venue, Candidate]) -> float:
@@ -140,6 +152,9 @@ def plan(
 
     positive = [vc for vc in passing if total(vc) > 0]
     blockers = {v.id: _auto_blockers(v, profile, view, snapshot, ref) for v, _ in passing}
+    if not verified:
+        for venue_id in blockers:
+            blockers[venue_id].append(f"value of {mandate.asset} not verifiable from market prices")
     eligible = [vc for vc in positive if not blockers[vc[0].id]]
 
     if mandate.action == ActionType.OPTIMIZE_YIELD:
