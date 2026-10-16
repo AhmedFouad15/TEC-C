@@ -1,23 +1,26 @@
-# Compiler files
-cache/
-out/
+# Foundry Compiler & Build Artifacts
+contracts/cache/
+contracts/out/
 
-# Commonly ignored directories
-.logs/
-.ignore/
+# Development broadcast logs & dry runs
+contracts/broadcast/*/31337/
+contracts/broadcast/**/dry-run/
+contracts/.logs/
+contracts/.ignore/
 
-# Ignores development broadcast logs
-!/broadcast
-/broadcast/*/31337/
-/broadcast/**/dry-run/
-
-# Docs
-docs/
-
-# Dotenv file
+# Environment configurations
 .env
 .env.*
 !.env.example
+
+# Operating System files
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+
+# Internal / Scratch folders
+just to enhance/
 
 # Tec-C Brain (agent)
 agent/.venv/

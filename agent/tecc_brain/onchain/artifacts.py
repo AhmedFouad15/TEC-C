@@ -14,18 +14,19 @@ from eth_utils import keccak, to_checksum_address
 from tecc_brain.onchain.rpc import Rpc, RpcError
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+CONTRACTS_DIR = REPO_ROOT / "contracts"  # Member 1's Foundry project
 NATIVE_ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 
 def out_dir() -> Path:
-    return Path(os.environ.get("TECC_FOUNDRY_OUT", REPO_ROOT / "out"))
+    return Path(os.environ.get("TECC_FOUNDRY_OUT", CONTRACTS_DIR / "out"))
 
 
 @lru_cache(maxsize=None)
 def _artifact(name: str) -> dict[str, Any]:
     path = out_dir() / f"{name}.sol" / f"{name}.json"
     if not path.exists():
-        raise FileNotFoundError(f"{path} missing: run `forge build` in {REPO_ROOT}")
+        raise FileNotFoundError(f"{path} missing: run `forge build` in {CONTRACTS_DIR}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 

@@ -21,8 +21,8 @@ def _free_port() -> int:
 def anvil_url():
     if shutil.which("anvil") is None:
         pytest.skip("anvil not installed (brew install foundry)")
-    if not (REPO / "out" / "TetherGuardHook.sol" / "TetherGuardHook.json").exists():
-        pytest.skip("contracts not built (run `forge build` in the repo root)")
+    if not (REPO / "contracts" / "out" / "TetherGuardHook.sol" / "TetherGuardHook.json").exists():
+        pytest.skip("contracts not built (run `forge build` in contracts/)")
     port = _free_port()
     proc = subprocess.Popen(
         ["anvil", "--port", str(port), "--host", "127.0.0.1", "--silent"],
