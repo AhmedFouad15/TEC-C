@@ -31,6 +31,7 @@ from tecc_brain.strategy.portfolio import PortfolioRisk, position_exposures, pos
 
 ALGORITHMIC_HOLD_MAX_FAILURE = 0.05
 DEFAULT_DISCOUNT_COSTS = 0.005  # spread + stressed slippage when buying into a de-peg
+MIN_OPPORTUNITY_EDGE = 0.01  # margin of safety: the regime model is hand-calibrated, so thin edges are noise
 
 SAFE_RAIL = "shibor_mmf"
 EXIT_DESTINATION: dict[AssetKind, str] = {
@@ -171,7 +172,8 @@ def opportunity_cards(
     budget_usd: float,
     costs: float = DEFAULT_DISCOUNT_COSTS,
 ) -> list[Card]:
-    """Offer to buy a temporarily mispriced asset when the recovery-adjusted edge is positive. Always a proposal."""
+    """Offer to buy a temporarily mispriced asset when the recovery-adjusted edge clears the margin of safety.
+    Always a proposal, never automatic."""
     cards: list[Card] = []
     if budget_usd <= 0:
         return cards
@@ -181,7 +183,7 @@ def opportunity_cards(
         asset = ref.assets[symbol]
         days = expected_recovery_days(snapshot.pegs[symbol].redemption_status)
         edge = recovery_edge(a.price, a, asset.reserve_quality, costs, snapshot.hurdle_rate, recovery_days=days)
-        if edge <= 0:
+        if edge < MIN_OPPORTUNITY_EDGE:
             continue
         cards.append(
             Card(

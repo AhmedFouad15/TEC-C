@@ -188,6 +188,21 @@ E = P_rec·(FV − p) − P_failure·(p − V_fail) − c_in − c_out_stress �
 redemption mechanism works: 7 days if open, 30 if delayed, 180 if paused (stETH waited ~10 months for Shanghai).
 - USDC at $0.88, FV = 0.917 after haircutting the $3.3B frozen at SVB → E ≈ **+3.0%** (T_rec 30 days, redemptions delayed): still a "buy the discount" opportunity card (PROPOSE only, never AUTO).
 - UST at $0.95 (early in the crash, P_failure ≈ 0.23) → E ≈ **−14.2%**: blocked, and the Brain proposes exiting.
+- An opportunity is only offered when E ≥ **1%**: a margin of safety, because the model is hand-calibrated and
+  thin edges are noise.
+
+### Backtest: the Brain vs two naive rules (`/api/backtest/{episode}`)
+
+Day-by-day replay of approximate historical closes (`agent/tecc_brain/data/backtests.json`, inputs hand-set from the
+public record). Each strategy starts with $10,000; buy-the-dip strategies add one more $10,000 ticket.
+
+| Episode | Tec-C Brain | Sentiment veto (sell at ≥60% bad news) | Mean reversion (buy at ≤ 0.97) |
+|---|---|---|---|
+| USDC / SVB (Mar 2023) | **+6.8%** — holds, buys at 0.88 (edge +3.0%) | −12.0% — sold at the bottom | +6.8% |
+| stETH / Celsius (Jun 2022) | **+4.7%** — holds, buys at 0.94 (edge +4.0%) | −3.1% | +3.1% |
+| UST (May 2022) | **−1.0%** — exits at $0.99 three days before $0.70 | −5.0% | **−89.7%** |
+
+Neither naive rule wins both kinds of event; the regime model does, because it asks whether the mechanism still works.
 
 ### 2.5 Portfolio contagion: one de-peg raises the odds of others
 
