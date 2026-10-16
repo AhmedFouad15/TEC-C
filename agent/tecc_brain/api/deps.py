@@ -121,15 +121,30 @@ def get_ref() -> Reference:
     return load_reference()
 
 
-LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+LOOPBACK = frozenset({"127.0.0.1", "::1", "testclient"})  # socket peers; a network peer is always a real IP
+LOCAL_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1", "testserver"})
+
+
+def allowed_origins() -> list[str]:
+    return os.environ.get("TECC_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+
+
+def _hostname(host_header: str) -> str:
+    host = host_header.strip().lower()
+    if host.startswith("["):  # [::1]:8000
+        return host[1:host.index("]")] if "]" in host else host
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
 
 
 def require_client(request: Request) -> None:
     """Who may drive the Brain. With TECC_API_TOKEN set, every /api call needs `Authorization: Bearer <token>`.
-    Without it the API answers loopback clients only (the default local demo), never the network.
+    Without it the API serves this machine only:
+      * the socket peer must be loopback (no other machine);
+      * the Host header must be a local name (defeats DNS rebinding: evil.com resolving to 127.0.0.1);
+      * a browser Origin, when sent, must be an allowed frontend origin (defeats cross-site POSTs / CSRF).
 
     The vault stays the real authority: nothing here can sign or move funds, and every on-chain action is still
-    checked by TetherGuardHook. This gate protects the learned profile and proposals from other machines.
+    checked by TetherGuardHook. This gate protects the learned profile and proposals.
     """
     token = os.environ.get("TECC_API_TOKEN")
     if token:
@@ -140,3 +155,9 @@ def require_client(request: Request) -> None:
     host = request.client.host if request.client else ""
     if host not in LOOPBACK:
         raise HTTPException(403, "the Brain API only answers this machine unless TECC_API_TOKEN is set")
+    extra = {h.strip().lower() for h in os.environ.get("TECC_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    if _hostname(request.headers.get("host", "")) not in LOCAL_HOSTNAMES | extra:
+        raise HTTPException(403, "unexpected Host header")
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in allowed_origins():
+        raise HTTPException(403, "cross-site request refused")
