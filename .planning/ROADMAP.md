@@ -18,7 +18,7 @@ None
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Foundation** - `/agent` package, typed models, static protocol table, offline market snapshot
+- [x] **Phase 1: Foundation** - `/agent` package, typed models, static protocol table, offline market snapshot
 - [ ] **Phase 2: Risk Engine** - Fair value, 3-regime model, recovery edge, %/yr score, hard filters (TDD on spec numbers)
 - [ ] **Phase 3: Portfolio & Strategy** - Contagion, cluster caps, playbook, Good/Better/Best, autonomy gate, backtest
 - [ ] **Phase 4: Intent & Privacy** - Offline mandate parser, prompt-injection firewall, privacy sieve, pluggable LLM
@@ -37,7 +37,7 @@ None
 
 Plans:
 - [x] 01-01: Package scaffold (pyproject/requirements, venv, pytest, FastAPI `/health`) + Pydantic domain models (Mandate, Asset, PegState, MarketSnapshot, Candidate, Card, Decision)
-- [ ] 01-02: `protocols.json` (tier, pd_base, LGD, q, redemption fee/delay, cluster, ρ links) + bundled market snapshot + `MarketDataSource` adapter interface with snapshot implementation
+- [x] 01-02: `protocols.json` (tier, pd_base, LGD, q, redemption fee/delay, cluster, ρ links) + bundled market snapshot + `MarketDataSource` adapter interface with snapshot implementation
 
 ### Phase 2: Risk Engine
 **Goal**: The core value — economically justified, deterministic risk math that reproduces every number in BRAIN_DESIGN.md §2.2 and §2.4
@@ -126,7 +126,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/2 | In progress | - |
+| 1. Foundation | 2/2 | Complete | 2026-10-16 |
 | 2. Risk Engine | 0/3 | Not started | - |
 | 3. Portfolio & Strategy | 0/3 | Not started | - |
 | 4. Intent & Privacy | 0/2 | Not started | - |

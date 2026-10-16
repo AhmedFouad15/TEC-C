@@ -5,29 +5,29 @@
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** The risk engine must be right and defensible — 3-regime peg model, fundamental fair value, loss-averse %/yr scoring reproducing the spec numbers.
-**Current focus:** Phase 1 — Foundation
+**Current focus:** Phase 2 — Risk Engine
 
 ## Current Position
 
-Phase: 1 of 8 (Foundation)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-10-16 — Completed 01-01-PLAN.md
+Phase: 2 of 8 (Risk Engine)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-16 — Phase 1 complete (01-02)
 
-Progress: ░░░░░░░░░░ 5% (1/22 plans)
+Progress: █░░░░░░░░░ 9% (2/22 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 12 min
-- Total execution time: 0.2 hours
+- Total plans completed: 2
+- Average duration: 11 min
+- Total execution time: 0.4 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 1/2 | 12 min | 12 min |
+| 01-foundation | 2/2 | 22 min | 11 min |
 
 **Recent Trend:**
 - Last 5 plans: —
@@ -44,6 +44,7 @@ Recent decisions affecting current work:
 - Init: no ERC-4337 bundler — direct account.execute on Anvil
 - Init: local branch member2/brain, no push without approval
 - 01-01: keep httpx (not httpx2) for TestClient — supply-chain caution
+- 01-02: c_out_stress = (exit_bps/1e4)/0.30/horizon + hurdle·delay/365
 
 ### Deferred Issues
 
@@ -57,5 +58,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-10-16
-Stopped at: Completed 01-01-PLAN.md
+Stopped at: Phase 1 complete
 Resume file: None
