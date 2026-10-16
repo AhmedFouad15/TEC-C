@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-16)
 ## Current Position
 
 Phase: 6 of 8 (API Layer)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-10-16 — Phase 5.1 Sharpe & CVaR complete (361 tests)
+Plan: 1 of 3 (next: 06-02 endpoints)
+Status: In progress
+Last activity: 2026-10-16 — 06-01 LangGraph pipeline complete (372 tests)
 
-Progress: ██████░░░░ 63% (15/24 plans)
+Progress: ██████░░░░ 67% (16/24 plans)
 
 ## Performance Metrics
 

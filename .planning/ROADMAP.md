@@ -101,7 +101,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 06-01: Pipeline orchestrator (parse → sieve → profile → scan → regime → filters → score → portfolio → rank → gate) with trace output
+- [x] 06-01: Pipeline orchestrator (parse → sieve → profile → scan → regime → filters → score → portfolio → rank → gate) with trace output
 - [ ] 06-02: `/api/mandate/parse|propose|execute` (execute returns an unsigned execution plan until Phase 7) + `/api/risk/regimes`
 - [ ] 06-03: `/api/profile/*`, `/api/review/sync` (simulated events), `/api/backtest/{episode}` + export `shared/api_spec.json`
 
@@ -143,6 +143,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Intent & Privacy | 2/2 | Complete | 2026-10-16 |
 | 5. Adaptive Learning | 3/3 | Complete | 2026-10-16 |
 | 5.1 Sharpe & CVaR | 1/1 | Complete | 2026-10-16 |
-| 6. API Layer | 0/3 | Not started | - |
+| 6. API Layer | 1/3 | In progress | - |
 | 7. On-Chain Integration | 0/3 | Not started | - |
 | 8. Live Data, Demo Page & Freeze | 0/3 | Not started | - |
