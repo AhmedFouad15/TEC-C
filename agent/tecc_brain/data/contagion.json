@@ -1,0 +1,12 @@
+[
+  {"source": "USDC", "target": "DAI", "rho": 0.8,
+   "note": "DAI is largely backed by USDC through the PSM; in Mar 2023 DAI fell to ~$0.90 alongside USDC."},
+  {"source": "USDC", "target": "FDUSD", "rho": 0.3, "note": "Same fiat-banking channel risk."},
+  {"source": "USDC", "target": "USDT", "rho": 0.3, "note": "Shared USD banking/T-bill channel; partial flight-to-quality offsets."},
+  {"source": "USDT", "target": "USDC", "rho": 0.3, "note": "Symmetric to USDC->USDT."},
+  {"source": "stETH", "target": "ezETH", "rho": 0.6, "note": "Restaked ETH tokens inherit LST liquidity shocks."},
+  {"source": "stETH", "target": "rETH", "rho": 0.4, "note": "LST market-wide discount in Jun 2022."},
+  {"source": "rETH", "target": "stETH", "rho": 0.4, "note": "Symmetric to stETH->rETH."},
+  {"source": "PAXG", "target": "XAUT", "rho": 0.2, "note": "Weak link: independent custodians, shared gold-token market."},
+  {"source": "XAUT", "target": "PAXG", "rho": 0.2, "note": "Symmetric to PAXG->XAUT."}
+]
