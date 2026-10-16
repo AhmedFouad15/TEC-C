@@ -15,11 +15,12 @@
   and red-team the firewall with a generated attack corpus.
 - **Effort:** Medium
 
-### ISS-002: Sieve does not mask personal names or free-text PII
+### ISS-002: Sieve does not mask personal names
 - **Discovered:** Phase 4, background security review of sieve.py (privacy leak, fixed for numbers/addresses)
 - **Type:** Privacy hardening (enhancement)
 - **Description:** Numbers, EVM/base58/bech32 addresses, tx hashes, DIDs, ENS and emails are masked (fail closed).
-  Names ("my CFO Wang Lei"), phone formats with letters, and number words ("ten thousand") are not.
+  Chinese numerals and English number words are masked too (fixed after a second review). Names ("my CFO Wang Lei")
+  and obfuscated emails ("alice [at] example [dot] com") are not.
 - **Why acceptable now:** no LLM provider is configured, so nothing leaves the machine; demo requests carry no names.
-- **Possible fix:** local NER pass (spaCy, already in Member 4's stack) before any cloud call; number-word masking.
+- **Possible fix:** local NER pass (spaCy, already in Member 4's stack) before any cloud call.
 - **Effort:** Small–Medium

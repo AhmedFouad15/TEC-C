@@ -73,3 +73,16 @@ def test_payload_numbers_under_any_key_are_masked_except_structural_ones():
     for secret in ("1500", ADDR, "'qty': 3"):
         assert secret not in flat
     assert masked["tier"] == 2 and masked["horizon_days"] == 365
+
+
+@pytest.mark.parametrize("text, secret", [
+    ("质押一万五千USDC", "一万五千"),
+    ("把两千个USDC存进Aave", "两千"),
+    ("stake ten thousand USDC", "ten thousand"),
+    ("deposit twenty-five grand into aave", "twenty-five grand"),
+    ("Stake my １０ ETH", "１０"),
+])
+def test_number_words_and_chinese_numerals_are_masked(text, secret):
+    masked, vault = mask(text)
+    assert secret not in masked
+    assert restore(masked, vault) == text

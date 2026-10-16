@@ -7,6 +7,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
+_NUMBER_WORDS = (
+    "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|"
+    "seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|"
+    "billion|grand|dozen"
+)
+
 # Order matters: DIDs contain addresses, so they are masked first. Everything fails closed: over-masking only costs
 # the model a little context, under-masking leaks a balance or an identity.
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -19,6 +25,12 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ADDR", re.compile(r"\b(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{26,}\b")),
     # Every number, even glued to a word ("10ETH", "USDC1500"); k/m suffix kept with it only when standalone.
     ("AMT", re.compile(r"\d+(?:[.,]\d+)*(?:[kKmM](?![A-Za-z]))?")),
+    # Chinese numerals: Chinese text is screened by the firewall and may reach an LLM, so its amounts must be masked too.
+    ("AMT", re.compile(r"[零〇一二两三四五六七八九十百千万亿壹贰叁肆伍陆柒捌玖拾佰仟萬億]+")),
+    # English number words ("ten thousand", "twenty-five").
+    ("AMT", re.compile(
+        r"\b(?:" + _NUMBER_WORDS + r")(?:[\s-]+(?:and[\s-]+)?(?:" + _NUMBER_WORDS + r"))*\b", re.IGNORECASE
+    )),
 )
 _TOKEN = re.compile(r"<(?:DID|EMAIL|ADDR|ENS|AMT)_\d+>")
 # Numbers under these payload keys are structural, not private; every other number is masked.
