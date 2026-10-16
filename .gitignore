@@ -18,3 +18,10 @@ docs/
 .env
 .env.*
 !.env.example
+
+# Tec-C Brain (agent)
+agent/.venv/
+agent/var/
+__pycache__/
+.pytest_cache/
+*.egg-info/
