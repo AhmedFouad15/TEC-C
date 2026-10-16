@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "httpx2"]
+dev = ["pytest>=8", "httpx>=0.27,<1"]
 
 [tool.setuptools.packages.find]
 include = ["tecc_brain*"]
@@ -25,3 +25,7 @@ tecc_brain = ["data/*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+filterwarnings = [
+    # starlette>=1.8 nudges TestClient users to httpx2; we keep the established httpx (dev-only).
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
