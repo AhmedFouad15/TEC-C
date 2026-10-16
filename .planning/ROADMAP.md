@@ -80,7 +80,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: `UserModel` + JSON persistence + update rules for every signal in §3.2 (asymmetry, value weight, daily cap, bands, decay) — TDD
+- [x] 05-01: `UserModel` + JSON persistence + update rules for every signal in §3.2 (asymmetry, value weight, daily cap, bands, decay) — TDD
 - [ ] 05-02: Note parsing into structured preferences (rule-based, LLM-optional) treated as data + 5-question onboarding quiz → tier & λ prior
 - [ ] 05-03: On-chain lever policy (when to calibrate / shrink radius / heartbeat) as pure decision functions + learning wired into scoring (affinity, θ)
 
@@ -141,7 +141,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 2. Risk Engine | 3/3 | Complete | 2026-10-16 |
 | 3. Portfolio & Strategy | 4/4 | Complete | 2026-10-16 |
 | 4. Intent & Privacy | 2/2 | Complete | 2026-10-16 |
-| 5. Adaptive Learning | 0/3 | Not started | - |
+| 5. Adaptive Learning | 1/3 | In progress | - |
 | 5.1 Sharpe & CVaR | 0/1 | Not started | - |
 | 6. API Layer | 0/3 | Not started | - |
 | 7. On-Chain Integration | 0/3 | Not started | - |
