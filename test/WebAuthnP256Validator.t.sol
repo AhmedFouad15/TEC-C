@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { WebAuthnP256Validator } from "../src/validators/WebAuthnP256Validator.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { MockRIP7212 } from "./mocks/MockRIP7212.sol";
-import { PackedUserOperation } from "../src/interfaces/PackedUserOperation.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {WebAuthnP256Validator} from "../src/validators/WebAuthnP256Validator.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {MockRIP7212} from "./mocks/MockRIP7212.sol";
+import {PackedUserOperation} from "../src/interfaces/PackedUserOperation.sol";
 
 contract WebAuthnP256ValidatorTest is Test {
     WebAuthnP256Validator public validator;
@@ -101,14 +101,7 @@ contract WebAuthnP256ValidatorTest is Test {
         uint256 s = 0xaabbcc;
 
         // User verifies FaceID via RIP-7212 P-256 precompile
-        hook.completeBiometricVerificationWithP256(
-            tecAccount,
-            challenge,
-            r,
-            s,
-            PASSKEY_QX,
-            PASSKEY_QY
-        );
+        hook.completeBiometricVerificationWithP256(tecAccount, challenge, r, s, PASSKEY_QX, PASSKEY_QY);
 
         // 5-minute Biometric Verification window is now active!
         assertTrue(hook.isBiometricActive(tecAccount));
@@ -121,14 +114,7 @@ contract WebAuthnP256ValidatorTest is Test {
         uint256 s = 0xDEAD;
 
         vm.expectRevert(TetherGuardHook.InvalidP256Signature.selector);
-        hook.completeBiometricVerificationWithP256(
-            tecAccount,
-            challenge,
-            r,
-            s,
-            PASSKEY_QX,
-            PASSKEY_QY
-        );
+        hook.completeBiometricVerificationWithP256(tecAccount, challenge, r, s, PASSKEY_QX, PASSKEY_QY);
     }
 
     function test_CompleteBiometricVerificationWithP256_UnregisteredPasskey_Reverts() public {
@@ -139,14 +125,7 @@ contract WebAuthnP256ValidatorTest is Test {
         uint256 fakeQy = 0x2222;
 
         vm.expectRevert(TetherGuardHook.UnauthorizedPasskey.selector);
-        hook.completeBiometricVerificationWithP256(
-            tecAccount,
-            challenge,
-            r,
-            s,
-            fakeQx,
-            fakeQy
-        );
+        hook.completeBiometricVerificationWithP256(tecAccount, challenge, r, s, fakeQx, fakeQy);
     }
 
     function test_ValidateUserOp_EnvelopeChallengeMismatch_Fails() public view {

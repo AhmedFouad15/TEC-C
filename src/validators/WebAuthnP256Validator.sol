@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { IERC7579Validator } from "../interfaces/IERC7579Validator.sol";
-import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
+import {IERC7579Validator} from "../interfaces/IERC7579Validator.sol";
+import {PackedUserOperation} from "../interfaces/PackedUserOperation.sol";
 
 /**
  * @title WebAuthnP256Validator
@@ -14,14 +14,14 @@ import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
  */
 contract WebAuthnP256Validator is IERC7579Validator {
     bytes4 internal constant EIP1271_SUCCESS = 0x1626ba7e;
-    bytes4 internal constant EIP1271_FAILED  = 0xffffffff;
+    bytes4 internal constant EIP1271_FAILED = 0xffffffff;
 
     /// @notice RIP-7212 native secp256r1 precompile address
     address public constant RIP7212_PRECOMPILE = address(0x100);
 
     struct WebAuthnPasskey {
-        uint256 qx;             // Public key X coordinate (32 bytes)
-        uint256 qy;             // Public key Y coordinate (32 bytes)
+        uint256 qx; // Public key X coordinate (32 bytes)
+        uint256 qy; // Public key Y coordinate (32 bytes)
         bool isRegistered;
     }
 
@@ -43,11 +43,7 @@ contract WebAuthnP256Validator is IERC7579Validator {
         if (msg.sender != account) revert UnauthorizedCaller();
         if (qx == 0 || qy == 0) revert InvalidPasskeyCoordinates();
 
-        passkeys[account] = WebAuthnPasskey({
-            qx: qx,
-            qy: qy,
-            isRegistered: true
-        });
+        passkeys[account] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
 
         emit PasskeyRegistered(account, qx, qy);
     }
@@ -70,13 +66,11 @@ contract WebAuthnP256Validator is IERC7579Validator {
      * @param qy Public key Y coordinate.
      * @return isValid True if signature is cryptographically valid.
      */
-    function verifyP256Signature(
-        bytes32 messageHash,
-        uint256 r,
-        uint256 s,
-        uint256 qx,
-        uint256 qy
-    ) public view returns (bool isValid) {
+    function verifyP256Signature(bytes32 messageHash, uint256 r, uint256 s, uint256 qx, uint256 qy)
+        public
+        view
+        returns (bool isValid)
+    {
         bytes memory input = abi.encode(messageHash, r, s, qx, qy);
         (bool success, bytes memory output) = RIP7212_PRECOMPILE.staticcall(input);
         if (success && output.length == 32) {
@@ -89,10 +83,12 @@ contract WebAuthnP256Validator is IERC7579Validator {
      * @notice Validates an ERC-4337 UserOperation signed by a WebAuthn P-256 Passkey.
      * @dev Signature format: abi.encode(uint256 r, uint256 s, bytes authenticatorData, string clientDataJSON)
      */
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash
-    ) external view override returns (uint256 validationData) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
+        external
+        view
+        override
+        returns (uint256 validationData)
+    {
         WebAuthnPasskey storage pk = passkeys[userOp.sender];
         if (!pk.isRegistered) {
             return 1; // Validation failed
@@ -129,11 +125,12 @@ contract WebAuthnP256Validator is IERC7579Validator {
     /**
      * @notice Standard ERC-1271 signature verification for WebAuthn Passkeys.
      */
-    function isValidSignatureWithSender(
-        address sender,
-        bytes32 hash,
-        bytes calldata data
-    ) external view override returns (bytes4 magicValue) {
+    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata data)
+        external
+        view
+        override
+        returns (bytes4 magicValue)
+    {
         WebAuthnPasskey storage pk = passkeys[sender];
         if (!pk.isRegistered || data.length < 64) {
             return EIP1271_FAILED;

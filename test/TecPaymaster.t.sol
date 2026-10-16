@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TecPaymaster } from "../src/paymaster/TecPaymaster.sol";
-import { IPaymaster } from "../src/interfaces/IPaymaster.sol";
-import { PackedUserOperation } from "../src/interfaces/PackedUserOperation.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
+import {IPaymaster} from "../src/interfaces/IPaymaster.sol";
+import {PackedUserOperation} from "../src/interfaces/PackedUserOperation.sol";
 
 contract TecPaymasterTest is Test {
     TecPaymaster public paymaster;
@@ -33,23 +33,14 @@ contract TecPaymasterTest is Test {
 
         uint256 maxCost = 0.001 ether;
 
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            maxCost
-        );
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(userOp, bytes32(0), maxCost);
 
         assertEq(validationData, 0); // Sponsorship approved
 
         // Simulate EntryPoint postOp execution consuming 0.0008 ETH
         uint256 actualCost = 0.0008 ether;
         vm.prank(entryPoint);
-        paymaster.postOp(
-            IPaymaster.PostOpMode.opSucceeded,
-            context,
-            actualCost,
-            1 gwei
-        );
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, actualCost, 1 gwei);
 
         assertEq(paymaster.accountBalances(tecAccount), 1 ether - actualCost);
         assertEq(paymaster.sponsoredGasPerSession(tecAccount, sessionKey), actualCost);
@@ -62,31 +53,19 @@ contract TecPaymasterTest is Test {
 
         // Simulate 5 successive operations consuming 0.001 ETH each
         for (uint256 i = 0; i < 5; i++) {
-            (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(
-                userOp,
-                bytes32(0),
-                0.001 ether
-            );
+            (bytes memory context, uint256 validationData) =
+                paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
             assertEq(validationData, 0);
 
             vm.prank(entryPoint);
-            paymaster.postOp(
-                IPaymaster.PostOpMode.opSucceeded,
-                context,
-                0.001 ether,
-                1 gwei
-            );
+            paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
         }
 
         // Now sessionKey has consumed 0.005 ETH (MAX_SESSION_GAS_BUDGET)
         assertEq(paymaster.sponsoredGasPerSession(tecAccount, sessionKey), paymaster.MAX_SESSION_GAS_BUDGET());
 
         // 6th operation attempted by AI Agent (griefing loop) -> Paymaster REJECTS sponsorship!
-        (, uint256 rejectedValidationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            0.0005 ether
-        );
+        (, uint256 rejectedValidationData) = paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.0005 ether);
 
         assertEq(rejectedValidationData, 1); // Gas griefing halted!
     }
@@ -97,11 +76,7 @@ contract TecPaymasterTest is Test {
         userOp.sender = unfundedAccount;
         userOp.signature = abi.encodePacked(sessionKey, hex"1234");
 
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            0.01 ether
-        );
+        (, uint256 validationData) = paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.01 ether);
 
         assertEq(validationData, 1); // Rejected
     }

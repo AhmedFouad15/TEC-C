@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { MockChainlinkFeed } from "./mocks/MockChainlinkFeed.sol";
-import { MockERC20 } from "./mocks/MockERC20.sol";
-import { IERC20 } from "../src/interfaces/IERC20.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {MockChainlinkFeed} from "./mocks/MockChainlinkFeed.sol";
+import {MockERC20} from "./mocks/MockERC20.sol";
+import {IERC20} from "../src/interfaces/IERC20.sol";
 
 contract MultiTokenTetherTest is Test {
     TetherGuardHook public hook;
@@ -13,14 +13,14 @@ contract MultiTokenTetherTest is Test {
     // Tokens with diverse decimal precisions
     MockERC20 public usdc; // 6 decimals
     MockERC20 public wbtc; // 8 decimals
-    MockERC20 public dai;  // 18 decimals
+    MockERC20 public dai; // 18 decimals
     MockERC20 public unpricedToken;
 
     // Mock Chainlink Feeds (8 decimals standard USD)
-    MockChainlinkFeed public ethFeed;  // $3,000.00 (3000 * 1e8)
+    MockChainlinkFeed public ethFeed; // $3,000.00 (3000 * 1e8)
     MockChainlinkFeed public usdcFeed; // $1.00 (1 * 1e8)
     MockChainlinkFeed public wbtcFeed; // $60,000.00 (60000 * 1e8)
-    MockChainlinkFeed public daiFeed;  // $1.00 (1 * 1e8)
+    MockChainlinkFeed public daiFeed; // $1.00 (1 * 1e8)
 
     uint256 public rootOwnerPk = 0xA11CE;
     address public rootOwner;
@@ -32,8 +32,8 @@ contract MultiTokenTetherTest is Test {
     uint256 public constant TETHER_RADIUS_USD = 500 * 1e8;
 
     uint8 public constant TIER_CORE_PRESERVATION = 1;
-    uint8 public constant TIER_GROWTH_DEFI       = 2;
-    uint8 public constant TIER_UNRESTRICTED      = 3;
+    uint8 public constant TIER_GROWTH_DEFI = 2;
+    uint8 public constant TIER_UNRESTRICTED = 3;
 
     function setUp() public {
         rootOwner = vm.addr(rootOwnerPk);
@@ -74,8 +74,8 @@ contract MultiTokenTetherTest is Test {
         // 7. Fund Tec-C Smart Account treasury
         vm.deal(tecAccount, 10 ether);
         usdc.mint(tecAccount, 100_000 * 1e6); // 100k USDC
-        wbtc.mint(tecAccount, 5 * 1e8);       // 5 WBTC
-        dai.mint(tecAccount, 50_000 * 1e18);  // 50k DAI
+        wbtc.mint(tecAccount, 5 * 1e8); // 5 WBTC
+        dai.mint(tecAccount, 50_000 * 1e18); // 50k DAI
     }
 
     // =========================================================================
@@ -115,13 +115,7 @@ contract MultiTokenTetherTest is Test {
         bytes memory msgData = abi.encodePacked(address(usdc), uint256(0), call);
 
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                600 * 1e8,
-                500 * 1e8
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 600 * 1e8, 500 * 1e8));
         hook.preCheck(sessionKey, 0, msgData);
     }
 
@@ -156,13 +150,7 @@ contract MultiTokenTetherTest is Test {
         bytes memory call4 = abi.encodeWithSelector(IERC20.transfer.selector, recipient, 60 * 1e6);
         bytes memory msgData4 = abi.encodePacked(address(usdc), uint256(0), call4);
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                60 * 1e8,
-                50 * 1e8
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 60 * 1e8, 50 * 1e8));
         hook.preCheck(sessionKey, 0, msgData4);
     }
 
@@ -193,13 +181,7 @@ contract MultiTokenTetherTest is Test {
         bytes memory msgData = abi.encodePacked(address(usdc), uint256(0), call);
 
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                1000 * 1e8,
-                500 * 1e8
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 1000 * 1e8, 500 * 1e8));
         hook.preCheck(sessionKey, 0, msgData);
     }
 
@@ -212,13 +194,7 @@ contract MultiTokenTetherTest is Test {
         bytes memory msgData = abi.encodePacked(address(usdc), uint256(0), call);
 
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                700 * 1e8,
-                500 * 1e8
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 700 * 1e8, 500 * 1e8));
         hook.preCheck(sessionKey, 0, msgData);
     }
 
@@ -234,11 +210,7 @@ contract MultiTokenTetherTest is Test {
 
         vm.prank(tecAccount);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.StaleOraclePrice.selector,
-                address(usdc),
-                usdcFeed.updatedAt()
-            )
+            abi.encodeWithSelector(TetherGuardHook.StaleOraclePrice.selector, address(usdc), usdcFeed.updatedAt())
         );
         hook.preCheck(sessionKey, 0, msgData);
     }
@@ -254,13 +226,7 @@ contract MultiTokenTetherTest is Test {
         bytes memory msgData = abi.encodePacked(address(usdc), uint256(0), call);
 
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.InvalidOraclePrice.selector,
-                address(usdc),
-                0
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.InvalidOraclePrice.selector, address(usdc), 0));
         hook.preCheck(sessionKey, 0, msgData);
     }
 
@@ -273,12 +239,7 @@ contract MultiTokenTetherTest is Test {
         bytes memory msgData = abi.encodePacked(address(unpricedToken), uint256(0), call);
 
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.MissingOraclePriceFeed.selector,
-                address(unpricedToken)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.MissingOraclePriceFeed.selector, address(unpricedToken)));
         hook.preCheck(sessionKey, 0, msgData);
     }
 
@@ -293,7 +254,7 @@ contract MultiTokenTetherTest is Test {
         hook.setAccountPriceFeed(tecAccount, address(usdc), address(customUsdcFeed));
 
         // Effective price should now come from customUsdcFeed
-        (uint256 price, ) = hook.getLatestPrice(tecAccount, address(usdc));
+        (uint256 price,) = hook.getLatestPrice(tecAccount, address(usdc));
         assertEq(price, 0.98 * 1e8);
     }
 
@@ -314,10 +275,8 @@ contract MultiTokenTetherTest is Test {
         tokens[2] = address(wbtc);
         tokens[3] = address(dai);
 
-        (uint256 totalUSD, TetherGuardHook.TokenBalanceDetail[] memory details) = hook.getTotalPortfolioValueUSD(
-            tecAccount,
-            tokens
-        );
+        (uint256 totalUSD, TetherGuardHook.TokenBalanceDetail[] memory details) =
+            hook.getTotalPortfolioValueUSD(tecAccount, tokens);
 
         assertEq(totalUSD, 480_000 * 1e8);
         assertEq(details.length, 4);
@@ -361,13 +320,7 @@ contract MultiTokenTetherTest is Test {
 
         // 1. Without biometric verification -> Reverts
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                10_000 * 1e8,
-                500 * 1e8
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 10_000 * 1e8, 500 * 1e8));
         hook.preCheck(sessionKey, 0, msgData);
 
         // 2. User completes Biometric FaceID verification (opens 5m window)

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { SessionKeyValidator } from "../src/validators/SessionKeyValidator.sol";
-import { PackedUserOperation } from "../src/interfaces/PackedUserOperation.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
+import {PackedUserOperation} from "../src/interfaces/PackedUserOperation.sol";
 
 contract SessionKeyValidatorTest is Test {
     SessionKeyValidator public validator;
@@ -27,13 +27,8 @@ contract SessionKeyValidatorTest is Test {
     }
 
     function test_SessionKeyRegistration() public view {
-        (
-            address key,
-            uint48 validAfter,
-            uint48 validUntil,
-            bytes32 root,
-            bool isActive
-        ) = validator.sessionKeys(tecAccount, sessionKey);
+        (address key, uint48 validAfter, uint48 validUntil, bytes32 root, bool isActive) =
+            validator.sessionKeys(tecAccount, sessionKey);
 
         assertEq(key, sessionKey);
         assertEq(validAfter, uint48(block.timestamp));

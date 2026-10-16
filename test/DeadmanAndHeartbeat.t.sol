@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { MockDeFiProtocol } from "./mocks/MockDeFiProtocol.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
 
 contract DeadmanAndHeartbeatTest is Test {
     TetherGuardHook public hook;
@@ -65,13 +65,7 @@ contract DeadmanAndHeartbeatTest is Test {
         // AI attempts autonomous transaction -> Reverts with AIHeartbeatStale!
         bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.1 ether), hex"");
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.AIHeartbeatStale.selector,
-                beatTime,
-                block.timestamp
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.AIHeartbeatStale.selector, beatTime, block.timestamp));
         hook.preCheck(sessionKey, 0.1 ether, msgData);
     }
 

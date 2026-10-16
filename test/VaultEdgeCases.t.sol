@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TecAccount } from "../src/TecAccount.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { SessionKeyValidator } from "../src/validators/SessionKeyValidator.sol";
-import { WebAuthnP256Validator } from "../src/validators/WebAuthnP256Validator.sol";
-import { TecPaymaster } from "../src/paymaster/TecPaymaster.sol";
-import { MockDeFiProtocol } from "./mocks/MockDeFiProtocol.sol";
-import { MockERC20 } from "./mocks/MockERC20.sol";
-import { MockChainlinkFeed } from "./mocks/MockChainlinkFeed.sol";
-import { MODULE_TYPE_HOOK, MODULE_TYPE_VALIDATOR, MODULE_TYPE_EXECUTOR } from "../src/interfaces/IERC7579Account.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TecAccount} from "../src/TecAccount.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
+import {WebAuthnP256Validator} from "../src/validators/WebAuthnP256Validator.sol";
+import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
+import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
+import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockChainlinkFeed} from "./mocks/MockChainlinkFeed.sol";
+import {MODULE_TYPE_HOOK, MODULE_TYPE_VALIDATOR, MODULE_TYPE_EXECUTOR} from "../src/interfaces/IERC7579Account.sol";
 
 /**
  * @title VaultEdgeCasesTest
@@ -98,7 +98,7 @@ contract VaultEdgeCasesTest is Test {
 
     function test_EdgeCase_DirectETHReceive_AcceptsDeposit() public {
         uint256 balBefore = address(account).balance;
-        (bool ok, ) = address(account).call{value: 5 ether}("");
+        (bool ok,) = address(account).call{value: 5 ether}("");
         assertTrue(ok);
         assertEq(address(account).balance, balBefore + 5 ether);
     }
@@ -225,11 +225,7 @@ contract VaultEdgeCasesTest is Test {
         vm.prank(address(account));
         vm.expectRevert(SessionKeyValidator.InvalidSignature.selector);
         sessionValidator.registerSessionKey(
-            address(account),
-            address(0),
-            uint48(block.timestamp),
-            uint48(block.timestamp + 1 days),
-            bytes32(0)
+            address(account), address(0), uint48(block.timestamp), uint48(block.timestamp + 1 days), bytes32(0)
         );
     }
 

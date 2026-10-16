@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { IERC7579Validator } from "../interfaces/IERC7579Validator.sol";
-import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
+import {IERC7579Validator} from "../interfaces/IERC7579Validator.sol";
+import {PackedUserOperation} from "../interfaces/PackedUserOperation.sol";
 
 /**
  * @title SessionKeyValidator
@@ -14,13 +14,13 @@ import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
  */
 contract SessionKeyValidator is IERC7579Validator {
     bytes4 internal constant EIP1271_SUCCESS = 0x1626ba7e;
-    bytes4 internal constant EIP1271_FAILED  = 0xffffffff;
+    bytes4 internal constant EIP1271_FAILED = 0xffffffff;
 
     struct SessionKeyData {
         address sessionKey;
         uint48 validAfter;
         uint48 validUntil;
-        bytes32 mandateRoot;    // EIP-712 mandate digest commitment (WeIdentity W3C credential)
+        bytes32 mandateRoot; // EIP-712 mandate digest commitment (WeIdentity W3C credential)
         bool isActive;
     }
 
@@ -28,7 +28,9 @@ contract SessionKeyValidator is IERC7579Validator {
     mapping(address => mapping(address => SessionKeyData)) public sessionKeys;
 
     // WeIdentity compliance events
-    event SessionKeyRegistered(address indexed account, address indexed sessionKey, uint48 validAfter, uint48 validUntil, bytes32 mandateRoot);
+    event SessionKeyRegistered(
+        address indexed account, address indexed sessionKey, uint48 validAfter, uint48 validUntil, bytes32 mandateRoot
+    );
     event SessionKeyRevoked(address indexed account, address indexed sessionKey);
 
     error InvalidTimeRange();
@@ -75,11 +77,11 @@ contract SessionKeyValidator is IERC7579Validator {
      * @notice Verifies whether a given mandate digest matches the on-chain committed mandateRoot for a session key.
      * @dev Provides cryptographic anchoring for WeIdentity W3C Verifiable Credentials.
      */
-    function verifyMandateCommitment(
-        address account,
-        address sessionKey,
-        bytes32 mandateDigest
-    ) external view returns (bool isValid, bytes32 committedRoot) {
+    function verifyMandateCommitment(address account, address sessionKey, bytes32 mandateDigest)
+        external
+        view
+        returns (bool isValid, bytes32 committedRoot)
+    {
         committedRoot = sessionKeys[account][sessionKey].mandateRoot;
         isValid = (committedRoot != bytes32(0) && committedRoot == mandateDigest);
     }
@@ -88,10 +90,12 @@ contract SessionKeyValidator is IERC7579Validator {
      * @notice Validates an ERC-4337 PackedUserOperation signed by a session key.
      * @dev Signature format: abi.encodePacked(address sessionKey, bytes signature)
      */
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash
-    ) external view override returns (uint256 validationData) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
+        external
+        view
+        override
+        returns (uint256 validationData)
+    {
         if (userOp.signature.length < 85) {
             // 20 bytes sessionKey + 65 bytes ECDSA signature = 85 bytes min
             return 1; // Validation failed
@@ -119,11 +123,12 @@ contract SessionKeyValidator is IERC7579Validator {
     /**
      * @notice Standard ERC-1271 signature validation.
      */
-    function isValidSignatureWithSender(
-        address sender,
-        bytes32 hash,
-        bytes calldata data
-    ) external view override returns (bytes4) {
+    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata data)
+        external
+        view
+        override
+        returns (bytes4)
+    {
         if (data.length < 85) return EIP1271_FAILED;
 
         address sessionKey = address(bytes20(data[0:20]));

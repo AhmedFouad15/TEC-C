@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { PackedUserOperation } from "./PackedUserOperation.sol";
+import {PackedUserOperation} from "./PackedUserOperation.sol";
 
 /**
  * @title IPaymaster
@@ -22,11 +22,9 @@ interface IPaymaster {
      * @return context Context to pass to postOp.
      * @return validationData Packed validation status (authorizer, validUntil, validAfter).
      */
-    function validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) external returns (bytes memory context, uint256 validationData);
+    function validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        external
+        returns (bytes memory context, uint256 validationData);
 
     /**
      * @notice Post-operation callback for charge tracking and accounting.
@@ -35,10 +33,6 @@ interface IPaymaster {
      * @param actualGasCost Actual gas cost incurred by the operation.
      * @param actualUserOpFeePerGas Actual fee per gas paid by the operation.
      */
-    function postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) external;
+    function postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        external;
 }

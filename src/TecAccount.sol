@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { IERC7579Account, Execution, MODULE_TYPE_VALIDATOR, MODULE_TYPE_EXECUTOR, MODULE_TYPE_HOOK } from "./interfaces/IERC7579Account.sol";
-import { IERC7579Hook } from "./interfaces/IERC7579Hook.sol";
-import { IERC7579Validator } from "./interfaces/IERC7579Validator.sol";
-import { PackedUserOperation } from "./interfaces/PackedUserOperation.sol";
+import {
+    IERC7579Account,
+    Execution,
+    MODULE_TYPE_VALIDATOR,
+    MODULE_TYPE_EXECUTOR,
+    MODULE_TYPE_HOOK
+} from "./interfaces/IERC7579Account.sol";
+import {IERC7579Hook} from "./interfaces/IERC7579Hook.sol";
+import {IERC7579Validator} from "./interfaces/IERC7579Validator.sol";
+import {PackedUserOperation} from "./interfaces/PackedUserOperation.sol";
 
 /**
  * @title TecAccount
@@ -55,11 +61,7 @@ contract TecAccount is IERC7579Account {
     /**
      * @notice Initialize the TecAccount with Passkey Root Owner and default modules.
      */
-    function initialize(
-        address _rootOwner,
-        address _hook,
-        address _validator
-    ) external {
+    function initialize(address _rootOwner, address _hook, address _validator) external {
         if (rootOwner != address(0)) revert AlreadyInitialized();
         require(_rootOwner != address(0), "INVALID_OWNER");
         require(msg.sender == deployer, "UNAUTHORIZED_INIT");
@@ -80,7 +82,16 @@ contract TecAccount is IERC7579Account {
     /**
      * @notice Standard ERC-7579 execution entrypoint with preCheck and postCheck hooks.
      */
-    function execute(bytes32 /* mode */, bytes calldata executionCalldata) external payable override onlyEntryPointOrOwner {
+    function execute(
+        bytes32,
+        /* mode */
+        bytes calldata executionCalldata
+    )
+        external
+        payable
+        override
+        onlyEntryPointOrOwner
+    {
         _executeWithHook(executionCalldata);
     }
 
@@ -88,9 +99,15 @@ contract TecAccount is IERC7579Account {
      * @notice ERC-7579 executor execution pathway.
      */
     function executeFromExecutor(
-        bytes32 /* mode */,
+        bytes32,
+        /* mode */
         bytes calldata executionCalldata
-    ) external payable override returns (bytes[] memory returnData) {
+    )
+        external
+        payable
+        override
+        returns (bytes[] memory returnData)
+    {
         require(installedExecutors[msg.sender], "UNAUTHORIZED_EXECUTOR");
         returnData = new bytes[](1);
         returnData[0] = _executeWithHook(executionCalldata);
@@ -99,7 +116,15 @@ contract TecAccount is IERC7579Account {
     /**
      * @notice Install an ERC-7579 module (Validator, Hook, Executor).
      */
-    function installModule(uint256 moduleTypeId, address module, bytes calldata /* initData */) external override onlyRootOwner {
+    function installModule(
+        uint256 moduleTypeId,
+        address module,
+        bytes calldata /* initData */
+    )
+        external
+        override
+        onlyRootOwner
+    {
         if (moduleTypeId == MODULE_TYPE_HOOK) {
             installedHook = IERC7579Hook(module);
         } else if (moduleTypeId == MODULE_TYPE_VALIDATOR) {
@@ -115,7 +140,15 @@ contract TecAccount is IERC7579Account {
     /**
      * @notice Uninstall an ERC-7579 module.
      */
-    function uninstallModule(uint256 moduleTypeId, address module, bytes calldata /* deInitData */) external override onlyRootOwner {
+    function uninstallModule(
+        uint256 moduleTypeId,
+        address module,
+        bytes calldata /* deInitData */
+    )
+        external
+        override
+        onlyRootOwner
+    {
         if (moduleTypeId == MODULE_TYPE_HOOK) {
             require(address(installedHook) == module, "MISMATCH");
             installedHook = IERC7579Hook(address(0));
@@ -137,7 +170,12 @@ contract TecAccount is IERC7579Account {
         uint256 moduleTypeId,
         address module,
         bytes calldata /* additionalContext */
-    ) external view override returns (bool) {
+    )
+        external
+        view
+        override
+        returns (bool)
+    {
         if (moduleTypeId == MODULE_TYPE_HOOK) return address(installedHook) == module;
         if (moduleTypeId == MODULE_TYPE_VALIDATOR) return address(installedValidator) == module;
         if (moduleTypeId == MODULE_TYPE_EXECUTOR) return installedExecutors[module];
@@ -147,11 +185,10 @@ contract TecAccount is IERC7579Account {
     /**
      * @notice ERC-4337 UserOperation validation callback.
      */
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 missingAccountFunds
-    ) external returns (uint256 validationData) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
+        external
+        returns (uint256 validationData)
+    {
         require(msg.sender == entryPoint, "ONLY_ENTRYPOINT");
 
         if (address(installedValidator) != address(0)) {
@@ -165,7 +202,7 @@ contract TecAccount is IERC7579Account {
 
         // Pay prefund if required by EntryPoint
         if (missingAccountFunds > 0) {
-            (bool success, ) = payable(entryPoint).call{value: missingAccountFunds}("");
+            (bool success,) = payable(entryPoint).call{value: missingAccountFunds}("");
             (success);
         }
     }
@@ -200,7 +237,11 @@ contract TecAccount is IERC7579Account {
         }
     }
 
-    function _decodeExecution(bytes calldata executionCalldata) internal pure returns (address target, uint256 value, bytes memory data) {
+    function _decodeExecution(bytes calldata executionCalldata)
+        internal
+        pure
+        returns (address target, uint256 value, bytes memory data)
+    {
         require(executionCalldata.length >= 52, "INVALID_CALLDATA");
         // Layout: target (20 bytes) || value (32 bytes) || callData (variable)
         target = address(bytes20(executionCalldata[0:20]));

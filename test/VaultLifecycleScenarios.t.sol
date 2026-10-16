@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TecAccount } from "../src/TecAccount.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { SessionKeyValidator } from "../src/validators/SessionKeyValidator.sol";
-import { WebAuthnP256Validator } from "../src/validators/WebAuthnP256Validator.sol";
-import { TecPaymaster } from "../src/paymaster/TecPaymaster.sol";
-import { MockDeFiProtocol } from "./mocks/MockDeFiProtocol.sol";
-import { MockERC20 } from "./mocks/MockERC20.sol";
-import { MockChainlinkFeed } from "./mocks/MockChainlinkFeed.sol";
-import { MockRIP7212 } from "./mocks/MockRIP7212.sol";
-import { PackedUserOperation } from "../src/interfaces/PackedUserOperation.sol";
-import { IPaymaster } from "../src/interfaces/IPaymaster.sol";
-import { MODULE_TYPE_HOOK, MODULE_TYPE_VALIDATOR } from "../src/interfaces/IERC7579Account.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TecAccount} from "../src/TecAccount.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
+import {WebAuthnP256Validator} from "../src/validators/WebAuthnP256Validator.sol";
+import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
+import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
+import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockChainlinkFeed} from "./mocks/MockChainlinkFeed.sol";
+import {MockRIP7212} from "./mocks/MockRIP7212.sol";
+import {PackedUserOperation} from "../src/interfaces/PackedUserOperation.sol";
+import {IPaymaster} from "../src/interfaces/IPaymaster.sol";
+import {MODULE_TYPE_HOOK, MODULE_TYPE_VALIDATOR} from "../src/interfaces/IERC7579Account.sol";
 
 /**
  * @title VaultLifecycleScenariosTest
@@ -37,14 +37,14 @@ contract VaultLifecycleScenariosTest is Test {
     MockDeFiProtocol public shiborTreasuryMMF;
     MockDeFiProtocol public maliciousDrainer;
 
-    MockERC20 public usdc;   // 6 decimals
-    MockERC20 public wbtc;   // 8 decimals
-    MockERC20 public dai;    // 18 decimals
+    MockERC20 public usdc; // 6 decimals
+    MockERC20 public wbtc; // 8 decimals
+    MockERC20 public dai; // 18 decimals
 
-    MockChainlinkFeed public ethFeed;   // $3,000 (8 decimals)
-    MockChainlinkFeed public usdcFeed;  // $1.00 (8 decimals)
-    MockChainlinkFeed public wbtcFeed;  // $60,000 (8 decimals)
-    MockChainlinkFeed public daiFeed;   // $1.00 (8 decimals)
+    MockChainlinkFeed public ethFeed; // $3,000 (8 decimals)
+    MockChainlinkFeed public usdcFeed; // $1.00 (8 decimals)
+    MockChainlinkFeed public wbtcFeed; // $60,000 (8 decimals)
+    MockChainlinkFeed public daiFeed; // $1.00 (8 decimals)
 
     address public entryPoint = address(0xEEEE);
     address public corporateDeployer;
@@ -168,11 +168,8 @@ contract VaultLifecycleScenariosTest is Test {
         assertEq(hook.getRemainingRadius(address(account)), 700 * 1e8);
 
         // AI executes another 400 USDC transfer to Shibor MMF (~$400 USD, cumulative $700 <= $1,000)
-        bytes memory usdcTransfer = abi.encodeWithSelector(
-            MockERC20.transfer.selector,
-            address(shiborTreasuryMMF),
-            uint256(400 * 1e6)
-        );
+        bytes memory usdcTransfer =
+            abi.encodeWithSelector(MockERC20.transfer.selector, address(shiborTreasuryMMF), uint256(400 * 1e6));
         bytes memory execCalldata2 = abi.encodePacked(address(usdc), uint256(0), usdcTransfer);
 
         vm.prank(entryPoint);
@@ -186,13 +183,7 @@ contract VaultLifecycleScenariosTest is Test {
         // AI attempts a 0.2 ETH allocation (~$600 USD) -> Exceeds remaining $300 USD! Reverts!
         bytes memory execCalldataExceed = abi.encodePacked(address(lidoStaking), uint256(0.2 ether), lidoCall);
         vm.prank(entryPoint);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                600 * 1e8,
-                300 * 1e8
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 600 * 1e8, 300 * 1e8));
         account.execute(bytes32(0), execCalldataExceed);
 
         // --- EVENING REVIEW: User inspects Day 1 executions ---
@@ -205,7 +196,9 @@ contract VaultLifecycleScenariosTest is Test {
 
         // User notes Transaction 2 with praise (no penalty)
         vm.prank(rootOwner);
-        hook.submitTransactionNote(address(account), 2, "Shibor allocation verified compliant with corporate mandate", false);
+        hook.submitTransactionNote(
+            address(account), 2, "Shibor allocation verified compliant with corporate mandate", false
+        );
 
         p = hook.getAccountPolicy(address(account));
         assertEq(p.consecutiveRatifications, 1);
@@ -232,11 +225,8 @@ contract VaultLifecycleScenariosTest is Test {
 
         // AI can now spend up to $1,100 USD today
         // AI transfers 0.015 WBTC ($900 USD) + 150 USDC ($150 USD) = $1,050 USD <= $1,100 USD!
-        bytes memory wbtcTransfer = abi.encodeWithSelector(
-            MockERC20.transfer.selector,
-            address(curvePool),
-            uint256(0.015 * 1e8)
-        );
+        bytes memory wbtcTransfer =
+            abi.encodeWithSelector(MockERC20.transfer.selector, address(curvePool), uint256(0.015 * 1e8));
         vm.prank(entryPoint);
         account.execute(bytes32(0), abi.encodePacked(address(wbtc), uint256(0), wbtcTransfer));
         assertEq(wbtc.balanceOf(address(curvePool)), 0.015 * 1e8);
@@ -265,12 +255,7 @@ contract VaultLifecycleScenariosTest is Test {
         // User verifies FaceID hardware biometric (RIP-7212 P-256 precompile)
         bytes32 faceIdChallenge = keccak256("Authorize 20 ETH Lido Treasury Allocation");
         hook.completeBiometricVerificationWithP256(
-            address(account),
-            faceIdChallenge,
-            0x1122,
-            0x3344,
-            PASSKEY_QX,
-            PASSKEY_QY
+            address(account), faceIdChallenge, 0x1122, 0x3344, PASSKEY_QX, PASSKEY_QY
         );
 
         assertTrue(hook.isBiometricActive(address(account)));
@@ -290,29 +275,16 @@ contract VaultLifecycleScenariosTest is Test {
         // AI Session key attempts to drain funds to an unapproved exploit contract
         bytes memory exploitCalldata = abi.encodePacked(address(maliciousDrainer), uint256(1 ether), hex"");
         vm.prank(entryPoint);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.UnauthorizedTarget.selector,
-                address(maliciousDrainer)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.UnauthorizedTarget.selector, address(maliciousDrainer)));
         account.execute(bytes32(0), exploitCalldata);
 
         // Attack 2: Hook Self-Targeting Privilege Escalation
         // AI Session key attempts to reconfigure its own Tether Radius to $1,000,000 USD
         bytes memory selfTargetCall = abi.encodeWithSelector(
-            TetherGuardHook.setTetherRadius.selector,
-            address(account),
-            1_000_000 * 1e8,
-            hook.RISK_TIER_UNRESTRICTED()
+            TetherGuardHook.setTetherRadius.selector, address(account), 1_000_000 * 1e8, hook.RISK_TIER_UNRESTRICTED()
         );
         vm.prank(entryPoint);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.UnauthorizedTarget.selector,
-                address(hook)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.UnauthorizedTarget.selector, address(hook)));
         account.execute(bytes32(0), abi.encodePacked(address(hook), uint256(0), selfTargetCall));
 
         // Attack 3: Front-Running Policy Initialization
@@ -326,14 +298,7 @@ contract VaultLifecycleScenariosTest is Test {
         uint256 fakeQx = 0xDEAD;
         uint256 fakeQy = 0xBEEF;
         vm.expectRevert(TetherGuardHook.UnauthorizedPasskey.selector);
-        hook.completeBiometricVerificationWithP256(
-            address(account),
-            keccak256("Challenge"),
-            0x1,
-            0x2,
-            fakeQx,
-            fakeQy
-        );
+        hook.completeBiometricVerificationWithP256(address(account), keccak256("Challenge"), 0x1, 0x2, fakeQx, fakeQy);
 
         // Attack 5: Expired Sign Approval Replay
         // User opens biometric window and approves an execution
@@ -341,9 +306,7 @@ contract VaultLifecycleScenariosTest is Test {
         hook.completeBiometricVerification(address(account));
 
         bytes memory breakoutCall = abi.encodePacked(
-            address(lidoStaking),
-            uint256(5 ether),
-            abi.encodeWithSelector(MockDeFiProtocol.stake.selector)
+            address(lidoStaking), uint256(5 ether), abi.encodeWithSelector(MockDeFiProtocol.stake.selector)
         );
         bytes32 execHash = keccak256(breakoutCall);
 
@@ -367,10 +330,7 @@ contract VaultLifecycleScenariosTest is Test {
         // Simulate multiple UserOps consuming gas
         vm.prank(entryPoint);
         paymaster.postOp(
-            IPaymaster.PostOpMode.opSucceeded,
-            abi.encode(address(account), sessionKey, 0.003 ether),
-            0.003 ether,
-            0
+            IPaymaster.PostOpMode.opSucceeded, abi.encode(address(account), sessionKey, 0.003 ether), 0.003 ether, 0
         );
         assertEq(paymaster.sponsoredGasPerSession(address(account), sessionKey), 0.003 ether);
 
@@ -399,9 +359,7 @@ contract VaultLifecycleScenariosTest is Test {
         vm.prank(entryPoint);
         vm.expectRevert(
             abi.encodeWithSelector(
-                TetherGuardHook.AIHeartbeatStale.selector,
-                block.timestamp - 49 hours,
-                block.timestamp
+                TetherGuardHook.AIHeartbeatStale.selector, block.timestamp - 49 hours, block.timestamp
             )
         );
         account.execute(bytes32(0), execCalldata);
@@ -444,10 +402,8 @@ contract VaultLifecycleScenariosTest is Test {
         tokens[2] = address(wbtc);
         tokens[3] = address(dai);
 
-        (uint256 totalUSD, TetherGuardHook.TokenBalanceDetail[] memory details) = hook.getTotalPortfolioValueUSD(
-            address(account),
-            tokens
-        );
+        (uint256 totalUSD, TetherGuardHook.TokenBalanceDetail[] memory details) =
+            hook.getTotalPortfolioValueUSD(address(account), tokens);
 
         // ETH: 50 ETH * $3,000 = $150,000 USD (150,000 * 1e8)
         assertEq(details[0].valueUSD, 150_000 * 1e8);

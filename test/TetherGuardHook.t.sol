@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { MockDeFiProtocol } from "./mocks/MockDeFiProtocol.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
 
 contract TetherGuardHookTest is Test {
     TetherGuardHook public hook;
@@ -12,18 +12,18 @@ contract TetherGuardHookTest is Test {
 
     uint256 public rootOwnerPk = 0xA11CE;
     address public rootOwner;
-    address public tecAccount = address(0xBB22);     // Tec-C Smart Account
-    address public sessionKey = address(0xCC33);     // AI Agent ephemeral session key
+    address public tecAccount = address(0xBB22); // Tec-C Smart Account
+    address public sessionKey = address(0xCC33); // AI Agent ephemeral session key
 
     uint256 public constant TETHER_RADIUS = 0.5 ether; // $500 equivalent radius
 
     uint8 public constant TIER_CORE_PRESERVATION = 1; // Giga tokens, Stablecoins, Commodities, Shibor MMFs
-    uint8 public constant TIER_GROWTH_DEFI       = 2; // Liquid Staking stETH, AMMs, Curve/Uniswap LPs
-    uint8 public constant TIER_UNRESTRICTED      = 3; // Omni-Universe (allows everything)
+    uint8 public constant TIER_GROWTH_DEFI = 2; // Liquid Staking stETH, AMMs, Curve/Uniswap LPs
+    uint8 public constant TIER_UNRESTRICTED = 3; // Omni-Universe (allows everything)
 
     uint8 public constant TIER_CONSERVATIVE = 1;
-    uint8 public constant TIER_BALANCED     = 2;
-    uint8 public constant TIER_AGGRESSIVE   = 3;
+    uint8 public constant TIER_BALANCED = 2;
+    uint8 public constant TIER_AGGRESSIVE = 3;
 
     function setUp() public {
         rootOwner = vm.addr(rootOwnerPk);
@@ -79,13 +79,7 @@ contract TetherGuardHookTest is Test {
 
         // Attempting to spend 0.6 ETH when radius is 0.5 ETH must revert
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                0.6 ether,
-                0.5 ether
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 0.6 ether, 0.5 ether));
         hook.preCheck(sessionKey, 0.6 ether, msgData);
     }
 
@@ -132,12 +126,7 @@ contract TetherGuardHookTest is Test {
         bytes memory msgData = abi.encodePacked(address(maliciousDrainer), uint256(0.1 ether), hex"");
 
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.UnauthorizedTarget.selector,
-                address(maliciousDrainer)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.UnauthorizedTarget.selector, address(maliciousDrainer)));
         hook.preCheck(sessionKey, 0.1 ether, msgData);
     }
 
@@ -153,10 +142,7 @@ contract TetherGuardHookTest is Test {
         vm.prank(tecAccount);
         vm.expectRevert(
             abi.encodeWithSelector(
-                TetherGuardHook.AssetTierNotPermitted.selector,
-                address(memeCoinLP),
-                TIER_AGGRESSIVE,
-                TIER_BALANCED
+                TetherGuardHook.AssetTierNotPermitted.selector, address(memeCoinLP), TIER_AGGRESSIVE, TIER_BALANCED
             )
         );
         hook.preCheck(sessionKey, 0.1 ether, msgData);
@@ -184,7 +170,7 @@ contract TetherGuardHookTest is Test {
         vm.prank(tecAccount);
         bytes memory hookData = hook.preCheck(rootOwner, 10 ether, msgData);
 
-        (bool isRoot, , uint256 value, ) = abi.decode(hookData, (bool, address, uint256, address));
+        (bool isRoot,, uint256 value,) = abi.decode(hookData, (bool, address, uint256, address));
         assertTrue(isRoot);
         assertEq(value, 10 ether);
 
@@ -228,7 +214,7 @@ contract TetherGuardHookTest is Test {
         vm.prank(tecAccount);
         bytes memory hookData = hook.preCheck(sessionKey, 10 ether, msgData);
 
-        (bool isRoot, , uint256 value, ) = abi.decode(hookData, (bool, address, uint256, address));
+        (bool isRoot,, uint256 value,) = abi.decode(hookData, (bool, address, uint256, address));
         assertTrue(isRoot);
         assertEq(value, 10 ether);
     }
@@ -268,7 +254,9 @@ contract TetherGuardHookTest is Test {
         // User generates off-chain signature approving this execution (Accept = true)
         uint256 deadline = block.timestamp + 10 minutes;
         {
-            bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid));
+            bytes32 messageHash = keccak256(
+                abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid)
+            );
             bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
             hook.submitSignApprovalWithSignature(tecAccount, execHash, true, deadline, abi.encodePacked(r, s, v));
@@ -282,7 +270,7 @@ contract TetherGuardHookTest is Test {
         vm.prank(tecAccount);
         bytes memory hookData = hook.preCheck(sessionKey, 10 ether, msgData);
 
-        (bool isRoot, , uint256 value, ) = abi.decode(hookData, (bool, address, uint256, address));
+        (bool isRoot,, uint256 value,) = abi.decode(hookData, (bool, address, uint256, address));
         assertTrue(isRoot);
         assertEq(value, 10 ether);
     }
@@ -295,7 +283,9 @@ contract TetherGuardHookTest is Test {
         uint256 deadline = block.timestamp + 2 minutes;
         bytes memory signature;
         {
-            bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid));
+            bytes32 messageHash = keccak256(
+                abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid)
+            );
             bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
             signature = abi.encodePacked(r, s, v);
@@ -316,7 +306,9 @@ contract TetherGuardHookTest is Test {
         uint256 deadline = block.timestamp + 10 minutes;
         bytes memory signature;
         {
-            bytes32 messageHash = keccak256(abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid));
+            bytes32 messageHash = keccak256(
+                abi.encode(tecAccount, execHash, true, hook.signApprovalNonces(tecAccount), deadline, block.chainid)
+            );
             bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(rootOwnerPk, ethSignedMessageHash);
             signature = abi.encodePacked(r, s, v);
@@ -394,13 +386,7 @@ contract TetherGuardHookTest is Test {
 
         // Attempting 0.8 ETH > 0.5 ETH radius still reverts!
         vm.prank(tecAccount);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                0.8 ether,
-                0.5 ether
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 0.8 ether, 0.5 ether));
         hook.preCheck(sessionKey, 0.8 ether, msgData);
     }
 
@@ -435,9 +421,7 @@ contract TetherGuardHookTest is Test {
         // Max 10% daily increase: 2.0 ETH -> 2.2 ETH
         vm.prank(sessionKey);
         hook.autonomousRadiusAdjustment(
-            dynamicAccount,
-            2.2 ether,
-            "10% max daily increase after positive performance review"
+            dynamicAccount, 2.2 ether, "10% max daily increase after positive performance review"
         );
 
         TetherGuardHook.AccountPolicy memory p = hook.getAccountPolicy(dynamicAccount);
@@ -447,14 +431,7 @@ contract TetherGuardHookTest is Test {
     function test_DynamicElasticity_ExcessiveStepUp_Reverts() public {
         // User opts in with 2 ETH radius, 10 ETH ceiling
         address dynamicAccount = address(0xDD44);
-        hook.initializeAccountPolicy(
-            dynamicAccount,
-            rootOwner,
-            2.0 ether,
-            TIER_GROWTH_DEFI,
-            true,
-            10.0 ether
-        );
+        hook.initializeAccountPolicy(dynamicAccount, rootOwner, 2.0 ether, TIER_GROWTH_DEFI, true, 10.0 ether);
 
         vm.prank(rootOwner);
         hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
@@ -463,26 +440,13 @@ contract TetherGuardHookTest is Test {
 
         // AI tries to jump from 2 ETH directly to 2.5 ETH (> 10% = 2.2 ETH max)
         vm.prank(sessionKey);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.ExcessiveStepUpJump.selector,
-                2.5 ether,
-                2.2 ether
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.ExcessiveStepUpJump.selector, 2.5 ether, 2.2 ether));
         hook.autonomousRadiusAdjustment(dynamicAccount, 2.5 ether, "Greedy jump");
     }
 
     function test_DynamicElasticity_CooldownActive_Reverts() public {
         address dynamicAccount = address(0xDD44);
-        hook.initializeAccountPolicy(
-            dynamicAccount,
-            rootOwner,
-            2.0 ether,
-            TIER_GROWTH_DEFI,
-            true,
-            10.0 ether
-        );
+        hook.initializeAccountPolicy(dynamicAccount, rootOwner, 2.0 ether, TIER_GROWTH_DEFI, true, 10.0 ether);
 
         vm.prank(rootOwner);
         hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
@@ -520,27 +484,14 @@ contract TetherGuardHookTest is Test {
 
         // AI tries to step up to 2.2 ETH (10% jump, but EXCEEDS 2.1 ETH ceiling!)
         vm.prank(sessionKey);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.ExceedsElasticCeiling.selector,
-                2.2 ether,
-                2.1 ether
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.ExceedsElasticCeiling.selector, 2.2 ether, 2.1 ether));
         hook.autonomousRadiusAdjustment(dynamicAccount, 2.2 ether, "Exceeds ceiling");
     }
 
     function test_VaultNative_CalibrateDynamicRadius_Succeeds() public {
         // Independent Vault-Native calibration (Zero input params from AI Brain!)
         address dynamicAccount = address(0xDD44);
-        hook.initializeAccountPolicy(
-            dynamicAccount,
-            rootOwner,
-            2.0 ether,
-            TIER_GROWTH_DEFI,
-            true,
-            10.0 ether
-        );
+        hook.initializeAccountPolicy(dynamicAccount, rootOwner, 2.0 ether, TIER_GROWTH_DEFI, true, 10.0 ether);
 
         vm.prank(rootOwner);
         hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
@@ -572,14 +523,7 @@ contract TetherGuardHookTest is Test {
 
     function test_VaultNative_CalibrateDynamicRadius_ZeroRatifications_Reverts() public {
         address dynamicAccount = address(0xDD44);
-        hook.initializeAccountPolicy(
-            dynamicAccount,
-            rootOwner,
-            2.0 ether,
-            TIER_GROWTH_DEFI,
-            true,
-            10.0 ether
-        );
+        hook.initializeAccountPolicy(dynamicAccount, rootOwner, 2.0 ether, TIER_GROWTH_DEFI, true, 10.0 ether);
 
         vm.prank(rootOwner);
         hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
@@ -594,14 +538,7 @@ contract TetherGuardHookTest is Test {
 
     function test_DynamicElasticity_DecreasingRadius_PermittedImmediately() public {
         address dynamicAccount = address(0xDD44);
-        hook.initializeAccountPolicy(
-            dynamicAccount,
-            rootOwner,
-            5.0 ether,
-            TIER_GROWTH_DEFI,
-            true,
-            10.0 ether
-        );
+        hook.initializeAccountPolicy(dynamicAccount, rootOwner, 5.0 ether, TIER_GROWTH_DEFI, true, 10.0 ether);
 
         vm.prank(rootOwner);
         hook.setSessionKeyAuthorization(dynamicAccount, sessionKey, true);
@@ -734,8 +671,7 @@ contract TetherGuardHookTest is Test {
         vm.prank(rootOwner);
         vm.expectRevert(
             abi.encodeWithSelector(
-                TetherGuardHook.RecordAlreadyReviewed.selector,
-                TetherGuardHook.ReviewStatus.LIKED_AND_RATIFIED
+                TetherGuardHook.RecordAlreadyReviewed.selector, TetherGuardHook.ReviewStatus.LIKED_AND_RATIFIED
             )
         );
         hook.ratifyTransaction(tecAccount, 1);
@@ -751,12 +687,7 @@ contract TetherGuardHookTest is Test {
         bytes memory msgData = abi.encodePacked(address(hook), uint256(0), hex"");
 
         vm.prank(tier3Account);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.UnauthorizedTarget.selector,
-                address(hook)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.UnauthorizedTarget.selector, address(hook)));
         hook.preCheck(sessionKey, 0, msgData);
     }
 
@@ -765,9 +696,7 @@ contract TetherGuardHookTest is Test {
         hook.completeBiometricVerification(tecAccount);
 
         bytes memory executionData = abi.encodePacked(
-            address(lidoStaking),
-            uint256(10 ether),
-            abi.encodeWithSelector(MockDeFiProtocol.stake.selector)
+            address(lidoStaking), uint256(10 ether), abi.encodeWithSelector(MockDeFiProtocol.stake.selector)
         );
         bytes32 execHash = keccak256(executionData);
 
@@ -804,7 +733,7 @@ contract TetherGuardHookTest is Test {
     function test_MorningReview_FlagForRevert_WhenBelowFloor_StrictlyDecreases() public {
         // Manually lower radius below floor (floor is baselineRadius / 2 = 0.25 ETH)
         vm.prank(rootOwner);
-        hook.setTetherRadius(tecAccount, 0.20 ether, TIER_GROWTH_DEFI);
+        hook.setTetherRadius(tecAccount, 0.2 ether, TIER_GROWTH_DEFI);
 
         // Autonomous trade executed
         bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(0.05 ether), hex"");
@@ -823,6 +752,4 @@ contract TetherGuardHookTest is Test {
         assertEq(p.tetherRadius, 0.16 ether);
     }
 }
-
-
 

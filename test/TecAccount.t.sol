@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TecAccount } from "../src/TecAccount.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { SessionKeyValidator } from "../src/validators/SessionKeyValidator.sol";
-import { MockDeFiProtocol } from "./mocks/MockDeFiProtocol.sol";
-import { MODULE_TYPE_HOOK, MODULE_TYPE_VALIDATOR } from "../src/interfaces/IERC7579Account.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TecAccount} from "../src/TecAccount.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
+import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
+import {MODULE_TYPE_HOOK, MODULE_TYPE_VALIDATOR} from "../src/interfaces/IERC7579Account.sol";
 
 contract TecAccountTest is Test {
     TecAccount public account;
@@ -16,7 +16,7 @@ contract TecAccountTest is Test {
     MockDeFiProtocol public drainerExploit;
 
     address public entryPoint = address(0xEEEE);
-    address public rootOwner = address(0xAA11);      // Passkey WebAuthn FaceID owner
+    address public rootOwner = address(0xAA11); // Passkey WebAuthn FaceID owner
     uint256 public sessionKeyPrivKey = 0xA11CE;
     address public sessionKey;
 
@@ -74,11 +74,7 @@ contract TecAccountTest is Test {
         bytes memory callPayload = abi.encodeWithSelector(MockDeFiProtocol.stake.selector);
 
         // Calldata layout for TecAccount: target (20 bytes) || value (32 bytes) || data
-        bytes memory executionCalldata = abi.encodePacked(
-            address(lidoStaking),
-            uint256(stakeAmount),
-            callPayload
-        );
+        bytes memory executionCalldata = abi.encodePacked(address(lidoStaking), uint256(stakeAmount), callPayload);
 
         // Execute via Session Key through Account
         vm.prank(rootOwner);
@@ -94,20 +90,12 @@ contract TecAccountTest is Test {
         uint256 excessiveAmount = 0.8 ether;
         bytes memory callPayload = abi.encodeWithSelector(MockDeFiProtocol.stake.selector);
 
-        bytes memory executionCalldata = abi.encodePacked(
-            address(lidoStaking),
-            uint256(excessiveAmount),
-            callPayload
-        );
+        bytes memory executionCalldata = abi.encodePacked(address(lidoStaking), uint256(excessiveAmount), callPayload);
 
         // When executed by EntryPoint on behalf of Session Key
         vm.prank(entryPoint);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.TetherRadiusExceeded.selector,
-                excessiveAmount,
-                TETHER_RADIUS
-            )
+            abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, excessiveAmount, TETHER_RADIUS)
         );
         account.execute(bytes32(0), executionCalldata);
 
@@ -118,19 +106,10 @@ contract TecAccountTest is Test {
 
     function test_Execute_MaliciousTargetDrain_Reverts() public {
         // Adversarial prompt injection attacks account to send funds to unverified drainer contract
-        bytes memory executionCalldata = abi.encodePacked(
-            address(drainerExploit),
-            uint256(0.1 ether),
-            hex""
-        );
+        bytes memory executionCalldata = abi.encodePacked(address(drainerExploit), uint256(0.1 ether), hex"");
 
         vm.prank(entryPoint);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.UnauthorizedTarget.selector,
-                address(drainerExploit)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.UnauthorizedTarget.selector, address(drainerExploit)));
         account.execute(bytes32(0), executionCalldata);
 
         // Account funds protected
@@ -142,11 +121,7 @@ contract TecAccountTest is Test {
         uint256 breakoutAmount = 25 ether;
         bytes memory callPayload = abi.encodeWithSelector(MockDeFiProtocol.stake.selector);
 
-        bytes memory executionCalldata = abi.encodePacked(
-            address(lidoStaking),
-            uint256(breakoutAmount),
-            callPayload
-        );
+        bytes memory executionCalldata = abi.encodePacked(address(lidoStaking), uint256(breakoutAmount), callPayload);
 
         // 1. "Not if they are logged in 5alas!": Without active biometric verification, breakout reverts!
         vm.prank(rootOwner);
@@ -178,25 +153,13 @@ contract TecAccountTest is Test {
     function test_Execute_SelfTargetHook_Reverts() public {
         // AI Session key attempts to call setTetherRadius on TetherGuardHook via TecAccount.execute
         bytes memory callPayload = abi.encodeWithSelector(
-            TetherGuardHook.setTetherRadius.selector,
-            address(account),
-            1_000_000 ether,
-            uint8(3)
+            TetherGuardHook.setTetherRadius.selector, address(account), 1_000_000 ether, uint8(3)
         );
-        bytes memory executionCalldata = abi.encodePacked(
-            address(hook),
-            uint256(0),
-            callPayload
-        );
+        bytes memory executionCalldata = abi.encodePacked(address(hook), uint256(0), callPayload);
 
         // EntryPoint executing on behalf of AI Session Key
         vm.prank(entryPoint);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                TetherGuardHook.UnauthorizedTarget.selector,
-                address(hook)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.UnauthorizedTarget.selector, address(hook)));
         account.execute(bytes32(0), executionCalldata);
     }
 }

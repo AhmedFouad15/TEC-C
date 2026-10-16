@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { IPaymaster } from "../interfaces/IPaymaster.sol";
-import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
+import {IPaymaster} from "../interfaces/IPaymaster.sol";
+import {PackedUserOperation} from "../interfaces/PackedUserOperation.sol";
 
 /**
  * @title TecPaymaster
@@ -22,7 +22,9 @@ contract TecPaymaster is IPaymaster {
     // account => deposit balance
     mapping(address => uint256) public accountBalances;
 
-    event GasSponsored(address indexed account, address indexed sessionKey, uint256 actualCost, uint256 totalSessionSpent);
+    event GasSponsored(
+        address indexed account, address indexed sessionKey, uint256 actualCost, uint256 totalSessionSpent
+    );
     event GasQuotaReplenished(address indexed account, uint256 amount);
     event GasGriefingHalted(address indexed account, address indexed sessionKey, uint256 attemptedCost, uint256 quota);
     event GasRefundWithdrawn(address indexed account, address indexed recipient, uint256 amount);
@@ -63,9 +65,15 @@ contract TecPaymaster is IPaymaster {
      */
     function validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
-        bytes32 /* userOpHash */,
+        bytes32,
+        /* userOpHash */
         uint256 maxCost
-    ) external view override returns (bytes memory context, uint256 validationData) {
+    )
+        external
+        view
+        override
+        returns (bytes memory context, uint256 validationData)
+    {
         address account = userOp.sender;
 
         // Check account has deposited enough gas
@@ -96,12 +104,17 @@ contract TecPaymaster is IPaymaster {
      * @notice ERC-4337 Post-Op callback to record actual gas consumption.
      */
     function postOp(
-        PostOpMode /* mode */,
+        PostOpMode,
+        /* mode */
         bytes calldata context,
         uint256 actualGasCost,
         uint256 /* actualUserOpFeePerGas */
-    ) external override onlyEntryPoint {
-        (address account, address sessionKey, ) = abi.decode(context, (address, address, uint256));
+    )
+        external
+        override
+        onlyEntryPoint
+    {
+        (address account, address sessionKey,) = abi.decode(context, (address, address, uint256));
 
         if (accountBalances[account] >= actualGasCost) {
             accountBalances[account] -= actualGasCost;
@@ -126,7 +139,7 @@ contract TecPaymaster is IPaymaster {
         require(recipient != address(0), "INVALID_RECIPIENT");
         if (accountBalances[msg.sender] < amount) revert InsufficientAccountBalance();
         accountBalances[msg.sender] -= amount;
-        (bool success, ) = recipient.call{value: amount}("");
+        (bool success,) = recipient.call{value: amount}("");
         require(success, "ETH_TRANSFER_FAILED");
         emit GasRefundWithdrawn(msg.sender, recipient, amount);
     }
@@ -137,7 +150,7 @@ contract TecPaymaster is IPaymaster {
     function withdraw(address payable recipient, uint256 amount) external onlyOwner {
         require(recipient != address(0), "INVALID_RECIPIENT");
         require(address(this).balance >= amount, "INSUFFICIENT_BALANCE");
-        (bool success, ) = recipient.call{value: amount}("");
+        (bool success,) = recipient.call{value: amount}("");
         require(success, "ETH_TRANSFER_FAILED");
     }
 

@@ -26,9 +26,15 @@ interface IERC7579Account {
     event ModuleUninstalled(uint256 indexed moduleTypeId, address indexed module);
 
     function execute(bytes32 mode, bytes calldata executionCalldata) external payable;
-    function executeFromExecutor(bytes32 mode, bytes calldata executionCalldata) external payable returns (bytes[] memory returnData);
+    function executeFromExecutor(bytes32 mode, bytes calldata executionCalldata)
+        external
+        payable
+        returns (bytes[] memory returnData);
     function installModule(uint256 moduleTypeId, address module, bytes calldata initData) external;
     function uninstallModule(uint256 moduleTypeId, address module, bytes calldata deInitData) external;
-    function isModuleInstalled(uint256 moduleTypeId, address module, bytes calldata additionalContext) external view returns (bool);
+    function isModuleInstalled(uint256 moduleTypeId, address module, bytes calldata additionalContext)
+        external
+        view
+        returns (bool);
     function accountId() external view returns (string memory);
 }

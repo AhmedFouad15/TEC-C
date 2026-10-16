@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { IERC7579Hook } from "../interfaces/IERC7579Hook.sol";
-import { AggregatorV3Interface } from "../interfaces/AggregatorV3Interface.sol";
-import { IERC20, IERC20Metadata } from "../interfaces/IERC20.sol";
+import {IERC7579Hook} from "../interfaces/IERC7579Hook.sol";
+import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";
+import {IERC20, IERC20Metadata} from "../interfaces/IERC20.sol";
 
 /**
  * @title TetherGuardHook
@@ -19,32 +19,32 @@ contract TetherGuardHook is IERC7579Hook {
     // Tier 1: Core Preservation & Mega Assets (Giga Tokens: BTC/ETH, Stablecoins: USDC/USDT/e-CNY, Commodities: PAXG Gold/Silver, Shibor MMFs)
     uint8 public constant RISK_TIER_CORE_PRESERVATION = 1;
     // Tier 2: Growth & Active DeFi (Merged Liquid Staking stETH/rETH, AMMs, Curve/Uniswap LPs, Yield Vaults)
-    uint8 public constant RISK_TIER_GROWTH_DEFI       = 2;
+    uint8 public constant RISK_TIER_GROWTH_DEFI = 2;
     // Tier 3: Omni-Universe / Unrestricted (Allows EVERYTHING to be held and traded; zero whitelist restriction, strictly bound by Tether Radius)
-    uint8 public constant RISK_TIER_UNRESTRICTED      = 3;
+    uint8 public constant RISK_TIER_UNRESTRICTED = 3;
 
     // Aliases for backwards compatibility
     uint8 public constant RISK_TIER_CONSERVATIVE = 1;
-    uint8 public constant RISK_TIER_BALANCED     = 2;
-    uint8 public constant RISK_TIER_AGGRESSIVE   = 3;
+    uint8 public constant RISK_TIER_BALANCED = 2;
+    uint8 public constant RISK_TIER_AGGRESSIVE = 3;
 
     // --- Dynamic Elasticity Parameters (Axis 2 Learning Engine - Vault-Native) ---
-    uint256 public constant MAX_DAILY_GROWTH_PERCENTAGE = 10;     // Strictly max 10% autonomous increase per day
-    uint256 public constant CALIBRATION_COOLDOWN        = 1 days; // Minimum 24 hours between autonomous calibrations
-    uint256 public constant STEP_UP_COOLDOWN            = 1 days; // Alias for cooldown
+    uint256 public constant MAX_DAILY_GROWTH_PERCENTAGE = 10; // Strictly max 10% autonomous increase per day
+    uint256 public constant CALIBRATION_COOLDOWN = 1 days; // Minimum 24 hours between autonomous calibrations
+    uint256 public constant STEP_UP_COOLDOWN = 1 days; // Alias for cooldown
 
     // --- State Storage Per Account ---
     struct AccountPolicy {
-        uint256 tetherRadius;               // Current active daily spending radius
-        uint256 baselineRadius;             // Initial baseline radius chosen at onboarding
-        uint256 maxElasticCeiling;         // Absolute hard ceiling the AI can NEVER exceed
-        uint256 dailySpent;                 // Aggregate spent in current 24h epoch
-        uint256 currentEpoch;               // Current epoch index: block.timestamp / 1 days
-        uint8 riskTier;                     // User's active risk tolerance tier (1, 2, or 3)
-        bool isDynamicElasticityEnabled;     // User opt-in: Learn from approved decisions (true) vs strictly limited (false)
-        uint256 lastRadiusStepUpTime;      // Timestamp of last autonomous step-up
-        uint256 consecutiveRatifications;   // On-chain count of user-ratified transactions without a revert
-        address rootOwner;                  // Passkey WebAuthn FaceID root owner
+        uint256 tetherRadius; // Current active daily spending radius
+        uint256 baselineRadius; // Initial baseline radius chosen at onboarding
+        uint256 maxElasticCeiling; // Absolute hard ceiling the AI can NEVER exceed
+        uint256 dailySpent; // Aggregate spent in current 24h epoch
+        uint256 currentEpoch; // Current epoch index: block.timestamp / 1 days
+        uint8 riskTier; // User's active risk tolerance tier (1, 2, or 3)
+        bool isDynamicElasticityEnabled; // User opt-in: Learn from approved decisions (true) vs strictly limited (false)
+        uint256 lastRadiusStepUpTime; // Timestamp of last autonomous step-up
+        uint256 consecutiveRatifications; // On-chain count of user-ratified transactions without a revert
+        address rootOwner; // Passkey WebAuthn FaceID root owner
     }
 
     mapping(address => AccountPolicy) public policies;
@@ -149,20 +149,32 @@ contract TetherGuardHook is IERC7579Hook {
     event TetherBroken(address indexed account, address indexed caller, uint256 amount, address indexed target);
     event TargetWhitelisted(address indexed account, address indexed target, uint8 riskTier, bool status);
     event SessionKeyAuthorized(address indexed account, address indexed sessionKey, bool status);
-    event PostExecutionAudited(address indexed account, bool isRoot, uint256 value, address indexed target, uint256 auditIndex);
-    event AutonomousRadiusAdjusted(address indexed account, uint256 previousRadius, uint256 newRadius, string rationale);
+    event PostExecutionAudited(
+        address indexed account, bool isRoot, uint256 value, address indexed target, uint256 auditIndex
+    );
+    event AutonomousRadiusAdjusted(
+        address indexed account, uint256 previousRadius, uint256 newRadius, string rationale
+    );
     event DynamicElasticityToggled(address indexed account, bool enabled, uint256 maxCeiling);
-    event AutonomousExecutionLogged(address indexed account, uint256 indexed recordId, address indexed target, uint256 value, uint256 timestamp);
+    event AutonomousExecutionLogged(
+        address indexed account, uint256 indexed recordId, address indexed target, uint256 value, uint256 timestamp
+    );
     event TransactionRatified(address indexed account, uint256 indexed recordId, uint256 value, uint256 newDailySpent);
-    event TransactionFlaggedForRevert(address indexed account, uint256 indexed recordId, string reason, uint256 penalizedRadius);
-    event TransactionNoteSubmitted(address indexed account, uint256 indexed recordId, string note, bool penalizeBrain, uint256 resultingRadius);
+    event TransactionFlaggedForRevert(
+        address indexed account, uint256 indexed recordId, string reason, uint256 penalizedRadius
+    );
+    event TransactionNoteSubmitted(
+        address indexed account, uint256 indexed recordId, string note, bool penalizeBrain, uint256 resultingRadius
+    );
     event BiometricVerificationCompleted(address indexed account, address indexed verifier, uint256 validUntil);
     event BiometricVerificationRevoked(address indexed account);
     event SignApprovalSubmitted(address indexed account, bytes32 indexed executionHash, bool approved);
     event AIHeartbeatRecorded(address indexed account, address indexed sessionKey, uint256 timestamp);
     event AIHeartbeatTimeoutConfigured(address indexed account, uint256 newTimeout);
     event DeadmanSwitchConfigured(address indexed account, address indexed guardian, uint256 timeoutSeconds);
-    event DeadmanSwitchTriggered(address indexed account, address indexed guardian, address newRootOwner, uint256 timestamp);
+    event DeadmanSwitchTriggered(
+        address indexed account, address indexed guardian, address newRootOwner, uint256 timestamp
+    );
     event UserActivityPinged(address indexed account, uint256 timestamp);
     event AccountPriceFeedConfigured(address indexed account, address indexed token, address indexed feed);
     event GlobalPriceFeedConfigured(address indexed token, address indexed feed);
@@ -220,12 +232,11 @@ contract TetherGuardHook is IERC7579Hook {
     ) public {
         AccountPolicy storage p = policies[account];
         require(p.rootOwner == address(0), "ALREADY_INITIALIZED");
-        require(
-            msg.sender == account || msg.sender == deployer,
-            "UNAUTHORIZED_INIT"
-        );
+        require(msg.sender == account || msg.sender == deployer, "UNAUTHORIZED_INIT");
         require(initialRadius > 0, "INVALID_RADIUS");
-        require(initialRiskTier >= RISK_TIER_CORE_PRESERVATION && initialRiskTier <= RISK_TIER_UNRESTRICTED, "INVALID_TIER");
+        require(
+            initialRiskTier >= RISK_TIER_CORE_PRESERVATION && initialRiskTier <= RISK_TIER_UNRESTRICTED, "INVALID_TIER"
+        );
         if (enableElasticity) {
             require(maxCeiling >= initialRadius, "CEILING_BELOW_RADIUS");
         }
@@ -245,12 +256,9 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Overload for backwards compatibility (defaults to static limited mode).
      */
-    function initializeAccountPolicy(
-        address account,
-        address rootOwner,
-        uint256 initialRadius,
-        uint8 initialRiskTier
-    ) external {
+    function initializeAccountPolicy(address account, address rootOwner, uint256 initialRadius, uint8 initialRiskTier)
+        external
+    {
         initializeAccountPolicy(account, rootOwner, initialRadius, initialRiskTier, false, initialRadius);
     }
 
@@ -261,11 +269,7 @@ contract TetherGuardHook is IERC7579Hook {
      * @param proposedRadius The newly proposed Tether Radius (e.g. from 2,000 to 5,000).
      * @param rationale Cryptographic audit rationale explaining the past approved transactions analyzed.
      */
-    function autonomousRadiusAdjustment(
-        address account,
-        uint256 proposedRadius,
-        string calldata rationale
-    ) external {
+    function autonomousRadiusAdjustment(address account, uint256 proposedRadius, string calldata rationale) external {
         AccountPolicy storage p = policies[account];
 
         // 1. Caller must be an authorized session key or root owner
@@ -363,11 +367,10 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Toggle dynamic elasticity on/off and update the maximum elastic ceiling.
      */
-    function setDynamicElasticity(
-        address account,
-        bool enabled,
-        uint256 maxCeiling
-    ) external onlyAccountOrOwner(account) {
+    function setDynamicElasticity(address account, bool enabled, uint256 maxCeiling)
+        external
+        onlyAccountOrOwner(account)
+    {
         AccountPolicy storage p = policies[account];
         p.isDynamicElasticityEnabled = enabled;
         if (enabled) {
@@ -380,11 +383,10 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Updates The Tether Radius or Risk Tier (can only be called by root owner or account).
      */
-    function setTetherRadius(
-        address account,
-        uint256 newRadius,
-        uint8 newRiskTier
-    ) external onlyAccountOrOwner(account) {
+    function setTetherRadius(address account, uint256 newRadius, uint8 newRiskTier)
+        external
+        onlyAccountOrOwner(account)
+    {
         if (newRadius == 0) revert InvalidTetherRadius();
         require(newRiskTier >= RISK_TIER_CONSERVATIVE && newRiskTier <= RISK_TIER_AGGRESSIVE, "INVALID_TIER");
 
@@ -398,12 +400,10 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Whitelists an on-chain protocol and sets its risk tier rating.
      */
-    function setTargetWhitelist(
-        address account,
-        address target,
-        bool status,
-        uint8 tier
-    ) external onlyAccountOrOwner(account) {
+    function setTargetWhitelist(address account, address target, bool status, uint8 tier)
+        external
+        onlyAccountOrOwner(account)
+    {
         whitelistedTargets[account][target] = status;
         targetRiskTiers[account][target] = tier;
 
@@ -413,16 +413,13 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Authorizes or revokes an ephemeral AI Agent session key.
      */
-    function setSessionKeyAuthorization(
-        address account,
-        address sessionKey,
-        bool status
-    ) external onlyAccountOrOwner(account) {
+    function setSessionKeyAuthorization(address account, address sessionKey, bool status)
+        external
+        onlyAccountOrOwner(account)
+    {
         authorizedSessionKeys[account][sessionKey] = status;
         emit SessionKeyAuthorized(account, sessionKey, status);
     }
-
-
 
     // =========================================================================
     // --- Multi-Token & Chainlink Price Feed Oracles (USD Normalized Tether) ---
@@ -431,11 +428,7 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Configures a per-account Chainlink price feed override for a token or NATIVE_ETH.
      */
-    function setAccountPriceFeed(
-        address account,
-        address token,
-        address feed
-    ) external onlyAccountOrOwner(account) {
+    function setAccountPriceFeed(address account, address token, address feed) external onlyAccountOrOwner(account) {
         accountPriceFeeds[account][token] = feed;
         emit AccountPriceFeedConfigured(account, token, feed);
     }
@@ -468,7 +461,7 @@ contract TetherGuardHook is IERC7579Hook {
         address feed = getPriceFeed(account, token);
         require(feed != address(0), "PRICE_FEED_NOT_FOUND");
 
-        (, int256 answer, , uint256 updatedAt, ) = AggregatorV3Interface(feed).latestRoundData();
+        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(feed).latestRoundData();
         if (answer <= 0) {
             revert InvalidOraclePrice(token, answer);
         }
@@ -483,12 +476,11 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @dev Internal helper to calculate USD value normalized to 8 decimals.
      */
-    function _calculateUSD(
-        uint256 amount,
-        uint8 tokenDecimals,
-        uint256 priceUSD,
-        uint8 feedDecimals
-    ) internal pure returns (uint256) {
+    function _calculateUSD(uint256 amount, uint8 tokenDecimals, uint256 priceUSD, uint8 feedDecimals)
+        internal
+        pure
+        returns (uint256)
+    {
         if (amount == 0 || priceUSD == 0) return 0;
         uint256 val = (amount * priceUSD) / (10 ** tokenDecimals);
         if (feedDecimals != 8 && feedDecimals > 0) {
@@ -504,16 +496,16 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @dev Safe oracle lookup helper for read-only portfolio views without reverting.
      */
-    function _safeGetPrice(address account, address token) internal view returns (uint256 priceUSD, uint8 feedDecimals) {
+    function _safeGetPrice(address account, address token)
+        internal
+        view
+        returns (uint256 priceUSD, uint8 feedDecimals)
+    {
         address feed = getPriceFeed(account, token);
         if (feed == address(0)) return (0, 0);
 
         try AggregatorV3Interface(feed).latestRoundData() returns (
-            uint80,
-            int256 answer,
-            uint256,
-            uint256 updatedAt,
-            uint80
+            uint80, int256 answer, uint256, uint256 updatedAt, uint80
         ) {
             if (answer <= 0) return (0, 0);
             if (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days) return (0, 0);
@@ -533,12 +525,11 @@ contract TetherGuardHook is IERC7579Hook {
      * @dev If feeds are configured, returns the total USD value of the call.
      *      If no feeds are configured, falls back to raw nativeValue/tokenAmount for backwards compatibility.
      */
-    function calculateCallUSDValue(
-        address account,
-        address target,
-        uint256 nativeValue,
-        bytes calldata msgData
-    ) public view returns (uint256 effectiveAmount, bool isUSD) {
+    function calculateCallUSDValue(address account, address target, uint256 nativeValue, bytes calldata msgData)
+        public
+        view
+        returns (uint256 effectiveAmount, bool isUSD)
+    {
         address ethFeed = getPriceFeed(account, NATIVE_ETH);
         uint256 nativeUSD = 0;
         bool hasFeed = false;
@@ -604,10 +595,11 @@ contract TetherGuardHook is IERC7579Hook {
      * @return totalValueUSD Total portfolio valuation in 8-decimal USD.
      * @return details Array of TokenBalanceDetail structs with balances, prices, and USD values.
      */
-    function getTotalPortfolioValueUSD(
-        address account,
-        address[] calldata tokens
-    ) external view returns (uint256 totalValueUSD, TokenBalanceDetail[] memory details) {
+    function getTotalPortfolioValueUSD(address account, address[] calldata tokens)
+        external
+        view
+        returns (uint256 totalValueUSD, TokenBalanceDetail[] memory details)
+    {
         details = new TokenBalanceDetail[](tokens.length);
 
         for (uint256 i = 0; i < tokens.length; i++) {
@@ -618,12 +610,7 @@ contract TetherGuardHook is IERC7579Hook {
                 uint256 val = _calculateUSD(bal, 18, price, feedDec);
 
                 details[i] = TokenBalanceDetail({
-                    token: NATIVE_ETH,
-                    symbol: "ETH",
-                    decimals: 18,
-                    balance: bal,
-                    priceUSD: price,
-                    valueUSD: val
+                    token: NATIVE_ETH, symbol: "ETH", decimals: 18, balance: bal, priceUSD: price, valueUSD: val
                 });
                 totalValueUSD += val;
             } else {
@@ -646,12 +633,7 @@ contract TetherGuardHook is IERC7579Hook {
                 uint256 val = _calculateUSD(bal, dec, price, feedDec);
 
                 details[i] = TokenBalanceDetail({
-                    token: token,
-                    symbol: sym,
-                    decimals: dec,
-                    balance: bal,
-                    priceUSD: price,
-                    valueUSD: val
+                    token: token, symbol: sym, decimals: dec, balance: bal, priceUSD: price, valueUSD: val
                 });
                 totalValueUSD += val;
             }
@@ -662,11 +644,11 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice ERC-7579 Pre-execution Hook verification.
      * @dev Enforces The Tether Radius, target whitelist, risk tiers, and the 5-minute Biometric Verification / Sign Approval protocol.
      */
-    function preCheck(
-        address msgSender,
-        uint256 value,
-        bytes calldata msgData
-    ) external override returns (bytes memory hookData) {
+    function preCheck(address msgSender, uint256 value, bytes calldata msgData)
+        external
+        override
+        returns (bytes memory hookData)
+    {
         address account = msg.sender;
         AccountPolicy storage p = policies[account];
 
@@ -688,7 +670,7 @@ contract TetherGuardHook is IERC7579Hook {
         uint256 remainingRadius = p.tetherRadius > p.dailySpent ? p.tetherRadius - p.dailySpent : 0;
 
         // Calculate USD Normalized effective amount (ERC-20 and/or Native ETH via Chainlink)
-        (uint256 effectiveAmount, ) = calculateCallUSDValue(account, target, value, msgData);
+        (uint256 effectiveAmount,) = calculateCallUSDValue(account, target, value, msgData);
 
         // Determine if this transaction breaks the tether:
         // A breakout occurs if:
@@ -723,7 +705,8 @@ contract TetherGuardHook is IERC7579Hook {
 
         // 3. Caller is AI Agent Session Key:
         // Enforce Inactive AI Heartbeat Watchdog:
-        uint256 hbTimeout = customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
+        uint256 hbTimeout =
+            customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
         if (lastAIHeartbeat[account] > 0 && block.timestamp > lastAIHeartbeat[account] + hbTimeout) {
             revert AIHeartbeatStale(lastAIHeartbeat[account], block.timestamp);
         }
@@ -738,7 +721,10 @@ contract TetherGuardHook is IERC7579Hook {
         if (signApprovals[account][execHash]) {
             // Brain breakout with user sign approval:
             // VULN-05: Must have an active 5-minute biometric verification window and non-expired sign approval
-            if (block.timestamp > signApprovalExpiresAt[account][execHash] || block.timestamp > biometricVerifiedUntil[account]) {
+            if (
+                block.timestamp > signApprovalExpiresAt[account][execHash]
+                    || block.timestamp > biometricVerifiedUntil[account]
+            ) {
                 delete signApprovals[account][execHash];
                 delete signApprovalExpiresAt[account][execHash];
                 revert BiometricVerificationRequired();
@@ -781,10 +767,8 @@ contract TetherGuardHook is IERC7579Hook {
      */
     function postCheck(bytes calldata hookData) external override {
         // Unpack hookData for telemetry confirmation
-        (bool isRoot, address account, uint256 value, address target) = abi.decode(
-            hookData,
-            (bool, address, uint256, address)
-        );
+        (bool isRoot, address account, uint256 value, address target) =
+            abi.decode(hookData, (bool, address, uint256, address));
         require(account == msg.sender, "INVALID_POST_ACCOUNT");
 
         totalAuditedExecutions++;
@@ -839,7 +823,10 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Morning Review: User rejects / flags an autonomous transaction for cognitive unwind.
      * @dev Marks transaction as REVERT_REQUESTED, contracts the dynamic Tether Radius as a trust penalty.
      */
-    function flagTransactionForRevert(address account, uint256 recordId, string calldata reason) external onlyAccountOrOwner(account) {
+    function flagTransactionForRevert(address account, uint256 recordId, string calldata reason)
+        external
+        onlyAccountOrOwner(account)
+    {
         AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
         if (rec.id == 0) revert InvalidRecordId();
         if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
@@ -870,12 +857,10 @@ contract TetherGuardHook is IERC7579Hook {
      * @dev The Vault itself is sovereign and NEVER penalized. This penalty only restricts the autonomous AI Brain's
      *      discretionary Tether Radius allowance, leaving all Vault treasury funds and user root capabilities intact.
      */
-    function submitTransactionNote(
-        address account,
-        uint256 recordId,
-        string calldata note,
-        bool penalizeBrain
-    ) external onlyAccountOrOwner(account) {
+    function submitTransactionNote(address account, uint256 recordId, string calldata note, bool penalizeBrain)
+        external
+        onlyAccountOrOwner(account)
+    {
         AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
         if (rec.id == 0) revert InvalidRecordId();
         if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
@@ -903,7 +888,11 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice View an individual autonomous execution record.
      */
-    function getExecutionRecord(address account, uint256 recordId) external view returns (AutonomousExecutionRecord memory) {
+    function getExecutionRecord(address account, uint256 recordId)
+        external
+        view
+        returns (AutonomousExecutionRecord memory)
+    {
         return executionRecords[account][recordId];
     }
 
@@ -982,11 +971,10 @@ contract TetherGuardHook is IERC7579Hook {
      * @param executionHash The keccak256 hash of the execution calldata.
      * @param approve True for Accept, False for Reject.
      */
-    function submitSignApproval(
-        address account,
-        bytes32 executionHash,
-        bool approve
-    ) external onlyAccountOrOwner(account) {
+    function submitSignApproval(address account, bytes32 executionHash, bool approve)
+        external
+        onlyAccountOrOwner(account)
+    {
         if (block.timestamp > biometricVerifiedUntil[account]) {
             revert BiometricVerificationRequired();
         }
@@ -1063,7 +1051,11 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Check approval status for an execution hash.
      */
-    function getSignApprovalStatus(address account, bytes32 executionHash) external view returns (bool isApproved, bool isRejected) {
+    function getSignApprovalStatus(address account, bytes32 executionHash)
+        external
+        view
+        returns (bool isApproved, bool isRejected)
+    {
         return (signApprovals[account][executionHash], signRejections[account][executionHash]);
     }
 
@@ -1075,7 +1067,10 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Broadcasts an AI liveness heartbeat from an authorized session key.
      */
     function recordAIHeartbeat(address account) external {
-        if (!authorizedSessionKeys[account][msg.sender] && msg.sender != account && msg.sender != policies[account].rootOwner) {
+        if (
+            !authorizedSessionKeys[account][msg.sender] && msg.sender != account
+                && msg.sender != policies[account].rootOwner
+        ) {
             revert UnauthorizedCaller();
         }
         lastAIHeartbeat[account] = block.timestamp;
@@ -1094,11 +1089,10 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Configures Dead-Man's Switch guardian and inactivity threshold.
      */
-    function configureDeadmanSwitch(
-        address account,
-        address guardian,
-        uint256 timeoutSeconds
-    ) external onlyAccountOrOwner(account) {
+    function configureDeadmanSwitch(address account, address guardian, uint256 timeoutSeconds)
+        external
+        onlyAccountOrOwner(account)
+    {
         require(guardian != address(0), "INVALID_GUARDIAN");
         deadmanGuardians[account] = guardian;
         deadmanTimeouts[account] = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_DEADMAN_TIMEOUT;
@@ -1144,7 +1138,8 @@ contract TetherGuardHook is IERC7579Hook {
      */
     function isAIHeartbeatAlive(address account) external view returns (bool) {
         if (lastAIHeartbeat[account] == 0) return true;
-        uint256 timeout = customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
+        uint256 timeout =
+            customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
         return block.timestamp <= lastAIHeartbeat[account] + timeout;
     }
 
@@ -1165,22 +1160,14 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Configures the WebAuthn P-256 Passkey coordinates (qx, qy) for an account.
      * @dev Allows deployer to register initial coordinates during onboarding if not yet registered.
      */
-    function setAccountPasskey(
-        address account,
-        uint256 qx,
-        uint256 qy
-    ) external {
+    function setAccountPasskey(address account, uint256 qx, uint256 qy) external {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
             if (msg.sender != deployer || accountPasskeys[account].isRegistered) {
                 revert UnauthorizedCaller();
             }
         }
         require(qx != 0 && qy != 0, "INVALID_COORDINATES");
-        accountPasskeys[account] = WebAuthnPasskey({
-            qx: qx,
-            qy: qy,
-            isRegistered: true
-        });
+        accountPasskeys[account] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
         emit PasskeyConfigured(account, qx, qy);
     }
 

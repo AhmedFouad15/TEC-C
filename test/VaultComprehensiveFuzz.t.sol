@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-import { TecAccount } from "../src/TecAccount.sol";
-import { TetherGuardHook } from "../src/hooks/TetherGuardHook.sol";
-import { SessionKeyValidator } from "../src/validators/SessionKeyValidator.sol";
-import { TecPaymaster } from "../src/paymaster/TecPaymaster.sol";
-import { MockDeFiProtocol } from "./mocks/MockDeFiProtocol.sol";
-import { MockERC20 } from "./mocks/MockERC20.sol";
-import { MockChainlinkFeed } from "./mocks/MockChainlinkFeed.sol";
-import { PackedUserOperation } from "../src/interfaces/PackedUserOperation.sol";
-import { IPaymaster } from "../src/interfaces/IPaymaster.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {TecAccount} from "../src/TecAccount.sol";
+import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
+import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
+import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
+import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockChainlinkFeed} from "./mocks/MockChainlinkFeed.sol";
+import {PackedUserOperation} from "../src/interfaces/PackedUserOperation.sol";
+import {IPaymaster} from "../src/interfaces/IPaymaster.sol";
 
 /**
  * @title VaultComprehensiveFuzzTest
@@ -80,7 +80,9 @@ contract VaultComprehensiveFuzzTest is Test {
         if (spendUSD == 0) spendUSD = 100;
 
         address fuzzAccount = address(0xF001);
-        hook.initializeAccountPolicy(fuzzAccount, rootOwner, dailyLimitUSD, hook.RISK_TIER_GROWTH_DEFI(), false, dailyLimitUSD);
+        hook.initializeAccountPolicy(
+            fuzzAccount, rootOwner, dailyLimitUSD, hook.RISK_TIER_GROWTH_DEFI(), false, dailyLimitUSD
+        );
 
         vm.startPrank(rootOwner);
         hook.setTargetWhitelist(fuzzAccount, address(mockUsdc), true, hook.RISK_TIER_CORE_PRESERVATION());
@@ -90,11 +92,7 @@ contract VaultComprehensiveFuzzTest is Test {
         // 1 USDC = 1 USD (6 decimals for USDC, spendUSD has 8 decimals)
         uint256 usdcAmount = spendUSD / 100;
 
-        bytes memory transferCall = abi.encodeWithSelector(
-            MockERC20.transfer.selector,
-            address(mockTarget),
-            usdcAmount
-        );
+        bytes memory transferCall = abi.encodeWithSelector(MockERC20.transfer.selector, address(mockTarget), usdcAmount);
         bytes memory msgData = abi.encodePacked(address(mockUsdc), uint256(0), transferCall);
 
         // PreCheck verification
@@ -110,11 +108,7 @@ contract VaultComprehensiveFuzzTest is Test {
         } else {
             vm.prank(fuzzAccount);
             vm.expectRevert(
-                abi.encodeWithSelector(
-                    TetherGuardHook.TetherRadiusExceeded.selector,
-                    spendUSD,
-                    dailyLimitUSD
-                )
+                abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, spendUSD, dailyLimitUSD)
             );
             hook.preCheck(sessionKey, 0, msgData);
         }
@@ -144,11 +138,7 @@ contract VaultComprehensiveFuzzTest is Test {
         if (proposedRadius > maxAllowed) {
             vm.prank(sessionKey);
             vm.expectRevert(
-                abi.encodeWithSelector(
-                    TetherGuardHook.ExcessiveStepUpJump.selector,
-                    proposedRadius,
-                    maxAllowed
-                )
+                abi.encodeWithSelector(TetherGuardHook.ExcessiveStepUpJump.selector, proposedRadius, maxAllowed)
             );
             hook.autonomousRadiusAdjustment(fuzzAccount, proposedRadius, "Fuzz step-up jump");
         } else {
@@ -163,13 +153,17 @@ contract VaultComprehensiveFuzzTest is Test {
     // Property 3: Trust Penalty Mathematical Non-Inversion Fuzzing
     // =========================================================================
 
-    function testFuzz_TrustPenalty_MathematicallyStrictlyDecreases(uint256 baselineRadius, uint256 currentRadius) public {
+    function testFuzz_TrustPenalty_MathematicallyStrictlyDecreases(uint256 baselineRadius, uint256 currentRadius)
+        public
+    {
         baselineRadius = bound(baselineRadius, 100 * 1e8, 1_000_000 * 1e8);
         // Current radius can be anywhere from $10 up to 2x baseline
         currentRadius = bound(currentRadius, 10 * 1e8, baselineRadius * 2);
 
         address fuzzAccount = address(0xF003);
-        hook.initializeAccountPolicy(fuzzAccount, rootOwner, baselineRadius, hook.RISK_TIER_GROWTH_DEFI(), false, baselineRadius);
+        hook.initializeAccountPolicy(
+            fuzzAccount, rootOwner, baselineRadius, hook.RISK_TIER_GROWTH_DEFI(), false, baselineRadius
+        );
 
         // Authorize session key and whitelist mockTarget and mockUsdc
         vm.startPrank(rootOwner);
@@ -276,12 +270,7 @@ contract VaultComprehensiveFuzzTest is Test {
         if (cost1 <= paymaster.MAX_SESSION_GAS_BUDGET()) {
             assertEq(val1, 0); // Accepted
             vm.prank(entryPoint);
-            paymaster.postOp(
-                IPaymaster.PostOpMode.opSucceeded,
-                abi.encode(fuzzAccount, fuzzKey, cost1),
-                cost1,
-                0
-            );
+            paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, abi.encode(fuzzAccount, fuzzKey, cost1), cost1, 0);
 
             // Second UserOp
             (, uint256 val2) = paymaster.validatePaymasterUserOp(userOp, bytes32(0), cost2);
