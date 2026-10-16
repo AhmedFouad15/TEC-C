@@ -144,8 +144,8 @@ For each pegged asset (USDC, USDT, DAI, stETH, rETH, PAXG, …):
 ```
 FV = coverage × (1 − redemption_fee) / (1 + hurdle × redemption_delay_years)
 ```
-`coverage` comes from the latest reserve attestation (cash + T-bills ÷ supply), haircut for reserves known to
-be frozen (e.g. SVB deposits). For stETH, FV is the ETH redeemable through the Lido withdrawal queue, discounted
+`coverage` is the claim per token the redemption mechanism honours: for fiat-backed coins the latest reserve attestation (cash + T-bills ÷ supply), haircut for reserves known to
+be frozen (e.g. SVB deposits); for algorithmic coins 1.0 while mint/burn works (their weakness is captured by low `q`, not by FV). For stETH, FV is the ETH redeemable through the Lido withdrawal queue, discounted
 for the queue wait.
 
 **Inputs** (normalised 0–1, from Member 4 unless noted)
@@ -184,7 +184,7 @@ P_rec = P_normal + P_distress
 E = P_rec·(FV − p) − P_failure·(p − V_fail) − c_in − c_out_stress − hurdle × T_rec
 ```
 `V_fail = q × FV` is what is left if it fails, and `T_rec` is the expected recovery time (distress median ≈ 7 days).
-- USDC at $0.88 → E ≈ **+11%**: a "buy the discount" opportunity card (PROPOSE only, never AUTO).
+- USDC at $0.88, FV = 0.917 after haircutting the $3.3B frozen at SVB → E ≈ **+3.1%**: still a "buy the discount" opportunity card (PROPOSE only, never AUTO).
 - UST at $0.95 (early in the crash, P_failure ≈ 0.23) → E ≈ **−14%**: blocked, and the Brain proposes exiting.
 
 ### 2.5 Portfolio contagion: one de-peg raises the odds of others

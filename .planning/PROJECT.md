@@ -35,7 +35,7 @@ Risk engine (core):
 - [ ] Protocol/asset static table (`protocols.json`): tier, pd_base, LGD, reserve quality q, redemption fee/delay, cluster
 - [ ] Fair value from reserve coverage + redemption terms (not moving averages)
 - [ ] 3-regime softmax model with documented coefficients; reproduces the 4 episode rows in BRAIN_DESIGN.md §2.4
-- [ ] Recovery-adjusted edge E for de-pegged assets (+11% USDC-SVB, −14% UST early)
+- [ ] Recovery-adjusted edge E for de-pegged assets (+3.1% USDC-SVB after reserve haircut, −14% UST early)
 - [ ] Score in %/yr: excess over Shibor − (1+λ)·PD·LGD − c_in − c_out_stress + w_a·a; reproduces §2.2 demo table
 - [ ] Hard filters (tier, whitelist, failure veto, negative edge, slippage, heartbeat)
 - [ ] Portfolio contagion (clusters, ρ links, cluster caps, "reduce exposure" cards)
