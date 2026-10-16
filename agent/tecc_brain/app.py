@@ -1,14 +1,26 @@
 """FastAPI entrypoint for the Tec-C Brain."""
 
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from tecc_brain import __version__
+from tecc_brain.api import mandate, risk
 
 app = FastAPI(
     title="Tec-C Brain",
     version=__version__,
     description="Cognitive planner and risk engine for the Tec-C agent wallet (Member 2).",
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get("TECC_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(","),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+app.include_router(mandate.router)
+app.include_router(risk.router)
 
 
 @app.get("/health")

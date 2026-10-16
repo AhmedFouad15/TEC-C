@@ -15,7 +15,8 @@ _NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
 DEFAULT_STATE_DIR = Path(__file__).resolve().parents[2] / ".state"
 
 
-def _key(account: str) -> str:
+def account_key(account: str) -> str:
+    """Validated, normalised account id (also used to validate API input)."""
     if account.lower().startswith("0x"):
         key = account.lower()
         valid = _ADDRESS.fullmatch(key)  # anything that looks like an address must be a full one
@@ -34,7 +35,7 @@ class ProfileStore:
         self.root = Path(root)
 
     def _path(self, account: str) -> Path:
-        return self.root / f"{_key(account)}.json"
+        return self.root / f"{account_key(account)}.json"
 
     def load(self, account: str) -> BrainProfile | None:
         path = self._path(account)

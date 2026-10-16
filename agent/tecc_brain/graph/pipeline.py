@@ -277,19 +277,23 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
     return graph.compile()
 
 
+def regime_views(view: MarketView, ref: Reference) -> dict[str, RegimeView]:
+    out: dict[str, RegimeView] = {}
+    for symbol, a in view.assessments.items():
+        p = a.probs
+        out[symbol] = RegimeView(
+            symbol=symbol, price=a.price, fair_value=a.fair_value, p_normal=p.p_normal, p_distress=p.p_distress,
+            p_failure=p.p_failure, regime=regime_label(p.p_normal, p.p_distress, p.p_failure),
+            cluster=ref.assets[symbol].cluster,
+        )
+    return out
+
+
 def run_pipeline(text: str, account: str, **deps: Any) -> PipelineResult:
     brain = BrainDeps(**deps)
     state: BrainState = build_graph(brain).invoke({"text": text, "account": account, "agents": []})
     view = state.get("view")
-    regimes: dict[str, RegimeView] = {}
-    if view is not None:
-        for symbol, a in view.assessments.items():
-            p = a.probs
-            regimes[symbol] = RegimeView(
-                symbol=symbol, price=a.price, fair_value=a.fair_value, p_normal=p.p_normal, p_distress=p.p_distress,
-                p_failure=p.p_failure, regime=regime_label(p.p_normal, p.p_distress, p.p_failure),
-                cluster=brain.ref.assets[symbol].cluster,
-            )
+    regimes = regime_views(view, brain.ref) if view is not None else {}
     profile = state.get("profile")
     return PipelineResult(
         status=state.get("status", "decided"),
@@ -308,5 +312,5 @@ def run_pipeline(text: str, account: str, **deps: Any) -> PipelineResult:
 
 __all__ = [
     "AGENT_ORDER", "AGENT_TITLES", "AgentReport", "BrainDeps", "Executor", "PipelineResult", "ProfileSummary",
-    "RegimeView", "build_graph", "load_or_create_profile", "regime_label", "run_pipeline",
+    "RegimeView", "build_graph", "load_or_create_profile", "regime_label", "regime_views", "run_pipeline",
 ]
