@@ -20,7 +20,7 @@ None
 
 - [x] **Phase 1: Foundation** - `/agent` package, typed models, static protocol table, offline market snapshot
 - [x] **Phase 2: Risk Engine** - Fair value, 3-regime model, recovery edge, %/yr score, hard filters (TDD on spec numbers)
-- [ ] **Phase 3: Portfolio & Strategy** - Contagion, cluster caps, playbook, Good/Better/Best, autonomy gate, backtest
+- [x] **Phase 3: Portfolio & Strategy** - Contagion, cluster caps, playbook, Good/Better/Best, autonomy gate, backtest
 - [ ] **Phase 4: Intent & Privacy** - Offline mandate parser, prompt-injection firewall, privacy sieve, pluggable LLM
 - [ ] **Phase 5: Adaptive Learning** - UserModel, reward/penalty updates, note parsing, onboarding, on-chain lever policy
 - [ ] **Phase 6: API Layer** - FastAPI pipeline + all endpoints + OpenAPI spec for Member 3
@@ -60,7 +60,7 @@ Plans:
 - [x] 03-01: Contagion-aware market view + portfolio risk (cluster stress, caps, expected loss) — TDD
 - [x] 03-02: Asset-specific playbook + REDUCE_EXPOSURE / OPPORTUNITY cards — TDD
 - [x] 03-03: Planner: candidates, Good/Better/Best, autonomy gate — reproduces demo Scenes 1 and 3 — TDD
-- [ ] 03-04: Backtest on USDC-SVB / stETH / UST paths vs sentiment-veto and mean-reversion rules
+- [x] 03-04: Backtest on USDC-SVB / stETH / UST paths vs sentiment-veto and mean-reversion rules
 
 ### Phase 4: Intent & Privacy
 **Goal**: Safely turn natural language into a typed Mandate, offline-first, immune to injected instructions
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-10-16 |
 | 2. Risk Engine | 3/3 | Complete | 2026-10-16 |
-| 3. Portfolio & Strategy | 3/4 | In progress | - |
+| 3. Portfolio & Strategy | 4/4 | Complete | 2026-10-16 |
 | 4. Intent & Privacy | 0/2 | Not started | - |
 | 5. Adaptive Learning | 0/3 | Not started | - |
 | 6. API Layer | 0/3 | Not started | - |
