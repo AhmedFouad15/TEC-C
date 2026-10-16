@@ -751,18 +751,19 @@ def build_pdf(filename):
     # PAGE 7: EMPIRICAL TRANSACTION FEE & GAS ECONOMICS
     # ==========================================
     story.append(PageBreak())
-    story.append(Paragraph("6. Empirical Transaction Fee & Gas Economics", h1_style))
+    story.append(Paragraph("6. Empirical Transaction Fee & Multi-Chain Gas Economics", h1_style))
     story.append(HRFlowable(width="100%", thickness=1, color=PRIMARY, spaceAfter=4))
 
-    story.append(Paragraph("6.1 EVM Gas Profiling Methodology & Mainnet Baseline", h2_style))
+    story.append(Paragraph("6.1 Live Network Gas Quotes & Multi-Chain Benchmarks", h2_style))
     story.append(Paragraph(
-        "To guarantee corporate production viability, every callable method across the Tec-C vault ecosystem was empirically profiled "
-        "on the EVM via automated Foundry benchmarks (<code>test/VaultGasBenchmark.t.sol</code>). Fees are computed under two standard "
-        "Ethereum mainnet conditions: <b>Standard Base Fee (20 Gwei)</b> and <b>Congestion Base Fee (50 Gwei)</b> at an ETH benchmark price of <b>$2,500 USD</b>.",
+        "To establish accurate operational costs for corporate deployment, live base fees were captured directly from official block explorers: "
+        "<b>Etherscan Gas Tracker</b> (<code>https://etherscan.io/gastracker</code>) at <b>0.092 Gwei</b> (Base: 0.092 | Priority: 0.001 Gwei) and "
+        "<b>BaseScan Gas Tracker</b> (<code>https://basescan.org/gastracker</code>) at <b>0.005 Gwei</b>, with ETH benchmarked at <b>$2,500 USD</b>. "
+        "Every method was empirically profiled on the EVM in Foundry (<code>test/VaultGasBenchmark.t.sol</code>).",
         body_style
     ))
 
-    story.append(Paragraph("6.2 Comprehensive Empirical Transaction Fee Matrix (33 Methods Profiled)", h2_style))
+    story.append(Paragraph("6.2 Operational Transaction Fee Matrix: Ethereum Mainnet vs. Base L2", h2_style))
 
     gas_header_style = ParagraphStyle(
         'GasHeader',
@@ -777,102 +778,201 @@ def build_pdf(filename):
         'GasCell',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=6.2,
-        leading=7.6,
+        fontSize=6.1,
+        leading=7.5,
         textColor=SECONDARY
     )
     gas_cell_bold = ParagraphStyle(
         'GasCellBold',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=6.2,
-        leading=7.6,
+        fontSize=6.1,
+        leading=7.5,
         textColor=PRIMARY
     )
     gas_cell_center = ParagraphStyle(
         'GasCellCenter',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=6.2,
-        leading=7.6,
+        fontSize=6.1,
+        leading=7.5,
         textColor=SECONDARY,
         alignment=TA_CENTER
     )
-    gas_cell_cost = ParagraphStyle(
-        'GasCellCost',
+    gas_cell_eth = ParagraphStyle(
+        'GasCellEth',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=6.1,
+        leading=7.5,
+        textColor=PRIMARY,
+        alignment=TA_CENTER
+    )
+    gas_cell_base = ParagraphStyle(
+        'GasCellBase',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=6.2,
-        leading=7.6,
+        fontSize=6.1,
+        leading=7.5,
         textColor=ACCENT_GREEN,
         alignment=TA_CENTER
     )
 
     gas_matrix_data = [
         [
-            Paragraph("Contract Domain", gas_header_style),
-            Paragraph("Method Name & Architectural Function", gas_header_style),
+            Paragraph("Method & Contract", gas_header_style),
+            Paragraph("Operational Trigger (\"When Will It Be Used?\")", gas_header_style),
             Paragraph("Gas Used", gas_header_style),
-            Paragraph("Fee @ 20 Gwei", gas_header_style),
-            Paragraph("USD ($2.5k)", gas_header_style),
-            Paragraph("Fee @ 50 Gwei", gas_header_style)
+            Paragraph("Ethereum L1 (0.092 Gwei)<br/>Fee (ETH) | USD", gas_header_style),
+            Paragraph("Base L2 (0.005 Gwei)<br/>Fee (ETH) | USD", gas_header_style)
         ],
-        # TecAccount
-        [Paragraph("<b>TecAccount</b>", gas_cell_bold), Paragraph("<code>initialize</code> (Proxy & Module Binding)", gas_cell_style), Paragraph("98,785", gas_cell_center), Paragraph("0.00197 ETH", gas_cell_center), Paragraph("<b>$4.93</b>", gas_cell_cost), Paragraph("0.00493 ETH", gas_cell_center)],
-        [Paragraph("<b>TecAccount</b>", gas_cell_bold), Paragraph("<code>execute</code> (Native ETH Lido Stake under Limit)", gas_cell_style), Paragraph("185,326", gas_cell_center), Paragraph("0.00370 ETH", gas_cell_center), Paragraph("<b>$9.26</b>", gas_cell_cost), Paragraph("0.00926 ETH", gas_cell_center)],
-        [Paragraph("<b>TecAccount</b>", gas_cell_bold), Paragraph("<code>execute</code> (ERC-20 USDC Settlement under Limit)", gas_cell_style), Paragraph("168,554", gas_cell_center), Paragraph("0.00337 ETH", gas_cell_center), Paragraph("<b>$8.42</b>", gas_cell_cost), Paragraph("0.00842 ETH", gas_cell_center)],
-        [Paragraph("<b>TecAccount</b>", gas_cell_bold), Paragraph("<code>executeFromExecutor</code> (Session Key UserOp)", gas_cell_style), Paragraph("296,175", gas_cell_center), Paragraph("0.00592 ETH", gas_cell_center), Paragraph("<b>$14.80</b>", gas_cell_cost), Paragraph("0.01480 ETH", gas_cell_center)],
-        [Paragraph("<b>TecAccount</b>", gas_cell_bold), Paragraph("<code>installModule</code> (ERC-7579 Dynamic Module)", gas_cell_style), Paragraph("48,724", gas_cell_center), Paragraph("0.00097 ETH", gas_cell_center), Paragraph("<b>$2.43</b>", gas_cell_cost), Paragraph("0.00243 ETH", gas_cell_center)],
-        [Paragraph("<b>TecAccount</b>", gas_cell_bold), Paragraph("<code>uninstallModule</code> (ERC-7579 Module Removal)", gas_cell_style), Paragraph("31,595", gas_cell_center), Paragraph("0.00063 ETH", gas_cell_center), Paragraph("<b>$1.57</b>", gas_cell_cost), Paragraph("0.00157 ETH", gas_cell_center)],
-        [Paragraph("<b>TecAccount</b>", gas_cell_bold), Paragraph("<code>validateUserOp</code> (Root Owner ECDSA Direct)", gas_cell_style), Paragraph("35,831", gas_cell_center), Paragraph("0.00071 ETH", gas_cell_center), Paragraph("<b>$1.79</b>", gas_cell_cost), Paragraph("0.00179 ETH", gas_cell_center)],
-        # TetherGuardHook
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>initializeAccountPolicy</code> (Policy & Quota Config)", gas_cell_style), Paragraph("142,742", gas_cell_center), Paragraph("0.00285 ETH", gas_cell_center), Paragraph("<b>$7.13</b>", gas_cell_cost), Paragraph("0.00713 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>setAccountPasskey</code> (NIST P-256 Public Key Reg)", gas_cell_style), Paragraph("93,942", gas_cell_center), Paragraph("0.00187 ETH", gas_cell_center), Paragraph("<b>$4.69</b>", gas_cell_cost), Paragraph("0.00469 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>setTargetWhitelist</code> (Approved Target Whitelist)", gas_cell_style), Paragraph("72,342", gas_cell_center), Paragraph("0.00144 ETH", gas_cell_center), Paragraph("<b>$3.61</b>", gas_cell_cost), Paragraph("0.00361 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>setSessionKeyAuthorization</code> (AI Agent Whitelisting)", gas_cell_style), Paragraph("51,502", gas_cell_center), Paragraph("0.00103 ETH", gas_cell_center), Paragraph("<b>$2.57</b>", gas_cell_cost), Paragraph("0.00257 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>completeBiometricVerificationWithP256</code> (RIP-7212)", gas_cell_style), Paragraph("103,946", gas_cell_center), Paragraph("0.00207 ETH", gas_cell_center), Paragraph("<b>$5.19</b>", gas_cell_cost), Paragraph("0.00519 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>revokeBiometricVerification</code> (Biometric Revoke)", gas_cell_style), Paragraph("31,278", gas_cell_center), Paragraph("0.00062 ETH", gas_cell_center), Paragraph("<b>$1.56</b>", gas_cell_cost), Paragraph("0.00156 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>submitSignApproval</code> (Direct Human Accept/Reject)", gas_cell_style), Paragraph("78,845", gas_cell_center), Paragraph("0.00157 ETH", gas_cell_center), Paragraph("<b>$3.94</b>", gas_cell_cost), Paragraph("0.00394 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>submitSignApprovalWithSignature</code> (Gasless Relay)", gas_cell_style), Paragraph("70,637", gas_cell_center), Paragraph("0.00141 ETH", gas_cell_center), Paragraph("<b>$3.53</b>", gas_cell_cost), Paragraph("0.00353 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>ratifyTransaction</code> (Morning Review Ratification)", gas_cell_style), Paragraph("85,809", gas_cell_center), Paragraph("0.00171 ETH", gas_cell_center), Paragraph("<b>$4.29</b>", gas_cell_cost), Paragraph("0.00429 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>flagTransactionForRevert</code> (Trust Penalty Application)", gas_cell_style), Paragraph("88,628", gas_cell_center), Paragraph("0.00177 ETH", gas_cell_center), Paragraph("<b>$4.43</b>", gas_cell_cost), Paragraph("0.00443 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>submitTransactionNote</code> (Operator Note to Brain)", gas_cell_style), Paragraph("78,357", gas_cell_center), Paragraph("0.00156 ETH", gas_cell_center), Paragraph("<b>$3.91</b>", gas_cell_cost), Paragraph("0.00391 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>calibrateDynamicRadius</code> (Vault 10% Elasticity)", gas_cell_style), Paragraph("64,791", gas_cell_center), Paragraph("0.00129 ETH", gas_cell_center), Paragraph("<b>$3.23</b>", gas_cell_cost), Paragraph("0.00323 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>recordAIHeartbeat</code> (Liveness Watchdog Ping)", gas_cell_style), Paragraph("48,601", gas_cell_center), Paragraph("0.00097 ETH", gas_cell_center), Paragraph("<b>$2.43</b>", gas_cell_cost), Paragraph("0.00243 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>configureDeadmanSwitch</code> (90-Day Guardian Setup)", gas_cell_style), Paragraph("95,860", gas_cell_center), Paragraph("0.00191 ETH", gas_cell_center), Paragraph("<b>$4.79</b>", gas_cell_cost), Paragraph("0.00479 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>triggerDeadmanRecovery</code> (Guardian Recovery Execution)", gas_cell_style), Paragraph("39,885", gas_cell_center), Paragraph("0.00079 ETH", gas_cell_center), Paragraph("<b>$1.99</b>", gas_cell_cost), Paragraph("0.00199 ETH", gas_cell_center)],
-        [Paragraph("<b>TetherGuardHook</b>", gas_cell_bold), Paragraph("<code>getTotalPortfolioValueUSD</code> (Multi-Asset Valuation)", gas_cell_style), Paragraph("43,519", gas_cell_center), Paragraph("0.00087 ETH", gas_cell_center), Paragraph("<b>$2.17</b>", gas_cell_cost), Paragraph("0.00217 ETH", gas_cell_center)],
-        # SessionKeyValidator
-        [Paragraph("<b>SessionKeyValidator</b>", gas_cell_bold), Paragraph("<code>registerSessionKey</code> (Bounded Validity Window)", gas_cell_style), Paragraph("98,038", gas_cell_center), Paragraph("0.00196 ETH", gas_cell_center), Paragraph("<b>$4.90</b>", gas_cell_cost), Paragraph("0.00490 ETH", gas_cell_center)],
-        [Paragraph("<b>SessionKeyValidator</b>", gas_cell_bold), Paragraph("<code>revokeSessionKey</code> (Immediate Key Invalidation)", gas_cell_style), Paragraph("29,574", gas_cell_center), Paragraph("0.00059 ETH", gas_cell_center), Paragraph("<b>$1.47</b>", gas_cell_cost), Paragraph("0.00147 ETH", gas_cell_center)],
-        [Paragraph("<b>SessionKeyValidator</b>", gas_cell_bold), Paragraph("<code>validateUserOp</code> (EIP-712 Mandate Digest Check)", gas_cell_style), Paragraph("14,976", gas_cell_center), Paragraph("0.00029 ETH", gas_cell_center), Paragraph("<b>$0.74</b>", gas_cell_cost), Paragraph("0.00074 ETH", gas_cell_center)],
-        [Paragraph("<b>SessionKeyValidator</b>", gas_cell_bold), Paragraph("<code>isValidSignatureWithSender</code> (ERC-1271 Validation)", gas_cell_style), Paragraph("13,325", gas_cell_center), Paragraph("0.00026 ETH", gas_cell_center), Paragraph("<b>$0.66</b>", gas_cell_cost), Paragraph("0.00066 ETH", gas_cell_center)],
-        # TecPaymaster
-        [Paragraph("<b>TecPaymaster</b>", gas_cell_bold), Paragraph("<code>depositForAccount</code> (Account Gas Escrow Funding)", gas_cell_style), Paragraph("79,405", gas_cell_center), Paragraph("0.00158 ETH", gas_cell_center), Paragraph("<b>$3.97</b>", gas_cell_cost), Paragraph("0.00397 ETH", gas_cell_center)],
-        [Paragraph("<b>TecPaymaster</b>", gas_cell_bold), Paragraph("<code>validatePaymasterUserOp</code> (0.005 ETH Cap Verification)", gas_cell_style), Paragraph("9,103", gas_cell_center), Paragraph("0.00018 ETH", gas_cell_center), Paragraph("<b>$0.45</b>", gas_cell_cost), Paragraph("0.00045 ETH", gas_cell_center)],
-        [Paragraph("<b>TecPaymaster</b>", gas_cell_bold), Paragraph("<code>postOp</code> (Gas Metering & Escrow Debit)", gas_cell_style), Paragraph("64,843", gas_cell_center), Paragraph("0.00129 ETH", gas_cell_center), Paragraph("<b>$3.24</b>", gas_cell_cost), Paragraph("0.00324 ETH", gas_cell_center)],
-        [Paragraph("<b>TecPaymaster</b>", gas_cell_bold), Paragraph("<code>withdrawForAccount</code> (Cardholder Gas Self-Refund)", gas_cell_style), Paragraph("69,167", gas_cell_center), Paragraph("0.00138 ETH", gas_cell_center), Paragraph("<b>$3.45</b>", gas_cell_cost), Paragraph("0.00345 ETH", gas_cell_center)],
-        [Paragraph("<b>TecPaymaster</b>", gas_cell_bold), Paragraph("<code>withdraw</code> (Paymaster Owner Surplus Refund)", gas_cell_style), Paragraph("34,098", gas_cell_center), Paragraph("0.00068 ETH", gas_cell_center), Paragraph("<b>$1.70</b>", gas_cell_cost), Paragraph("0.00170 ETH", gas_cell_center)],
-        [Paragraph("<b>TecPaymaster</b>", gas_cell_bold), Paragraph("<code>depositToEntryPoint</code> (EntryPoint Liquidity Forwarding)", gas_cell_style), Paragraph("40,407", gas_cell_center), Paragraph("0.00080 ETH", gas_cell_center), Paragraph("<b>$2.02</b>", gas_cell_cost), Paragraph("0.00202 ETH", gas_cell_center)],
+        # 1. execute USDC
+        [
+            Paragraph("<b>TecAccount</b><br/><code>execute</code> (USDC Transfer)", gas_cell_bold),
+            Paragraph("AI Agent or cardholder executes a bounded vendor invoice or merchant payment in USDC under the Tether Radius.", gas_cell_style),
+            Paragraph("168,554", gas_cell_center),
+            Paragraph("0.0000155 ETH<br/><b>$0.0388 (3.9¢)</b>", gas_cell_eth),
+            Paragraph("0.0000008 ETH<br/><b>$0.0021 (0.2¢)</b>", gas_cell_base)
+        ],
+        # 2. execute ETH
+        [
+            Paragraph("<b>TecAccount</b><br/><code>execute</code> (Lido ETH Stake)", gas_cell_bold),
+            Paragraph("Autonomous AI rebalances idle corporate treasury into staking yields (Lido stETH) within discretionary limits.", gas_cell_style),
+            Paragraph("185,326", gas_cell_center),
+            Paragraph("0.0000171 ETH<br/><b>$0.0426 (4.3¢)</b>", gas_cell_eth),
+            Paragraph("0.0000009 ETH<br/><b>$0.0023 (0.2¢)</b>", gas_cell_base)
+        ],
+        # 3. executeFromExecutor
+        [
+            Paragraph("<b>TecAccount</b><br/><code>executeFromExecutor</code>", gas_cell_bold),
+            Paragraph("Authorized LangGraph AI session execution module submits autonomous batched operations on behalf of the vault.", gas_cell_style),
+            Paragraph("296,175", gas_cell_center),
+            Paragraph("0.0000273 ETH<br/><b>$0.0681 (6.8¢)</b>", gas_cell_eth),
+            Paragraph("0.0000015 ETH<br/><b>$0.0037 (0.4¢)</b>", gas_cell_base)
+        ],
+        # 4. validateUserOp SessionKey
+        [
+            Paragraph("<b>SessionKeyValidator</b><br/><code>validateUserOp</code>", gas_cell_bold),
+            Paragraph("ERC-4337 EntryPoint verifies ephemeral AI session key signature and WeIdentity mandate root before UserOp execution.", gas_cell_style),
+            Paragraph("14,976", gas_cell_center),
+            Paragraph("0.0000014 ETH<br/><b>$0.0034 (0.3¢)</b>", gas_cell_eth),
+            Paragraph("0.0000001 ETH<br/><b>$0.0002 (0.02¢)</b>", gas_cell_base)
+        ],
+        # 5. Biometric FaceID
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>completeBiometric...</code>", gas_cell_bold),
+            Paragraph("Breaking the Tether: Cardholder authenticates via hardware FaceID/Passkey (RIP-7212), opening a 5-minute grace window.", gas_cell_style),
+            Paragraph("103,946", gas_cell_center),
+            Paragraph("0.0000096 ETH<br/><b>$0.0239 (2.4¢)</b>", gas_cell_eth),
+            Paragraph("0.0000005 ETH<br/><b>$0.0013 (0.1¢)</b>", gas_cell_base)
+        ],
+        # 6. submitSignApproval Direct
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>submitSignApproval</code>", gas_cell_bold),
+            Paragraph("User confirms or rejects a breakout transaction proposed by the AI Brain within the active 5-minute biometric window.", gas_cell_style),
+            Paragraph("78,845", gas_cell_center),
+            Paragraph("0.0000073 ETH<br/><b>$0.0181 (1.8¢)</b>", gas_cell_eth),
+            Paragraph("0.0000004 ETH<br/><b>$0.0010 (0.1¢)</b>", gas_cell_base)
+        ],
+        # 7. submitSignApprovalWithSignature
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>submitSign...WithSig</code>", gas_cell_bold),
+            Paragraph("Cardholder signs off-chain EIP-712 approval; application bundler/relayer submits on-chain for 100% gasless user UX.", gas_cell_style),
+            Paragraph("70,637", gas_cell_center),
+            Paragraph("0.0000065 ETH<br/><b>$0.0162 (1.6¢)</b>", gas_cell_eth),
+            Paragraph("0.0000004 ETH<br/><b>$0.0009 (0.09¢)</b>", gas_cell_base)
+        ],
+        # 8. ratifyTransaction
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>ratifyTransaction</code> (👍)", gas_cell_bold),
+            Paragraph("Morning Review: User ratifies overnight autonomous AI trades, replenishing the spending radius and accumulating trust.", gas_cell_style),
+            Paragraph("85,809", gas_cell_center),
+            Paragraph("0.0000079 ETH<br/><b>$0.0197 (2.0¢)</b>", gas_cell_eth),
+            Paragraph("0.0000004 ETH<br/><b>$0.0011 (0.1¢)</b>", gas_cell_base)
+        ],
+        # 9. flagTransactionForRevert
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>flagTransaction...</code> (👎)", gas_cell_bold),
+            Paragraph("Morning Review: User objects to an overnight trade, flagging it for unwind and penalizing the AI Brain's radius by 20%.", gas_cell_style),
+            Paragraph("88,628", gas_cell_center),
+            Paragraph("0.0000082 ETH<br/><b>$0.0204 (2.0¢)</b>", gas_cell_eth),
+            Paragraph("0.0000004 ETH<br/><b>$0.0011 (0.1¢)</b>", gas_cell_base)
+        ],
+        # 10. submitTransactionNote
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>submitTransactionNote</code>", gas_cell_bold),
+            Paragraph("Cardholder logs supervisory guidance/notes to educate the AI Brain on future corporate expense preferences.", gas_cell_style),
+            Paragraph("78,357", gas_cell_center),
+            Paragraph("0.0000072 ETH<br/><b>$0.0180 (1.8¢)</b>", gas_cell_eth),
+            Paragraph("0.0000004 ETH<br/><b>$0.0010 (0.1¢)</b>", gas_cell_base)
+        ],
+        # 11. calibrateDynamicRadius
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>calibrateDynamicRadius</code>", gas_cell_bold),
+            Paragraph("Vault autonomously recalculates and increases AI daily spending limit by up to 10% after 24h consecutive ratifications.", gas_cell_style),
+            Paragraph("64,791", gas_cell_center),
+            Paragraph("0.0000060 ETH<br/><b>$0.0149 (1.5¢)</b>", gas_cell_eth),
+            Paragraph("0.0000003 ETH<br/><b>$0.0008 (0.08¢)</b>", gas_cell_base)
+        ],
+        # 12. recordAIHeartbeat
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>recordAIHeartbeat</code>", gas_cell_bold),
+            Paragraph("AI agent periodically pings the vault to prevent the 48-hour Inactive AI Heartbeat watchdog timeout from tripping.", gas_cell_style),
+            Paragraph("48,601", gas_cell_center),
+            Paragraph("0.0000045 ETH<br/><b>$0.0112 (1.1¢)</b>", gas_cell_eth),
+            Paragraph("0.0000002 ETH<br/><b>$0.0006 (0.06¢)</b>", gas_cell_base)
+        ],
+        # 13. triggerDeadmanRecovery
+        [
+            Paragraph("<b>TetherGuardHook</b><br/><code>triggerDeadmanRecovery</code>", gas_cell_bold),
+            Paragraph("Designated corporate guardian reclaims custody after 90 days of cardholder inactivity (emergency/medical recovery).", gas_cell_style),
+            Paragraph("39,885", gas_cell_center),
+            Paragraph("0.0000037 ETH<br/><b>$0.0092 (0.9¢)</b>", gas_cell_eth),
+            Paragraph("0.0000002 ETH<br/><b>$0.0005 (0.05¢)</b>", gas_cell_base)
+        ],
+        # 14. validatePaymasterUserOp
+        [
+            Paragraph("<b>TecPaymaster</b><br/><code>validatePaymaster...</code>", gas_cell_bold),
+            Paragraph("EntryPoint checks that cumulative AI session gas sponsorship does not breach the strict 0.005 ETH anti-griefing budget.", gas_cell_style),
+            Paragraph("9,103", gas_cell_center),
+            Paragraph("0.0000008 ETH<br/><b>$0.0021 (0.2¢)</b>", gas_cell_eth),
+            Paragraph("0.0000001 ETH<br/><b>$0.0001 (0.01¢)</b>", gas_cell_base)
+        ],
+        # 15. postOp Paymaster
+        [
+            Paragraph("<b>TecPaymaster</b><br/><code>postOp</code> (Gas Accounting)", gas_cell_bold),
+            Paragraph("EntryPoint reconciles actual execution gas consumed and debits the corporate sponsor's prepaid gas escrow deposit.", gas_cell_style),
+            Paragraph("64,843", gas_cell_center),
+            Paragraph("0.0000060 ETH<br/><b>$0.0149 (1.5¢)</b>", gas_cell_eth),
+            Paragraph("0.0000003 ETH<br/><b>$0.0008 (0.08¢)</b>", gas_cell_base)
+        ],
+        # 16. initialize Account
+        [
+            Paragraph("<b>TecAccount</b><br/><code>initialize</code> (Vault Setup)", gas_cell_bold),
+            Paragraph("One-time vault initialization binding the Passkey root owner, TetherGuardHook policy, and SessionKeyValidator.", gas_cell_style),
+            Paragraph("98,785", gas_cell_center),
+            Paragraph("0.0000091 ETH<br/><b>$0.0227 (2.3¢)</b>", gas_cell_eth),
+            Paragraph("0.0000005 ETH<br/><b>$0.0012 (0.1¢)</b>", gas_cell_base)
+        ],
     ]
-    t_gas = Table(gas_matrix_data, colWidths=[85, 175, 45, 65, 55, 79])
+    t_gas = Table(gas_matrix_data, colWidths=[110, 180, 44, 85, 85])
     t_gas.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), PRIMARY),
         ('GRID', (0,0), (-1,-1), 0.5, BORDER_LIGHT),
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, BG_LIGHT]),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 1.2),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 1.2),
+        ('TOPPADDING', (0,0), (-1,-1), 1.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1.5),
     ]))
     story.append(t_gas)
     story.append(Spacer(1, 4))
 
-    story.append(Paragraph("6.3 Gas Optimization Highlights & Architectural Efficiency", h2_style))
+    story.append(Paragraph("6.3 Multi-Chain Economic Analysis & Takeaways", h2_style))
     story.append(Paragraph(
-        "• <b>Ultra-Lean Session Key Validation:</b> <code>SessionKeyValidator.validateUserOp</code> consumes only <b>14,976 gas ($0.74)</b>, enabling high-frequency AI autonomous rebalancing.<br/>"
-        "• <b>Precompile RIP-7212 Acceleration:</b> Native NIST P-256 verification executes in <b>103,946 gas ($5.19)</b> vs. &gt;280,000 gas for EVM big-integer emulation (a <b>63% fee reduction</b>).<br/>"
-        "• <b>Negligible Hook Overhead:</b> Full pre/post calldata unpack, Chainlink USD conversion, and spending accumulator add only <b>~3,800 gas</b> beyond raw token transfer.<br/>"
-        "• <b>Zero-Cost Relayed Approvals:</b> Via <code>submitSignApprovalWithSignature</code>, biometric break-out approvals are sponsored gaslessly by relayer bundlers.",
+        "• <b>Ethereum Mainnet Affordability:</b> Under live conditions (0.092 Gwei), every operation costs <b>$0.002 to $0.068 (a fraction of a cent to ~6¢)</b>.<br/>"
+        "• <b>Base Layer 2 Hyper-Efficiency:</b> On Base L2 (0.005 Gwei), fees are <b>18.4x cheaper</b>, with transactions costing <b>$0.0001 to $0.0037 (sub-cent)</b>.<br/>"
+        "• <b>Consortium Chains (WeBank / FISCO BCOS):</b> Native enterprise gas quota sponsorship enables <b>$0.00 zero-cost cardholder operations</b>.<br/>"
+        "• <b>Anti-Griefing Safety:</b> The 0.005 ETH session paymaster cap covers &gt;180 autonomous userOps on Mainnet and &gt;3,300 userOps on Base L2.",
         bullet_style
     ))
 

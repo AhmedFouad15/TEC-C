@@ -275,52 +275,46 @@ forge test
 
 ---
 
-## 5. Empirical Gas Benchmarking & Transaction Fee Matrix
+## 5. Empirical Multi-Chain Transaction Fee & Gas Economics
 
-Base fees: **20 Gwei (Mainnet Standard)** and **50 Gwei (Network Congestion)** | ETH Benchmark: **$2,500 USD**.
+### 📡 Live Network Gas Benchmarks
+Live base fees captured directly from official block explorers:
+* **Ethereum Mainnet ([Etherscan Gas Tracker](https://etherscan.io/gastracker)):** `0.092 Gwei` (Base: `0.092 Gwei` | Priority: `0.001 Gwei`)
+* **Base Layer 2 ([BaseScan Gas Tracker](https://basescan.org/gastracker#gassender)):** `0.005 Gwei`
+* **Reference ETH Price:** `$2,500 USD`
 
-| Contract Domain | Method Name & Architectural Function | Gas Used | Fee @ 20 Gwei (ETH) | Fee (USD) | Fee @ 50 Gwei (ETH) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **TecAccount** | `initialize` (Proxy & Module Binding) | 98,785 | 0.00197 ETH | $4.93 | 0.00493 ETH |
-| **TecAccount** | `execute` (Native ETH Lido Stake under Limit) | 185,326 | 0.00370 ETH | $9.26 | 0.00926 ETH |
-| **TecAccount** | `execute` (ERC-20 USDC Settlement under Limit) | 168,554 | 0.00337 ETH | $8.42 | 0.00842 ETH |
-| **TecAccount** | `executeFromExecutor` (Session Key UserOp) | 296,175 | 0.00592 ETH | $14.80 | 0.01480 ETH |
-| **TecAccount** | `installModule` (ERC-7579 Dynamic Module) | 48,724 | 0.00097 ETH | $2.43 | 0.00243 ETH |
-| **TecAccount** | `uninstallModule` (ERC-7579 Module Removal) | 31,595 | 0.00063 ETH | $1.57 | 0.00157 ETH |
-| **TecAccount** | `validateUserOp` (Root Owner ECDSA Direct) | 35,831 | 0.00071 ETH | $1.79 | 0.00179 ETH |
-| **TetherGuardHook** | `initializeAccountPolicy` (Policy & Quota Config) | 142,742 | 0.00285 ETH | $7.13 | 0.00713 ETH |
-| **TetherGuardHook** | `setAccountPasskey` (NIST P-256 Public Key Reg) | 93,942 | 0.00187 ETH | $4.69 | 0.00469 ETH |
-| **TetherGuardHook** | `setTargetWhitelist` (Approved Target Whitelist) | 72,342 | 0.00144 ETH | $3.61 | 0.00361 ETH |
-| **TetherGuardHook** | `setSessionKeyAuthorization` (AI Agent Whitelisting) | 51,502 | 0.00103 ETH | $2.57 | 0.00257 ETH |
-| **TetherGuardHook** | `completeBiometricVerificationWithP256` (RIP-7212) | 103,946 | 0.00207 ETH | $5.19 | 0.00519 ETH |
-| **TetherGuardHook** | `revokeBiometricVerification` (Biometric Revoke) | 31,278 | 0.00062 ETH | $1.56 | 0.00156 ETH |
-| **TetherGuardHook** | `submitSignApproval` (Direct Human Accept/Reject) | 78,845 | 0.00157 ETH | $3.94 | 0.00394 ETH |
-| **TetherGuardHook** | `submitSignApprovalWithSignature` (Gasless Relay) | 70,637 | 0.00141 ETH | $3.53 | 0.00353 ETH |
-| **TetherGuardHook** | `ratifyTransaction` (Morning Review Ratification) | 85,809 | 0.00171 ETH | $4.29 | 0.00429 ETH |
-| **TetherGuardHook** | `flagTransactionForRevert` (Trust Penalty Application) | 88,628 | 0.00177 ETH | $4.43 | 0.00443 ETH |
-| **TetherGuardHook** | `submitTransactionNote` (Operator Note to Brain) | 78,357 | 0.00156 ETH | $3.91 | 0.00391 ETH |
-| **TetherGuardHook** | `calibrateDynamicRadius` (Vault 10% Elasticity) | 64,791 | 0.00129 ETH | $3.23 | 0.00323 ETH |
-| **TetherGuardHook** | `recordAIHeartbeat` (Liveness Watchdog Ping) | 48,601 | 0.00097 ETH | $2.43 | 0.00243 ETH |
-| **TetherGuardHook** | `configureDeadmanSwitch` (90-Day Guardian Setup) | 95,860 | 0.00191 ETH | $4.79 | 0.00479 ETH |
-| **TetherGuardHook** | `triggerDeadmanRecovery` (Guardian Recovery Execution) | 39,885 | 0.00079 ETH | $1.99 | 0.00199 ETH |
-| **TetherGuardHook** | `getTotalPortfolioValueUSD` (Multi-Asset Valuation) | 43,519 | 0.00087 ETH | $2.17 | 0.00217 ETH |
-| **SessionKeyValidator** | `registerSessionKey` (Bounded Validity Window) | 98,038 | 0.00196 ETH | $4.90 | 0.00490 ETH |
-| **SessionKeyValidator** | `revokeSessionKey` (Immediate Key Invalidation) | 29,574 | 0.00059 ETH | $1.47 | 0.00147 ETH |
-| **SessionKeyValidator** | `validateUserOp` (EIP-712 Mandate Digest Check) | 14,976 | 0.00029 ETH | $0.74 | 0.00074 ETH |
-| **SessionKeyValidator** | `isValidSignatureWithSender` (ERC-1271 Validation) | 13,325 | 0.00026 ETH | $0.66 | 0.00066 ETH |
-| **TecPaymaster** | `depositForAccount` (Account Gas Escrow Funding) | 79,405 | 0.00158 ETH | $3.97 | 0.00397 ETH |
-| **TecPaymaster** | `validatePaymasterUserOp` (0.005 ETH Cap Verification) | 9,103 | 0.00018 ETH | $0.45 | 0.00045 ETH |
-| **TecPaymaster** | `postOp` (Gas Metering & Escrow Debit) | 64,843 | 0.00129 ETH | $3.24 | 0.00324 ETH |
-| **TecPaymaster** | `withdrawForAccount` (Cardholder Gas Self-Refund) | 69,167 | 0.00138 ETH | $3.45 | 0.00345 ETH |
-| **TecPaymaster** | `withdraw` (Paymaster Owner Surplus Refund) | 34,098 | 0.00068 ETH | $1.70 | 0.00170 ETH |
-| **TecPaymaster** | `depositToEntryPoint` (EntryPoint Liquidity Forwarding) | 40,407 | 0.00080 ETH | $2.02 | 0.00202 ETH |
+---
 
-### Key Economic & Efficiency Takeaways:
-1. **Ultra-Lean Session Key Validation:** `SessionKeyValidator.validateUserOp` consumes only **14,976 gas ($0.74)**, enabling cost-effective high-frequency rebalancing by autonomous agents.
-2. **RIP-7212 Precompile Acceleration:** NIST P-256 WebAuthn verification at precompile `0x100` uses only **103,946 gas ($5.19)** vs. >280,000 gas for EVM emulation (**63% savings**).
-3. **Negligible Hook Overhead:** Dynamic calldata inspection, Chainlink USD valuation, and velocity accumulator add only **~3,800 gas** beyond a raw token transfer.
-4. **Zero-Gas Relayed Sign Approvals:** `submitSignApprovalWithSignature` allows relayer/bundler fee sponsorship so the user incurs $0 in transaction fees for approvals.
-5. **Anti-Griefing Protection:** `TecPaymaster` strictly clamps autonomous session key subsidies to `0.005 ETH` ($12.50), preventing prompt-injection resource exhaustion.
+### 📊 Operational Transaction Fee Matrix: Ethereum Mainnet vs. Base L2
+
+The table below profiles the **primary operational methods used across the card lifecycle**, documenting exact EVM gas consumption alongside real-world execution costs on **Ethereum Mainnet** and **Base L2**:
+
+| Method & Contract | Operational Trigger ("When Will It Be Used?") | Gas Used | Ethereum L1 (0.092 Gwei)<br/>Fee (ETH) \| USD | Base L2 (0.005 Gwei)<br/>Fee (ETH) \| USD |
+| :--- | :--- | :---: | :---: | :---: |
+| **`TecAccount.execute`**<br/>*(USDC Transfer)* | AI Agent or cardholder executes a bounded vendor invoice or merchant payment in USDC under the Tether Radius. | **168,554** | 0.0000155 ETH<br/>**$0.0388 (3.9¢)** | 0.0000008 ETH<br/>**$0.0021 (0.2¢)** |
+| **`TecAccount.execute`**<br/>*(Lido ETH Stake)* | Autonomous AI rebalances idle corporate treasury into staking yields (Lido stETH) within discretionary limits. | **185,326** | 0.0000171 ETH<br/>**$0.0426 (4.3¢)** | 0.0000009 ETH<br/>**$0.0023 (0.2¢)** |
+| **`TecAccount.executeFromExecutor`**<br/>*(AI UserOp)* | Authorized LangGraph AI session execution module submits autonomous batched operations on behalf of the vault. | **296,175** | 0.0000273 ETH<br/>**$0.0681 (6.8¢)** | 0.0000015 ETH<br/>**$0.0037 (0.4¢)** |
+| **`SessionKeyValidator.validateUserOp`**<br/>*(Mandate Validation)* | ERC-4337 EntryPoint verifies ephemeral AI session key signature and WeIdentity mandate root before UserOp execution. | **14,976** | 0.0000014 ETH<br/>**$0.0034 (0.3¢)** | 0.0000001 ETH<br/>**$0.0002 (0.02¢)** |
+| **`TetherGuardHook.completeBiometricVerificationWithP256`** | Breaking the Tether: Cardholder authenticates via hardware FaceID/Passkey (RIP-7212), opening a 5-minute grace window. | **103,946** | 0.0000096 ETH<br/>**$0.0239 (2.4¢)** | 0.0000005 ETH<br/>**$0.0013 (0.1¢)** |
+| **`TetherGuardHook.submitSignApproval`**<br/>*(Direct Accept/Reject)* | User confirms or rejects a breakout transaction proposed by the AI Brain within the active 5-minute biometric window. | **78,845** | 0.0000073 ETH<br/>**$0.0181 (1.8¢)** | 0.0000004 ETH<br/>**$0.0010 (0.1¢)** |
+| **`TetherGuardHook.submitSignApprovalWithSignature`**<br/>*(Gasless Relay)* | Cardholder signs off-chain EIP-712 approval; application bundler/relayer submits on-chain for 100% gasless user UX. | **70,637** | 0.0000065 ETH<br/>**$0.0162 (1.6¢)** | 0.0000004 ETH<br/>**$0.0009 (0.09¢)** |
+| **`TetherGuardHook.ratifyTransaction`**<br/>*(Morning Review 👍)* | Morning Review: User ratifies overnight autonomous AI trades, replenishing the spending radius and accumulating trust. | **85,809** | 0.0000079 ETH<br/>**$0.0197 (2.0¢)** | 0.0000004 ETH<br/>**$0.0011 (0.1¢)** |
+| **`TetherGuardHook.flagTransactionForRevert`**<br/>*(Morning Review 👎)* | Morning Review: User objects to an overnight trade, flagging it for unwind and penalizing the AI Brain's radius by 20%. | **88,628** | 0.0000082 ETH<br/>**$0.0204 (2.0¢)** | 0.0000004 ETH<br/>**$0.0011 (0.1¢)** |
+| **`TetherGuardHook.submitTransactionNote`**<br/>*(Operator Feedback)* | Cardholder logs supervisory guidance/notes to educate the AI Brain on future corporate expense preferences. | **78,357** | 0.0000072 ETH<br/>**$0.0180 (1.8¢)** | 0.0000004 ETH<br/>**$0.0010 (0.1¢)** |
+| **`TetherGuardHook.calibrateDynamicRadius`**<br/>*(Vault 10% Elasticity)* | Vault autonomously recalculates and increases AI daily spending limit by up to 10% after 24h consecutive ratifications. | **64,791** | 0.0000060 ETH<br/>**$0.0149 (1.5¢)** | 0.0000003 ETH<br/>**$0.0008 (0.08¢)** |
+| **`TetherGuardHook.recordAIHeartbeat`**<br/>*(Liveness Ping)* | AI agent periodically pings the vault to prevent the 48-hour Inactive AI Heartbeat watchdog timeout from tripping. | **48,601** | 0.0000045 ETH<br/>**$0.0112 (1.1¢)** | 0.0000002 ETH<br/>**$0.0006 (0.06¢)** |
+| **`TetherGuardHook.triggerDeadmanRecovery`**<br/>*(Guardian Recovery)* | Designated corporate guardian reclaims custody after 90 days of cardholder inactivity (emergency/medical recovery). | **39,885** | 0.0000037 ETH<br/>**$0.0092 (0.9¢)** | 0.0000002 ETH<br/>**$0.0005 (0.05¢)** |
+| **`TecPaymaster.validatePaymasterUserOp`**<br/>*(Anti-Grief Check)* | EntryPoint checks that cumulative AI session gas sponsorship does not breach the strict 0.005 ETH anti-griefing budget. | **9,103** | 0.0000008 ETH<br/>**$0.0021 (0.2¢)** | 0.0000001 ETH<br/>**$0.0001 (0.01¢)** |
+| **`TecPaymaster.postOp`**<br/>*(Gas Metering & Escrow Debit)* | EntryPoint reconciles actual execution gas consumed and debits the corporate sponsor's prepaid gas escrow deposit. | **64,843** | 0.0000060 ETH<br/>**$0.0149 (1.5¢)** | 0.0000003 ETH<br/>**$0.0008 (0.08¢)** |
+| **`TecAccount.initialize`**<br/>*(Vault Onboarding Setup)* | One-time vault initialization binding the Passkey root owner, TetherGuardHook policy, and SessionKeyValidator. | **98,785** | 0.0000091 ETH<br/>**$0.0227 (2.3¢)** | 0.0000005 ETH<br/>**$0.0012 (0.1¢)** |
+
+---
+
+### 💡 Multi-Chain Economic Analysis & Takeaways:
+1. **Ethereum Mainnet Cost Realities:** At current live network conditions (`0.092 Gwei`), all core operations cost **between $0.002 and $0.068 (a fraction of a cent to ~6.8 cents)**.
+2. **Base Layer 2 Hyper-Efficiency:** Deploying on Base L2 (`0.005 Gwei`) provides an **18.4x fee discount**, reducing every operation to **sub-cent costs ($0.0001 to $0.0037)**.
+3. **Consortium Chains (WeBank / FISCO BCOS):** On consortium chains, native enterprise gas quota sponsorship enables **100% free ($0.00) cardholder operations**.
+4. **Anti-Griefing Safety:** The `0.005 ETH` session paymaster cap covers **>180 autonomous userOps on Mainnet** and **>3,300 userOps on Base L2**, completely eliminating prompt-injection treasury draining risks.
 
 ---
 
