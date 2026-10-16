@@ -52,3 +52,24 @@ def test_payload_balances_and_addresses_are_masked_recursively():
     assert masked["nav_usd"].startswith("<AMT_") and masked["positions"][0]["amount_usd"].startswith("<AMT_")
     assert masked["positions"][0]["asset"] == "USDC" and masked["tier"] == 2
     assert ADDR in vault.values()
+
+
+@pytest.mark.parametrize("text, secret", [
+    ("Stake my 10ETH", "10"), ("move USDC1500 now", "1500"), ("$1500usdc please", "1500"),
+    ("tx 0x" + "ab" * 32, "ab" * 32), ("send to 0X" + "AB" * 20, "AB" * 20),
+    ("to 0x" + " ".join(["abab"] * 10), "abab abab"),
+    ("btc bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"),
+])
+def test_glued_numbers_and_other_address_formats_are_masked(text, secret):
+    masked, vault = mask(text)
+    assert secret not in masked
+    assert restore(masked, vault) == text
+
+
+def test_payload_numbers_under_any_key_are_masked_except_structural_ones():
+    payload = {"balances": {"USDC": 1500, ADDR: 7}, "tier": 2, "horizon_days": 365, "qty": 3}
+    masked, vault = mask_payload(payload)
+    flat = repr(masked)
+    for secret in ("1500", ADDR, "'qty': 3"):
+        assert secret not in flat
+    assert masked["tier"] == 2 and masked["horizon_days"] == 365

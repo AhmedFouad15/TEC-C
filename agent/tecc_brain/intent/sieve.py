@@ -7,16 +7,22 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# Order matters: DIDs contain addresses, so they are masked first.
+# Order matters: DIDs contain addresses, so they are masked first. Everything fails closed: over-masking only costs
+# the model a little context, under-masking leaks a balance or an identity.
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("DID", re.compile(r"did:[a-z0-9]+:[\w:.\-]+", re.IGNORECASE)),
     ("EMAIL", re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")),
-    ("ADDR", re.compile(r"\b0x[0-9a-fA-F]{40}\b")),
+    # EVM addresses and tx hashes, any case, also when split by spaces.
+    ("ADDR", re.compile(r"0[xX](?:[0-9a-fA-F]{64}|[0-9a-fA-F]{40}|(?:\s?[0-9a-fA-F]{4}){10})(?![0-9a-fA-F])")),
     ("ENS", re.compile(r"\b[a-zA-Z0-9][a-zA-Z0-9-]*\.eth\b")),
-    # Numbers not glued to a word/token ("<ADDR_1>", "1Y", "v3"); "$" stays outside so the currency is still readable.
-    ("AMT", re.compile(r"(?<![\w.<])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:[km])?(?![\w>])", re.IGNORECASE)),
+    # Other chains' addresses (base58 / bech32): long alphanumeric runs mixing letters and digits.
+    ("ADDR", re.compile(r"\b(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{26,}\b")),
+    # Every number, even glued to a word ("10ETH", "USDC1500"); k/m suffix kept with it only when standalone.
+    ("AMT", re.compile(r"\d+(?:[.,]\d+)*(?:[kKmM](?![A-Za-z]))?")),
 )
-_SENSITIVE_KEY = re.compile(r"balance|amount|value|nav|usd|price|radius|spent", re.IGNORECASE)
+_TOKEN = re.compile(r"<(?:DID|EMAIL|ADDR|ENS|AMT)_\d+>")
+# Numbers under these payload keys are structural, not private; every other number is masked.
+SAFE_NUMERIC_KEYS = frozenset({"tier", "risk_tier", "horizon_days", "decimals", "chain_id", "chainid"})
 
 
 class _Masker:
@@ -35,15 +41,19 @@ class _Masker:
 
     def text(self, text: str) -> str:
         for kind, pattern in _PATTERNS:
-            text = pattern.sub(lambda m, kind=kind: self.token(kind, m.group(0)), text)
+            # Never re-mask inside tokens produced by an earlier pattern.
+            parts = _TOKEN.split(text)
+            tokens = _TOKEN.findall(text)
+            parts = [pattern.sub(lambda m, kind=kind: self.token(kind, m.group(0)), part) for part in parts]
+            text = "".join(p + (tokens[i] if i < len(tokens) else "") for i, p in enumerate(parts))
         return text
 
     def payload(self, value: Any, key: str = "") -> Any:
         if isinstance(value, dict):
-            return {k: self.payload(v, k) for k, v in value.items()}
+            return {self.text(str(k)) if isinstance(k, str) else k: self.payload(v, str(k)) for k, v in value.items()}
         if isinstance(value, list):
             return [self.payload(v, key) for v in value]
-        if isinstance(value, (int, float)) and not isinstance(value, bool) and _SENSITIVE_KEY.search(key):
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and key.lower() not in SAFE_NUMERIC_KEYS:
             return self.token("AMT", repr(value))
         if isinstance(value, str):
             return self.text(value)
