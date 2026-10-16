@@ -144,3 +144,16 @@ def test_edge_shrinks_as_failure_risk_grows():
         return recovery_edge(0.95, assessment, quality=0.9, costs=0.005, hurdle=HURDLE)
 
     assert edge(sentiment=0.9, redemption=1.0) < edge(sentiment=0.3, redemption=0.0)
+
+
+# --- personalised costs (05-03) -----------------------------------------------------------------
+
+
+def test_learned_cost_factors_scale_only_their_term():
+    venue = REF.venues["curve_steth_eth"]
+    base = _score("curve_steth_eth")
+    tuned = score_venue(venue, DEMO.venues[venue.id], DEMO, DEMO_ASSESSMENTS, lam=1.0,
+                        cost_factors={"c_out_stress": 1.1})
+    assert tuned.c_out_stress == pytest.approx(1.1 * base.c_out_stress)
+    assert tuned.c_in == pytest.approx(base.c_in)
+    assert base.total - tuned.total == pytest.approx(0.1 * base.c_out_stress)

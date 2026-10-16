@@ -187,3 +187,42 @@ def test_missing_peg_data_removes_autonomy():
     assert decision.auto_amount_usd == 0
     best = _card(decision, CardLabel.BEST)
     assert any("no live peg data for USDC" in line for line in best.explanation)
+
+
+# --- learned preferences (05-03) ----------------------------------------------------------------
+
+
+def _with_note(protocol, polarity, quote, **update):
+    from tecc_brain.models import NotePreference
+
+    pref = NotePreference(protocol=protocol, polarity=polarity, quote=quote)
+    return load_demo_profile().model_copy(update={"preferences": [pref], **update})
+
+
+def test_a_disliked_protocol_is_never_automatic():
+    decision = _plan(SCENE_1, profile=_with_note("aave", -1, "stop using Aave"))
+    assert decision.auto_amount_usd == 0
+    aave = next(c for c in decision.cards if c.candidate.venue_id == "aave_v3_usdc")
+    assert aave.mode != AutonomyMode.AUTO
+    assert any("stop using Aave" in line for line in aave.explanation)
+
+
+def test_the_latest_note_about_a_protocol_wins():
+    from tecc_brain.models import NotePreference
+
+    prefs = [NotePreference(protocol="aave", polarity=-1, quote="meh"), NotePreference(protocol="aave", polarity=1, quote="ok it's fine now")]
+    decision = _plan(SCENE_1, profile=load_demo_profile().model_copy(update={"preferences": prefs}))
+    assert decision.auto_amount_usd == pytest.approx(400)
+
+
+def test_a_liked_protocol_quotes_the_user():
+    best = _card(_plan(SCENE_1, profile=_with_note("aave", 1, "Aave has been great")), CardLabel.BEST)
+    assert any("Aave has been great" in line for line in best.explanation)
+
+
+def test_learned_cost_factors_reach_the_cards():
+    profile = load_demo_profile().model_copy(update={"cost_factors": {"c_out_stress": 1.2}})
+    plain = _card(_plan(SCENE_3), CardLabel.BEST).candidate.score
+    tuned_card = _card(_plan(SCENE_3, profile=profile), CardLabel.BEST)
+    assert tuned_card.candidate.score.c_out_stress == pytest.approx(1.2 * plain.c_out_stress)
+    assert any("×1.20" in line for line in tuned_card.explanation)
