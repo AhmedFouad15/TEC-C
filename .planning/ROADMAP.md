@@ -24,7 +24,7 @@ None
 - [x] **Phase 4: Intent & Privacy** - Offline mandate parser, prompt-injection firewall, privacy sieve, pluggable LLM
 - [x] **Phase 5: Adaptive Learning** - UserModel, reward/penalty updates, note parsing, onboarding, on-chain lever policy
 - [x] **Phase 5.1: Sharpe & CVaR (INSERTED)** - Classic risk metrics on every card from the regime model's return distribution
-- [ ] **Phase 6: API Layer** - FastAPI pipeline + all endpoints + OpenAPI spec for Member 3
+- [x] **Phase 6: API Layer** - FastAPI pipeline + all endpoints + OpenAPI spec for Member 3
 - [ ] **Phase 7: On-Chain Integration** - Anvil deploy, EIP-712 mandate, session-key signing, execute, event → learning
 - [ ] **Phase 8: Live Data, Demo Page & Freeze** - Public data adapters, Brain demo page, README, requirements freeze
 
@@ -103,7 +103,7 @@ Plans:
 Plans:
 - [x] 06-01: Pipeline orchestrator (parse → sieve → profile → scan → regime → filters → score → portfolio → rank → gate) with trace output
 - [x] 06-02: `/api/mandate/parse|propose|execute` (execute returns an unsigned execution plan until Phase 7) + `/api/risk/regimes`
-- [ ] 06-03: `/api/profile/*`, `/api/review/sync` (simulated events), `/api/backtest/{episode}` + export `shared/api_spec.json`
+- [x] 06-03: `/api/profile/*`, `/api/review/sync` (simulated events), `/api/backtest/{episode}` + export `shared/api_spec.json`
 
 ### Phase 7: On-Chain Integration
 **Goal**: The Brain's decisions become real, vault-checked transactions on a local Anvil chain, and on-chain reviews feed learning
@@ -143,6 +143,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Intent & Privacy | 2/2 | Complete | 2026-10-16 |
 | 5. Adaptive Learning | 3/3 | Complete | 2026-10-16 |
 | 5.1 Sharpe & CVaR | 1/1 | Complete | 2026-10-16 |
-| 6. API Layer | 2/3 | In progress | - |
+| 6. API Layer | 3/3 | Complete | 2026-10-16 |
 | 7. On-Chain Integration | 0/3 | Not started | - |
 | 8. Live Data, Demo Page & Freeze | 0/3 | Not started | - |

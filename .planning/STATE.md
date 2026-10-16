@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** The risk engine must be right and defensible — 3-regime peg model, fundamental fair value, loss-averse %/yr scoring reproducing the spec numbers.
-**Current focus:** Phase 6 — API Layer (LangGraph pipeline)
+**Current focus:** Phase 7 — On-Chain Integration
 
 ## Current Position
 
-Phase: 6 of 8 (API Layer)
-Plan: 2 of 3 (next: 06-03 profile/review/backtest/sentinel/spec)
-Status: In progress
-Last activity: 2026-10-16 — 06-02 endpoints complete (388 tests)
+Phase: 7 of 8 (On-Chain Integration)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-16 — Phase 6 complete (413 tests)
 
-Progress: ███████░░░ 71% (17/24 plans)
+Progress: ███████░░░ 75% (18/24 plans)
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - 05: LangGraph chosen for Phase 6 (team notes); Sharpe & CVaR inserted as Phase 5.1 (display metrics)
+- 06: API loopback-only unless TECC_API_TOKEN; proposals bound to account; headlines move sentiment only
 - 05-03: levers need elasticity enabled; shrink once/24 h, floor 1 on-chain unit; dislike → never AUTO
 - 05-02: positive notes never unlock a first use; cost factors bounded [1.0, 1.5]
 - 05-01: event time drives decay and the daily τ cap; penalties never scaled by trade size
