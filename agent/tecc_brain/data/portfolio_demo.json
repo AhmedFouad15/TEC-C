@@ -1,0 +1,7 @@
+{
+  "account": "demo",
+  "positions": [
+    {"asset": "USDC", "venue_id": null, "amount_usd": 1500},
+    {"asset": "ETH", "venue_id": null, "amount_usd": 25000}
+  ]
+}

@@ -211,6 +211,26 @@ class MarketSnapshot(BaseModel):
     source: str
 
 
+# --- Portfolio ---------------------------------------------------------------------------------
+
+
+class Position(BaseModel):
+    """A holding: a raw asset in the vault (venue_id None) or a position in a venue."""
+
+    asset: str
+    venue_id: str | None = None
+    amount_usd: float = Field(ge=0)
+
+
+class Portfolio(BaseModel):
+    account: str
+    positions: list[Position] = Field(default_factory=list)
+
+    @property
+    def nav_usd(self) -> float:
+        return sum(p.amount_usd for p in self.positions)
+
+
 # --- Intent and decision contracts -------------------------------------------------------------
 
 
