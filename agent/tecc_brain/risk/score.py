@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from tecc_brain.models import MarketSnapshot, ScoreBreakdown, Venue, VenueQuote
+from tecc_brain.risk.metrics import risk_metrics
 from tecc_brain.risk.regime import PegAssessment
 
 STRESS_DEPTH_FACTOR = 0.30  # in a panic, order-book depth falls to ~30% of normal, so slippage ~3.3x
@@ -68,9 +69,12 @@ def score_venue(
     pd = venue_pd(venue, assessments)
     expected_loss = pd * venue.lgd
     loss_weighted = (1.0 + lam) * expected_loss
-    c_in = entry_cost(venue, horizon_years) * factors.get("c_in", 1.0)
+    market_c_in = entry_cost(venue, horizon_years)
+    c_in = market_c_in * factors.get("c_in", 1.0)
     c_out = stressed_exit_cost(venue, snapshot.hurdle_rate, horizon_years) * factors.get("c_out_stress", 1.0)
     affinity_term = w_a * affinity
+    # Display metrics use market costs only (no personal weights), so they stay comparable across users.
+    metrics = risk_metrics(quote.apy - market_c_in, venue.vol_annual, pd, venue.lgd, snapshot.hurdle_rate)
     return ScoreBreakdown(
         excess_yield=excess,
         pd=pd,
@@ -81,6 +85,8 @@ def score_venue(
         c_out_stress=c_out,
         affinity_term=affinity_term,
         total=excess - loss_weighted - c_in - c_out + affinity_term,
+        sharpe=metrics.sharpe,
+        cvar_95=metrics.cvar_95,
     )
 
 

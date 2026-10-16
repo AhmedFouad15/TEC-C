@@ -19,6 +19,7 @@ from tecc_brain.models import (
     Mandate,
     NotePreference,
     Portfolio,
+    ScoreBreakdown,
     VaultState,
     Venue,
 )
@@ -99,6 +100,18 @@ def _personal_lines(profile: BrainProfile, venue: Venue) -> list[str]:
     return lines
 
 
+def _metric_lines(s: ScoreBreakdown) -> list[str]:
+    if s.cvar_95 is None:
+        return []
+    sharpe = f"Sharpe {s.sharpe:.2f} vs Shibor" if s.sharpe is not None else "Sharpe n/a (riskless)"
+    tail = (
+        f"average loss in the worst 5% of years (CVaR 95%) {s.cvar_95 * 100:.1f}%"
+        if s.cvar_95 > 0
+        else f"even the worst 5% of years average {-s.cvar_95 * 100:+.1f}% (CVaR 95%)"
+    )
+    return [f"{sharpe} · {tail}."]
+
+
 def _card(label: CardLabel, candidate: Candidate, venue: Venue, mode: AutonomyMode, extra: list[str]) -> Card:
     s = candidate.score
     assert s is not None
@@ -119,6 +132,7 @@ def _card(label: CardLabel, candidate: Candidate, venue: Venue, mode: AutonomyMo
                 else []
             ),
             f"Risk-adjusted: {s.total * 100:+.2f}%/yr.",
+            *_metric_lines(s),
             *extra,
         ],
     )

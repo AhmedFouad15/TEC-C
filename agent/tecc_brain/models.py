@@ -136,6 +136,9 @@ class Venue(BaseModel):
     entry_slippage_bps: float = Field(0.0, ge=0, description="Normal-conditions entry cost, basis points")
     exit_slippage_bps: float = Field(0.0, ge=0, description="Normal-conditions exit slippage, basis points")
     redemption_delay_days: float = Field(0.0, ge=0, description="Wait before exit proceeds are available")
+    vol_annual: float = Field(
+        0.0, ge=0, le=2, description="Normal-times annual volatility vs the deposited asset (for Sharpe / CVaR)"
+    )
     exposures: list[str] = Field(default_factory=list, description="Pegged assets this position depends on")
     target_address: str | None = Field(None, description="On-chain target, filled at deployment (Phase 7)")
     note: str = ""
@@ -381,6 +384,9 @@ class ScoreBreakdown(BaseModel):
     c_out_stress: float
     affinity_term: float = 0.0
     total: float
+    # Display metrics (Phase 5.1) — computed from the same PD/LGD, never used to rank or gate.
+    sharpe: float | None = Field(None, description="(E[R] − Shibor) / sd(R) over one year")
+    cvar_95: float | None = Field(None, description="Average loss in the worst 5% of years, fraction (negative = gain)")
 
 
 class Candidate(BaseModel):

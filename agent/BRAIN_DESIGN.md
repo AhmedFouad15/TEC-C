@@ -235,6 +235,31 @@ counterparty risk. So the Brain uses a per-asset playbook:
 
 ---
 
+### 2.7 Sharpe and CVaR (shown on every card, never used to decide)
+
+The "Econometric & Liquidity agent" reports the two metrics judges expect, computed from the **same** PD and LGD
+as the score. A year's return is a mixture: with probability 1 − PD it is Normal(μ = APY − entry cost,
+σ = the venue's normal-times volatility), and with probability PD it is −LGD (permanent impairment).
+
+```
+Sharpe  = (E[R] − 1Y Shibor) / sd(R)
+CVaR95  = average loss in the worst 5% of years (closed form, no simulation)
+```
+
+| Demo (Balanced, λ = 1) | Score %/yr | Sharpe | CVaR 95% |
+|---|---|---|---|
+| Aave USDC | +1.59 | 0.68 | 1.5% |
+| Curve stETH/ETH | +2.98 | 0.66 | 10.5% |
+| Lido | +0.54 | 0.30 | 2.2% |
+| Shibor MMF | −0.01 | −0.01 | −1.7% (a gain even in bad years) |
+| Uniswap v3 USDC/ETH (Tier 3 only) | +5.05 | 0.17 | 63% |
+| Aave USDC in the USDC-distress snapshot | +0.63 | 0.26 | 12.4% |
+
+Why the score still decides: Sharpe treats upside as risk and, with thin tails, hides the impairment jump. CVaR sees
+the jump, and the score prices it with the user's own λ. The Uniswap row shows the limit of the score: it ignores
+price volatility (the LP's ETH exposure), and CVaR exposes it. That LP is Tier 3 only. A per-tier CVaR cap is a
+possible next step.
+
 ## 3. Personalisation: rewards and penalties
 
 ### 3.1 What is learned (`UserModel`, stored locally per account)
