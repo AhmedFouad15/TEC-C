@@ -57,7 +57,7 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 03-01: Contagion-aware market view + portfolio risk (cluster stress, caps, expected loss) — TDD
+- [x] 03-01: Contagion-aware market view + portfolio risk (cluster stress, caps, expected loss) — TDD
 - [ ] 03-02: Asset-specific playbook + REDUCE_EXPOSURE / OPPORTUNITY cards — TDD
 - [ ] 03-03: Planner: candidates, Good/Better/Best, autonomy gate — reproduces demo Scenes 1 and 3 — TDD
 - [ ] 03-04: Backtest on USDC-SVB / stETH / UST paths vs sentiment-veto and mean-reversion rules
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-10-16 |
 | 2. Risk Engine | 3/3 | Complete | 2026-10-16 |
-| 3. Portfolio & Strategy | 0/4 | Not started | - |
+| 3. Portfolio & Strategy | 1/4 | In progress | - |
 | 4. Intent & Privacy | 0/2 | Not started | - |
 | 5. Adaptive Learning | 0/3 | Not started | - |
 | 6. API Layer | 0/3 | Not started | - |
