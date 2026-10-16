@@ -21,6 +21,7 @@ docs/
 
 # Tec-C Brain (agent)
 agent/.venv/
+agent/.state/
 agent/var/
 __pycache__/
 .pytest_cache/

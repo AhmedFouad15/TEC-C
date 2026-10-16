@@ -241,6 +241,52 @@ APPROVAL_THRESHOLDS: dict[RiskTier, float] = {
 }
 APPROVAL_PRIOR = (2.0, 2.0)  # Beta(2, 2): no opinion, weak
 
+# Loss aversion λ: where each tier starts and the band learning can never leave (BRAIN_DESIGN §2.2).
+LAMBDA_START: dict[RiskTier, float] = {
+    RiskTier.CONSERVATIVE: 3.0,
+    RiskTier.BALANCED: 1.0,
+    RiskTier.AGGRESSIVE: 0.3,
+}
+LAMBDA_BANDS: dict[RiskTier, tuple[float, float]] = {
+    RiskTier.CONSERVATIVE: (2.0, 5.0),
+    RiskTier.BALANCED: (0.5, 2.0),
+    RiskTier.AGGRESSIVE: (0.0, 0.8),
+}
+
+
+class Signal(str, Enum):
+    """A review signal: an on-chain Morning Review event or an explicit UI choice (BRAIN_DESIGN §3.2)."""
+
+    RATIFY = "ratify"  # TransactionRatified
+    FLAG = "flag"  # TransactionFlaggedForRevert
+    NOTE_PENALTY = "note_penalty"  # TransactionNoteSubmitted(penalizeBrain=true)
+    NOTE = "note"  # TransactionNoteSubmitted(penalizeBrain=false)
+    BREAKOUT_ACCEPT = "breakout_accept"  # SignApprovalSubmitted(true)
+    BREAKOUT_REJECT = "breakout_reject"  # SignApprovalSubmitted(false)
+    PICK_SAFER = "pick_safer"  # UI: chose a safer card than BEST
+    PICK_RISKIER = "pick_riskier"  # UI: chose a riskier card than BETTER (incl. a de-peg opportunity)
+    IGNORED = "ignored"  # proposal left unanswered for 24 h
+
+
+class FeedbackEvent(BaseModel):
+    """One review signal. `event_id` makes learning idempotent (e.g. tx hash + log index, or record id + kind)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    event_id: str = Field(min_length=1, max_length=200)
+    signal: Signal
+    venue_id: str | None = None
+    amount_usd: float = Field(0.0, ge=0)
+    at: datetime
+    note: str = Field("", max_length=1000)
+
+    @field_validator("at")
+    @classmethod
+    def _timezone_aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("event time must be timezone-aware (UTC)")
+        return value
+
 
 class BrainProfile(BaseModel):
     """What the Brain has learned about one user (Phase 5 adds the update rules and persistence)."""
@@ -253,6 +299,11 @@ class BrainProfile(BaseModel):
         default_factory=dict, description="venue_id -> Beta(alpha, beta) of the user approving the Brain's trades"
     )
     note: str = ""
+    # Learning state (Phase 5): written only by tecc_brain.learning.
+    updated_at: datetime | None = None
+    tau_gains: dict[str, float] = Field(default_factory=dict, description="UTC date -> trust gained that day (daily cap)")
+    history: list[FeedbackEvent] = Field(default_factory=list, description="Signals from the last 90 days")
+    seen_events: list[str] = Field(default_factory=list, description="Applied event ids, so a re-sync is harmless")
 
     def _beta(self, venue_id: str) -> tuple[float, float]:
         return self.approvals.get(venue_id, APPROVAL_PRIOR)
