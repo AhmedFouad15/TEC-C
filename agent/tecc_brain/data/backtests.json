@@ -1,0 +1,42 @@
+{
+  "note": "Approximate daily closes for illustration; sentiment, redemption and liquidity inputs are hand-set from the public record, not fitted. Hurdle 2.15% throughout.",
+  "hurdle_rate": 0.0215,
+  "episodes": [
+    {
+      "id": "usdc_svb_2023", "title": "USDC after Silicon Valley Bank", "asset": "USDC", "position_usd": 10000,
+      "note": "Coverage 0.9175 while $3.3B sat at SVB; FDIC backstop announced Sunday 12 Mar evening restores 1.0.",
+      "points": [
+        {"date": "2023-03-10", "price": 1.000, "sentiment_negative": 0.30, "redemption_status": 0.0, "liquidity_stress": 0.20, "coverage": 1.0,    "event": "SVB fails"},
+        {"date": "2023-03-11", "price": 0.880, "sentiment_negative": 0.85, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 0.9175, "event": "Circle discloses $3.3B at SVB"},
+        {"date": "2023-03-12", "price": 0.950, "sentiment_negative": 0.70, "redemption_status": 0.5, "liquidity_stress": 0.70, "coverage": 0.9175, "event": "Weekend, banks closed"},
+        {"date": "2023-03-13", "price": 0.990, "sentiment_negative": 0.40, "redemption_status": 0.0, "liquidity_stress": 0.30, "coverage": 1.0,    "event": "FDIC backstop; redemptions resume"},
+        {"date": "2023-03-14", "price": 1.000, "sentiment_negative": 0.20, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0,    "event": "Peg restored"}
+      ]
+    },
+    {
+      "id": "steth_celsius_2022", "title": "stETH during Celsius / 3AC", "asset": "stETH", "position_usd": 10000,
+      "note": "No withdrawal path until Shanghai (R=1), but the staked ETH backing stayed intact.",
+      "points": [
+        {"date": "2022-06-10", "price": 0.970, "sentiment_negative": 0.40, "redemption_status": 1.0, "liquidity_stress": 0.50, "coverage": 1.0, "event": "Curve pool imbalance grows"},
+        {"date": "2022-06-13", "price": 0.940, "sentiment_negative": 0.60, "redemption_status": 1.0, "liquidity_stress": 0.80, "coverage": 1.0, "event": "Celsius freezes withdrawals"},
+        {"date": "2022-06-15", "price": 0.950, "sentiment_negative": 0.60, "redemption_status": 1.0, "liquidity_stress": 0.70, "coverage": 1.0, "event": "3AC distress"},
+        {"date": "2022-06-18", "price": 0.940, "sentiment_negative": 0.50, "redemption_status": 1.0, "liquidity_stress": 0.70, "coverage": 1.0, "event": "Forced selling"},
+        {"date": "2022-07-15", "price": 0.970, "sentiment_negative": 0.30, "redemption_status": 1.0, "liquidity_stress": 0.40, "coverage": 1.0, "event": "Discount narrows"},
+        {"date": "2023-04-13", "price": 1.000, "sentiment_negative": 0.10, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0, "event": "Shanghai enables withdrawals"}
+      ]
+    },
+    {
+      "id": "ust_2022", "title": "UST collapse", "asset": "UST", "position_usd": 10000,
+      "note": "Mint/burn claim honoured at $1 of LUNA while it worked (coverage 1.0); real reserves ~$3B BTC vs ~$18B supply (q 0.20).",
+      "points": [
+        {"date": "2022-05-05", "price": 1.000, "sentiment_negative": 0.10, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0, "event": "Calm"},
+        {"date": "2022-05-07", "price": 0.990, "sentiment_negative": 0.30, "redemption_status": 0.0, "liquidity_stress": 0.30, "coverage": 1.0, "event": "Large Curve withdrawals"},
+        {"date": "2022-05-09", "price": 0.950, "sentiment_negative": 0.80, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 1.0, "event": "LFG deploys BTC reserves"},
+        {"date": "2022-05-10", "price": 0.700, "sentiment_negative": 0.80, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 1.0, "event": "Mint/burn capacity overwhelmed"},
+        {"date": "2022-05-11", "price": 0.400, "sentiment_negative": 0.90, "redemption_status": 1.0, "liquidity_stress": 0.95, "coverage": 1.0, "event": "Death spiral"},
+        {"date": "2022-05-12", "price": 0.150, "sentiment_negative": 0.95, "redemption_status": 1.0, "liquidity_stress": 1.00, "coverage": 1.0, "event": "Terra chain halted"},
+        {"date": "2022-05-13", "price": 0.100, "sentiment_negative": 0.95, "redemption_status": 1.0, "liquidity_stress": 1.00, "coverage": 1.0, "event": "Collapse"}
+      ]
+    }
+  ]
+}
