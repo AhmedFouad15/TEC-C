@@ -2,3 +2,5 @@ fastapi>=0.115,<1
 uvicorn[standard]>=0.30
 pydantic>=2.9,<3
 langgraph==1.2.12
+eth-account==0.14.0
+eth-abi==5.2.0
