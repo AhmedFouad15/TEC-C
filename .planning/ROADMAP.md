@@ -36,7 +36,7 @@ None
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Package scaffold (pyproject/requirements, venv, pytest, FastAPI `/health`) + Pydantic domain models (Mandate, Asset, PegState, MarketSnapshot, Candidate, Card, Decision)
+- [x] 01-01: Package scaffold (pyproject/requirements, venv, pytest, FastAPI `/health`) + Pydantic domain models (Mandate, Asset, PegState, MarketSnapshot, Candidate, Card, Decision)
 - [ ] 01-02: `protocols.json` (tier, pd_base, LGD, q, redemption fee/delay, cluster, ρ links) + bundled market snapshot + `MarketDataSource` adapter interface with snapshot implementation
 
 ### Phase 2: Risk Engine
@@ -126,7 +126,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/2 | Not started | - |
+| 1. Foundation | 1/2 | In progress | - |
 | 2. Risk Engine | 0/3 | Not started | - |
 | 3. Portfolio & Strategy | 0/3 | Not started | - |
 | 4. Intent & Privacy | 0/2 | Not started | - |
