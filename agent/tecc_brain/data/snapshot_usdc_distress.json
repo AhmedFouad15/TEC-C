@@ -1,6 +1,6 @@
 {
   "as_of": "2026-10-16T00:00:00Z",
-  "source": "snapshot:usdc-distress (SVB-style replay for demo Scene 2)",
+  "source": "snapshot:usdc-distress (SVB-style replay for demo Scene 2; DAI coverage 0.96 because ~half its collateral is impaired USDC)",
   "hurdle_rate": 0.0215,
   "shibor": {"ON": 0.0140, "1M": 0.0165, "3M": 0.0175, "1Y": 0.0215},
   "prices_usd": {"ETH": 2500.0, "stETH": 2497.5, "WBTC": 65000.0, "USDC": 0.88, "USDT": 1.01, "DAI": 0.90, "PAXG": 2650.0},
@@ -17,7 +17,7 @@
   "pegs": {
     "USDC":  {"symbol": "USDC",  "price": 0.88,   "sentiment_negative": 0.85, "redemption_status": 0.5, "liquidity_stress": 0.9,  "coverage": 0.9175, "source": "snapshot:usdc-distress"},
     "USDT":  {"symbol": "USDT",  "price": 1.01,   "sentiment_negative": 0.20, "redemption_status": 0.0, "liquidity_stress": 0.3,  "coverage": 1.0,    "source": "snapshot:usdc-distress"},
-    "DAI":   {"symbol": "DAI",   "price": 0.90,   "sentiment_negative": 0.60, "redemption_status": 0.0, "liquidity_stress": 0.7,  "coverage": 1.0,    "source": "snapshot:usdc-distress"},
+    "DAI":   {"symbol": "DAI",   "price": 0.90,   "sentiment_negative": 0.60, "redemption_status": 0.0, "liquidity_stress": 0.7,  "coverage": 0.96,    "source": "snapshot:usdc-distress"},
     "stETH": {"symbol": "stETH", "price": 0.9990, "sentiment_negative": 0.05, "redemption_status": 0.0, "liquidity_stress": 0.05, "coverage": 1.0,    "source": "snapshot:usdc-distress"},
     "PAXG":  {"symbol": "PAXG",  "price": 1.0000, "sentiment_negative": 0.05, "redemption_status": 0.0, "liquidity_stress": 0.05, "coverage": 1.0,    "source": "snapshot:usdc-distress"}
   },

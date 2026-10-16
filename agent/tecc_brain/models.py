@@ -263,7 +263,8 @@ class ScoreBreakdown(BaseModel):
 
 
 class Candidate(BaseModel):
-    venue_id: str
+    venue_id: str = Field(description="Destination venue id, or asset symbol for exits/discount buys")
+    from_venue_id: str | None = Field(None, description="Venue being exited, for reduce-exposure moves")
     action: ActionType
     asset_in: str
     amount_usd: float = Field(ge=0)
