@@ -45,6 +45,12 @@ completed: 2026-10-16
 **3. [Rule 2 - Privacy] Sieve leaks** (background security review)
 - Numbers glued to words ("10ETH"), payload numbers under non-"balance" keys or address keys, uppercase/64-hex/spaced/base58/bech32 addresses leaked. Now every number is masked except structural payload keys (tier, horizon_days…), and address detection is widened. 9 tests.
 
+**4. [Rule 1/2 - Security] Dead timeout, language differential, LLM output integrity** (background security review)
+- `with ThreadPoolExecutor` waited on hung calls → daemon-thread timeout (test: 5 s hang returns in < 1.5 s).
+- Firewall only read English → Chinese attack patterns; text in scripts it cannot screen never reaches the LLM.
+- LLM could invent amounts/assets or arbitrary constraints → amount must be a request token, asset must match,
+  must agree with the literal rule parse; constraints whitelisted; horizon clamped. 11 tests.
+
 ### Deferred Enhancements
 - ISS-001: regex firewall cannot be complete; add classifier pass once an LLM provider is chosen.
 - ISS-002: sieve does not mask personal names / number words; add local NER before any cloud call.
