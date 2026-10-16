@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-16)
 ## Current Position
 
 Phase: 5 of 8 (Adaptive Learning)
-Plan: 1 of 3 (+ inserted 5.1 Sharpe & CVaR)
+Plan: 2 of 3 (+ inserted 5.1 Sharpe & CVaR)
 Status: In progress
-Last activity: 2026-10-16 — 05-01 learning update rules complete (290 tests)
+Last activity: 2026-10-16 — 05-02 notes + onboarding complete (326 tests)
 
-Progress: █████░░░░░ 50% (12/24 plans)
+Progress: █████░░░░░ 54% (13/24 plans)
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - 05: LangGraph chosen for Phase 6 (team notes); Sharpe & CVaR inserted as Phase 5.1 (display metrics)
+- 05-02: positive notes never unlock a first use; cost factors bounded [1.0, 1.5]
 - 05-01: event time drives decay and the daily τ cap; penalties never scaled by trade size
 - Init: offline rule parser first, LLM pluggable (provider undecided)
 - Init: no ERC-4337 bundler — direct account.execute on Anvil
