@@ -71,6 +71,22 @@ SQUASHED = {
     "UNLIMITED_APPROVAL": (r"(?:unlimited|infinite)(?:token)?(?:approv|allowanc)",),
 }
 
+# Chinese equivalents (the event is in Shenzhen; a judge may type the attack in Chinese and an LLM would understand it).
+PATTERNS_ZH: dict[Threat, tuple[str, ...]] = {
+    Threat.OVERRIDE_INSTRUCTION: (
+        r"忽略.{0,6}(?:指令|规则|提示|限制)", r"(?:覆盖|绕过|无视).{0,6}(?:指令|规则|限制|安全)", r"开发者模式", r"系统提示",
+    ),
+    Threat.LIMIT_CHANGE: (
+        r"(?:提高|增加|取消|修改|关闭|解除|设置|设定|调高).{0,6}(?:限额|额度|上限|白名单|半径|心跳)",
+    ),
+    Threat.UNLIMITED_APPROVAL: (r"无限(?:授权|额度|批准)",),
+    Threat.DRAIN: (r"(?:所有|全部)的?(?:资金|资产|余额|钱)", r"清空", r"(?:转走|转出|提走)(?:所有|全部)"),
+}
+
+# Scripts the firewall can screen. Text in any other script (Cyrillic, Arabic, …) must not reach an LLM, which could
+# understand instructions the patterns cannot see; the offline rule parser simply won't understand it.
+_SCREENED_LETTER = re.compile(r"[a-z\u00c0-\u024f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]")
+
 _HEX_ADDRESS = re.compile(r"\b0x[0-9a-f]{40}\b")
 _PSEUDO_ADDRESS = re.compile(r"\b0x[0-9a-z]{2,}\b")  # e.g. "0xhacker": still an attempt to name a recipient
 _ENS = re.compile(r"\b[a-z0-9][a-z0-9-]*\.eth\b")
@@ -107,6 +123,7 @@ class FirewallVerdict(BaseModel):
     threats: list[Threat]
     recipients: list[str]
     normalized: str
+    screened: bool = True  # False if the text uses a script the patterns cannot read (keep it away from LLMs)
 
     def explain(self) -> list[str]:
         return [THREAT_TEXT[t] for t in self.threats]
@@ -160,6 +177,8 @@ def scan(
     lower = normalized.lower()
     folded = lower.translate(CONFUSABLES)
     threats = {threat for threat, patterns in PATTERNS.items() if any(re.search(p, folded) for p in patterns)}
+    threats |= {threat for threat, patterns in PATTERNS_ZH.items() if any(re.search(p, folded) for p in patterns)}
+    screened = all(_SCREENED_LETTER.match(ch) for ch in folded if ch.isalpha())
     if _is_mixed_script(lower) or _EXOTIC_LATIN.search(lower) or _ENCODED_BLOB.search(normalized):
         threats.add(Threat.OBFUSCATION)
 
@@ -174,4 +193,6 @@ def scan(
         threats.add(Threat.UNKNOWN_RECIPIENT)
 
     ordered = [t for t in Threat if t in threats]
-    return FirewallVerdict(allowed=not ordered, threats=ordered, recipients=recipients, normalized=normalized)
+    return FirewallVerdict(
+        allowed=not ordered, threats=ordered, recipients=recipients, normalized=normalized, screened=screened
+    )
