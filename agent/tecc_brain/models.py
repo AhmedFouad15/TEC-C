@@ -416,3 +416,18 @@ class Decision(BaseModel):
     cards: list[Card] = Field(default_factory=list)
     rejected: list[Candidate] = Field(default_factory=list, description="Candidates removed by hard filters, with reasons")
     trace: list[str] = Field(default_factory=list)
+
+
+class ExecutionIntent(BaseModel):
+    """What the Gatekeeper hands the Web3 Executor: one vault-metered action, unsigned until Phase 7 signs it."""
+
+    card_label: CardLabel
+    venue_id: str
+    action: ActionType
+    asset_in: str
+    amount_usd: float = Field(ge=0)
+    amount_onchain: int = Field(ge=0, description="USD × 1e8, the unit TetherGuardHook meters the radius in")
+    target_address: str | None = Field(None, description="Venue contract; known after deployment (Phase 7)")
+    status: Literal["pending_signature", "signed", "submitted", "breakout_required", "failed"] = "pending_signature"
+    tx_hash: str | None = None
+    detail: str = ""
