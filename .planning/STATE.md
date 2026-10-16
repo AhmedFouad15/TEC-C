@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-16)
 ## Current Position
 
 Phase: 6 of 8 (API Layer)
-Plan: 1 of 3 (next: 06-02 endpoints)
+Plan: 2 of 3 (next: 06-03 profile/review/backtest/sentinel/spec)
 Status: In progress
-Last activity: 2026-10-16 — 06-01 LangGraph pipeline complete (372 tests)
+Last activity: 2026-10-16 — 06-02 endpoints complete (388 tests)
 
-Progress: ██████░░░░ 67% (16/24 plans)
+Progress: ███████░░░ 71% (17/24 plans)
 
 ## Performance Metrics
 

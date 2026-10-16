@@ -17,6 +17,8 @@ from tecc_brain.models import VaultState
 from tecc_brain.reference import Reference, load_reference
 
 Scenario = Literal["demo", "usdc_distress"]  # bundled market snapshots (live data arrives in Phase 8)
+
+
 def _valid_account(account: str) -> str:
     account_key(account)  # raises ValueError → 422 for path tricks or malformed addresses
     return account
