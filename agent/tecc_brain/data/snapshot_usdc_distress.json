@@ -1,0 +1,28 @@
+{
+  "as_of": "2026-10-16T00:00:00Z",
+  "source": "snapshot:usdc-distress (SVB-style replay for demo Scene 2)",
+  "hurdle_rate": 0.0215,
+  "shibor": {"ON": 0.0140, "1M": 0.0165, "3M": 0.0175, "1Y": 0.0215},
+  "prices_usd": {"ETH": 2500.0, "stETH": 2497.5, "WBTC": 65000.0, "USDC": 0.88, "USDT": 1.01, "DAI": 0.90, "PAXG": 2650.0},
+  "venues": {
+    "lido_stake":          {"venue_id": "lido_stake",          "apy": 0.0310, "depth_usd": 5.0e9, "source": "snapshot:usdc-distress"},
+    "curve_steth_eth":     {"venue_id": "curve_steth_eth",     "apy": 0.0685, "depth_usd": 2.0e8, "source": "snapshot:usdc-distress"},
+    "aave_v3_usdc":        {"venue_id": "aave_v3_usdc",        "apy": 0.0420, "depth_usd": 3.0e8, "source": "snapshot:usdc-distress"},
+    "compound_v3_usdc":    {"venue_id": "compound_v3_usdc",    "apy": 0.0380, "depth_usd": 1.0e8, "source": "snapshot:usdc-distress"},
+    "shibor_mmf":          {"venue_id": "shibor_mmf",          "apy": 0.0215, "depth_usd": 1.0e10, "source": "snapshot:usdc-distress"},
+    "paxg_hold":           {"venue_id": "paxg_hold",           "apy": 0.0180, "depth_usd": 5.0e7, "source": "snapshot:usdc-distress"},
+    "eigenlayer_restake":  {"venue_id": "eigenlayer_restake",  "apy": 0.0450, "depth_usd": 1.0e9, "source": "snapshot:usdc-distress"},
+    "uniswap_v3_usdc_eth": {"venue_id": "uniswap_v3_usdc_eth", "apy": 0.0900, "depth_usd": 1.0e8, "source": "snapshot:usdc-distress"}
+  },
+  "pegs": {
+    "USDC":  {"symbol": "USDC",  "price": 0.88,   "sentiment_negative": 0.85, "redemption_status": 0.5, "liquidity_stress": 0.9,  "coverage": 0.9175, "source": "snapshot:usdc-distress"},
+    "USDT":  {"symbol": "USDT",  "price": 1.01,   "sentiment_negative": 0.20, "redemption_status": 0.0, "liquidity_stress": 0.3,  "coverage": 1.0,    "source": "snapshot:usdc-distress"},
+    "DAI":   {"symbol": "DAI",   "price": 0.90,   "sentiment_negative": 0.60, "redemption_status": 0.0, "liquidity_stress": 0.7,  "coverage": 1.0,    "source": "snapshot:usdc-distress"},
+    "stETH": {"symbol": "stETH", "price": 0.9990, "sentiment_negative": 0.05, "redemption_status": 0.0, "liquidity_stress": 0.05, "coverage": 1.0,    "source": "snapshot:usdc-distress"},
+    "PAXG":  {"symbol": "PAXG",  "price": 1.0000, "sentiment_negative": 0.05, "redemption_status": 0.0, "liquidity_stress": 0.05, "coverage": 1.0,    "source": "snapshot:usdc-distress"}
+  },
+  "news": [
+    {"entity": "Circle", "p_negative": 0.85, "headline": "Circle confirms $3.3B of USDC reserves held at failed Silicon Valley Bank", "source": "snapshot:usdc-distress"},
+    {"entity": "MakerDAO", "p_negative": 0.60, "headline": "DAI slips below peg as USDC collateral weighs", "source": "snapshot:usdc-distress"}
+  ]
+}
