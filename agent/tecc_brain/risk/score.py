@@ -17,7 +17,14 @@ from tecc_brain.risk.regime import PegAssessment
 
 STRESS_DEPTH_FACTOR = 0.30  # in a panic, order-book depth falls to ~30% of normal, so slippage ~3.3x
 AFFINITY_WEIGHT = 0.003  # w_a: a fully liked protocol is worth +0.3 %/yr to this user
-DEFAULT_RECOVERY_DAYS = 7  # median time to recover from temporary distress
+DEFAULT_RECOVERY_DAYS = 7  # median time to recover from temporary distress with redemptions open
+# How long recovery may take depends on whether the redemption mechanism is working (BRAIN_DESIGN §2.4).
+RECOVERY_DAYS_BY_REDEMPTION: dict[float, float] = {0.0: 7, 0.5: 30, 1.0: 180}
+
+
+def expected_recovery_days(redemption_status: float) -> float:
+    """Open redemptions recover in about a week, delayed ones in a month, paused ones may take half a year."""
+    return RECOVERY_DAYS_BY_REDEMPTION[redemption_status]
 
 
 def entry_cost(venue: Venue, horizon_years: float) -> float:

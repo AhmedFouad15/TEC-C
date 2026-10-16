@@ -5,6 +5,7 @@ from tecc_brain.reference import load_reference
 from tecc_brain.risk.regime import assess_peg, regime_probabilities
 from tecc_brain.risk.score import (
     entry_cost,
+    expected_recovery_days,
     recovery_edge,
     score_venue,
     stressed_exit_cost,
@@ -114,15 +115,20 @@ def _episode_edge(episode_id, costs):
         coverage=i["coverage"],
     )
     assessment = assess_peg(peg, asset.model_copy(update={"reserve_quality": i["reserve_quality"]}), HURDLE)
-    return recovery_edge(i["price"], assessment, i["reserve_quality"], costs, HURDLE)
+    days = expected_recovery_days(i["redemption_status"])
+    return recovery_edge(i["price"], assessment, i["reserve_quality"], costs, HURDLE, recovery_days=days)
 
 
 def test_buying_usdc_at_88_cents_is_positive_even_after_reserve_haircut():
-    assert _episode_edge("usdc_svb_2023", costs=0.005) == pytest.approx(0.031, abs=0.002)
+    assert _episode_edge("usdc_svb_2023", costs=0.005) == pytest.approx(0.030, abs=0.001)
 
 
 def test_buying_ust_at_95_cents_is_strongly_negative():
-    assert _episode_edge("ust_2022_early", costs=0.01) == pytest.approx(-0.14, abs=0.003)
+    assert _episode_edge("ust_2022_early", costs=0.01) == pytest.approx(-0.142, abs=0.001)
+
+
+def test_recovery_takes_longer_when_redemptions_are_paused():
+    assert expected_recovery_days(0.0) < expected_recovery_days(0.5) < expected_recovery_days(1.0)
 
 
 def test_edge_shrinks_as_failure_risk_grows():

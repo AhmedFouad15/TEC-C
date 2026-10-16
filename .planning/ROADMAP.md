@@ -47,7 +47,7 @@ Plans:
 
 Plans:
 - [x] 02-01: Fair value + 3-regime softmax model — tests reproduce the 4 episode rows (USDC-SVB, stETH, UST, normal)
-- [x] 02-02: Recovery-adjusted edge (+3.1% / −14%) + %/yr score with (1+λ)·PD·LGD and stressed exit cost — tests reproduce the demo table
+- [x] 02-02: Recovery-adjusted edge (+3.0% / −14.2%) + %/yr score with (1+λ)·PD·LGD and stressed exit cost — tests reproduce the demo table
 - [x] 02-03: Hard filters (tier, whitelist, failure veto, negative edge, slippage/depth, heartbeat) with reason codes
 
 ### Phase 3: Portfolio & Strategy

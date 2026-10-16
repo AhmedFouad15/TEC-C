@@ -184,9 +184,10 @@ inferred from **whether the mechanism still works**: redemptions open, reserves 
 P_rec = P_normal + P_distress
 E = P_rec·(FV − p) − P_failure·(p − V_fail) − c_in − c_out_stress − hurdle × T_rec
 ```
-`V_fail = q × FV` is what is left if it fails, and `T_rec` is the expected recovery time (distress median ≈ 7 days).
-- USDC at $0.88, FV = 0.917 after haircutting the $3.3B frozen at SVB → E ≈ **+3.1%**: still a "buy the discount" opportunity card (PROPOSE only, never AUTO).
-- UST at $0.95 (early in the crash, P_failure ≈ 0.23) → E ≈ **−14%**: blocked, and the Brain proposes exiting.
+`V_fail = q × FV` is what is left if it fails, and `T_rec` is the expected recovery time, set by whether the
+redemption mechanism works: 7 days if open, 30 if delayed, 180 if paused (stETH waited ~10 months for Shanghai).
+- USDC at $0.88, FV = 0.917 after haircutting the $3.3B frozen at SVB → E ≈ **+3.0%** (T_rec 30 days, redemptions delayed): still a "buy the discount" opportunity card (PROPOSE only, never AUTO).
+- UST at $0.95 (early in the crash, P_failure ≈ 0.23) → E ≈ **−14.2%**: blocked, and the Brain proposes exiting.
 
 ### 2.5 Portfolio contagion: one de-peg raises the odds of others
 

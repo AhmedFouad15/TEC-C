@@ -25,7 +25,7 @@ from tecc_brain.models import (
 from tecc_brain.reference import Reference
 from tecc_brain.risk.filters import FAILURE_VETO_THRESHOLD
 from tecc_brain.risk.regime import PegAssessment
-from tecc_brain.risk.score import recovery_edge
+from tecc_brain.risk.score import expected_recovery_days, recovery_edge
 from tecc_brain.strategy.market_view import MarketView
 from tecc_brain.strategy.portfolio import PortfolioRisk, position_exposures, position_expected_loss
 
@@ -179,7 +179,8 @@ def opportunity_cards(
         if a.discount_to_fv <= 0 or a.probs.dominant != "distress":
             continue
         asset = ref.assets[symbol]
-        edge = recovery_edge(a.price, a, asset.reserve_quality, costs, snapshot.hurdle_rate)
+        days = expected_recovery_days(snapshot.pegs[symbol].redemption_status)
+        edge = recovery_edge(a.price, a, asset.reserve_quality, costs, snapshot.hurdle_rate, recovery_days=days)
         if edge <= 0:
             continue
         cards.append(
@@ -193,7 +194,7 @@ def opportunity_cards(
                 explanation=[
                     f"Fair value {a.fair_value:.3f} from reserves and redemption terms (not a moving average).",
                     f"P(recover) {a.probs.p_recover:.0%}, P(permanent failure) {a.probs.p_failure:.1%}.",
-                    f"If it fails, about {asset.reserve_quality:.0%} of fair value is left; costs {costs:.1%} included.",
+                    f"If it fails, about {asset.reserve_quality:.0%} of fair value is left; costs {costs:.1%} and ~{days:.0f} days of waiting included.",
                     f"Recovery-adjusted edge {_pct(edge)} on ${budget_usd:,.0f}. Proposal only — never automatic.",
                 ],
             )
