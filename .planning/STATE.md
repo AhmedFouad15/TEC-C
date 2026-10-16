@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-10-16)
 ## Current Position
 
 Phase: 3 of 8 (Portfolio & Strategy)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-10-16 — Phase 2 complete (risk engine, 91 tests)
+Plan: 0 of 4 in current phase
+Status: Ready to execute
+Last activity: 2026-10-16 — Phase 3 planned (4 plans)
 
-Progress: ██░░░░░░░░ 23% (5/22 plans)
+Progress: ██░░░░░░░░ 22% (5/23 plans)
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Recent decisions affecting current work:
 - Init: no ERC-4337 bundler — direct account.execute on Anvil
 - Init: local branch member2/brain, no push without approval
 - 01-01: keep httpx (not httpx2) for TestClient — supply-chain caution
+- 03: demo profile pre-seeded with Aave history (Beta(5,2)); new users never get AUTO
 - 02: PD adds only regime failure above the quiet-state floor (no double count with pd_base)
 - 01-02: c_out_stress = (exit_bps/1e4)/0.30/horizon + hurdle·delay/365
 
@@ -60,5 +61,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-10-16
-Stopped at: Phase 2 complete — next: /gsd:plan-phase 3
+Stopped at: Phase 3 planned
 Resume file: None
