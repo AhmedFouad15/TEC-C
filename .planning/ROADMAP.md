@@ -113,9 +113,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: Install Foundry, build + deploy contracts to Anvil, generate local `contracts.json`, contract loader in Python
-- [ ] 07-02: EIP-712 `UserMandate` digest, session key registration flow, 117-byte signature, eth_call dry-run, `/execute` submits for real
-- [ ] 07-03: Event listener (ratify / flag / note / sign approval / radius adjusted) → learning; heartbeat scheduler; lever calls
+- [ ] 07-01: Foundry (brew), build, deploy Member 1's suite + mocks to Anvil from Python, local contracts file
+- [ ] 07-02: EIP-712 UserMandate → mandateRoot, session key as ERC-7579 executor (no bundler), 117-byte signature pre-flight, vault-metered execution
+- [ ] 07-03: Review events → learning, on-chain levers (heartbeat/shrink/calibrate), chain-backed API
 
 ### Phase 8: Live Data, Demo Page & Freeze
 **Goal**: Live-sourced numbers with honest source tags, a demo page for the video, and a reproducible frozen backend
