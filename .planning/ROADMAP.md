@@ -69,7 +69,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Rule-based mandate parser (demo sentences + variants) + prompt-injection firewall (TDD with attack strings from the demo script)
+- [x] 04-01: Rule-based mandate parser (demo sentences + variants) + prompt-injection firewall (TDD with attack strings from the demo script)
 - [ ] 04-02: Privacy sieve (mask/restore balances, addresses, DIDs) + `IntentParser` protocol with optional LLM adapter that falls back to rules
 
 ### Phase 5: Adaptive Learning
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 1. Foundation | 2/2 | Complete | 2026-10-16 |
 | 2. Risk Engine | 3/3 | Complete | 2026-10-16 |
 | 3. Portfolio & Strategy | 4/4 | Complete | 2026-10-16 |
-| 4. Intent & Privacy | 0/2 | Not started | - |
+| 4. Intent & Privacy | 1/2 | In progress | - |
 | 5. Adaptive Learning | 0/3 | Not started | - |
 | 6. API Layer | 0/3 | Not started | - |
 | 7. On-Chain Integration | 0/3 | Not started | - |
