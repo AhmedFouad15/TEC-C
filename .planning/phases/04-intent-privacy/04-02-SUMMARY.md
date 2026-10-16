@@ -21,7 +21,7 @@ key-files:
 key-decisions:
   - "Only the user's own known DIDs are exempt from recipient detection"
   - "Firewall adds a squashed/leetspeak pass and an OBFUSCATION threat"
-issues-created: [ISS-001]
+issues-created: [ISS-001, ISS-002]
 duration: 25min
 completed: 2026-10-16
 ---
@@ -42,8 +42,12 @@ completed: 2026-10-16
 **2. [Rule 2 - Security] Firewall bypass classes** (three background security reviews) — `c2aae7b`
 - Cyrillic/Greek/small-caps look-alikes, mixed scripts, split/punctuated/leetspeak keywords, spaced addresses, base64 blobs, DID payee smuggling, and filter-vs-model differential (model now receives `verdict.normalized`). 20+ new tests, normal requests (incl. Chinese) still pass.
 
+**3. [Rule 2 - Privacy] Sieve leaks** (background security review)
+- Numbers glued to words ("10ETH"), payload numbers under non-"balance" keys or address keys, uppercase/64-hex/spaced/base58/bech32 addresses leaked. Now every number is masked except structural payload keys (tier, horizon_days…), and address detection is widened. 9 tests.
+
 ### Deferred Enhancements
 - ISS-001: regex firewall cannot be complete; add classifier pass once an LLM provider is chosen.
+- ISS-002: sieve does not mask personal names / number words; add local NER before any cloud call.
 
 ## Next Phase Readiness
 - Phase 5 runs the firewall on Morning Review notes; Phase 6 exposes parse via API.

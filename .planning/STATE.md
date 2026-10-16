@@ -56,6 +56,7 @@ Recent decisions affecting current work:
 ### Deferred Issues
 
 - ISS-001 (Phase 4): regex firewall cannot be complete — add LLM classifier pass later
+- ISS-002 (Phase 4): sieve does not mask names / number words — local NER before cloud calls
 
 ### Blockers/Concerns
 
