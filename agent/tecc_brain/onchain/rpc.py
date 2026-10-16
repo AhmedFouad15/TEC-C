@@ -58,8 +58,18 @@ class Rpc:
         """eth_sendTransaction from a node-managed (Anvil dev) account. Reverts surface as RpcError before mining."""
         receipt = self.wait(self.call("eth_sendTransaction", [tx]))
         if receipt["status"] != "0x1":
-            raise RpcError(-32000, f"transaction {receipt['transactionHash']} reverted")
+            self._raise_revert(tx, receipt)
         return receipt
+
+    def _raise_revert(self, tx: dict[str, Any], receipt: dict[str, Any]) -> None:
+        """Replay the call at the parent block to recover the revert data, then raise it."""
+        parent = hex(int(receipt["blockNumber"], 16) - 1)
+        replay = {k: v for k, v in tx.items() if k in ("from", "to", "data", "value")}
+        try:
+            self.call("eth_call", [replay, parent])
+        except RpcError as exc:
+            raise RpcError(exc.code, f"transaction {receipt['transactionHash']} reverted: {exc.message}", exc.data) from None
+        raise RpcError(-32000, f"transaction {receipt['transactionHash']} reverted")
 
     def send_raw(self, raw_tx: str) -> dict[str, Any]:
         receipt = self.wait(self.call("eth_sendRawTransaction", [raw_tx]))
