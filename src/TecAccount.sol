@@ -20,31 +20,57 @@ import {PackedUserOperation} from "./interfaces/PackedUserOperation.sol";
  *      Enforces immutable preCheck and postCheck policies via TetherGuardHook.
  */
 contract TecAccount is IERC7579Account {
+    /// @notice Unique identifier for this modular account implementation
     string public constant ACCOUNT_ID = "tec-c.smart-account.v1";
 
-    address public rootOwner; // Biometric Passkey / WebAuthn FaceID owner
+    /// @notice Biometric Passkey / WebAuthn FaceID owner authorized for account administration
+    address public rootOwner;
+    /// @notice Canonical ERC-4337 EntryPoint address
     address public immutable entryPoint;
+    /// @notice Deployer address authorized for one-time initialization
     address public immutable deployer;
 
-    // Installed ERC-7579 Modules
+    /// @notice Installed ERC-7579 execution policy hook enforcing Tether Radius and telemetry
     IERC7579Hook public installedHook;
+    /// @notice Installed ERC-7579 signature validation module
     IERC7579Validator public installedValidator;
+    /// @notice Mapping tracking authorized execution modules (e.g. AI agent executors)
     mapping(address => bool) public installedExecutors;
 
+    /**
+     * @notice Emitted when the account is initialized with its root owner and entry point.
+     * @param rootOwner The Passkey / WebAuthn root owner address.
+     * @param entryPoint The canonical ERC-4337 EntryPoint address.
+     */
     event TecAccountInitialized(address indexed rootOwner, address indexed entryPoint);
+
+    /**
+     * @notice Emitted immediately prior to target execution for audit and log-ordering telemetry.
+     * @param target The destination contract address.
+     * @param value Native ETH transmitted with the call.
+     * @param callData The payload executed on the target contract.
+     */
     event ExecutionExecuted(address indexed target, uint256 value, bytes callData);
 
+    /// @notice Reverts if caller is not the registered Passkey root owner.
     error OnlyRootOwner();
+    /// @notice Reverts if caller is not the EntryPoint, root owner, or an authorized executor.
     error OnlyEntryPointOrOwner();
+    /// @notice Reverts if external execution call fails.
+    /// @param returnData Low-level revert data returned by the failed execution.
     error ExecutionFailed(bytes returnData);
+    /// @notice Reverts if an unsupported module type ID is supplied.
     error InvalidModuleType();
+    /// @notice Reverts if account has already been initialized.
     error AlreadyInitialized();
 
+    /// @dev Restricts invocation strictly to the Passkey root owner.
     modifier onlyRootOwner() {
         if (msg.sender != rootOwner) revert OnlyRootOwner();
         _;
     }
 
+    /// @dev Restricts invocation to canonical EntryPoint, root owner, or installed executor modules.
     modifier onlyEntryPointOrOwner() {
         if (msg.sender != entryPoint && msg.sender != rootOwner && !installedExecutors[msg.sender]) {
             revert OnlyEntryPointOrOwner();
@@ -52,6 +78,10 @@ contract TecAccount is IERC7579Account {
         _;
     }
 
+    /**
+     * @notice Constructor setting the immutable EntryPoint address and deployer.
+     * @param _entryPoint Canonical ERC-4337 EntryPoint contract address.
+     */
     constructor(address _entryPoint) {
         require(_entryPoint != address(0), "INVALID_ENTRYPOINT");
         entryPoint = _entryPoint;
@@ -59,7 +89,11 @@ contract TecAccount is IERC7579Account {
     }
 
     /**
-     * @notice Initialize the TecAccount with Passkey Root Owner and default modules.
+     * @notice Initializes the TecAccount with Passkey Root Owner and default modules.
+     * @dev Callable only once by the deployer during factory deployment.
+     * @param _rootOwner Address of the Passkey / WebAuthn root owner.
+     * @param _hook Optional initial execution hook address (TetherGuardHook).
+     * @param _validator Optional initial validator module address (SessionKeyValidator).
      */
     function initialize(address _rootOwner, address _hook, address _validator) external {
         if (rootOwner != address(0)) revert AlreadyInitialized();
@@ -81,50 +115,47 @@ contract TecAccount is IERC7579Account {
 
     /**
      * @notice Standard ERC-7579 execution entrypoint with preCheck and postCheck hooks.
+     * @dev Unpacks target, value, data and triggers preCheck/postCheck policy enforcement.
+     * @param mode Execution mode (e.g. single execution mode 0x00).
+     * @param executionCalldata Packed execution payload: target (20B) || value (32B) || callData.
      */
-    function execute(
-        bytes32,
-        /* mode */
-        bytes calldata executionCalldata
-    )
-        external
-        payable
-        override
-        onlyEntryPointOrOwner
-    {
+    function execute(bytes32 mode, bytes calldata executionCalldata) external payable override onlyEntryPointOrOwner {
+        mode; // silence unused parameter warning
         _executeWithHook(executionCalldata);
     }
 
     /**
-     * @notice ERC-7579 executor execution pathway.
+     * @notice ERC-7579 executor execution pathway for authorized AI session modules.
+     * @dev Restricted to modules registered in `installedExecutors`.
+     * @param mode Execution mode.
+     * @param executionCalldata Packed execution payload: target (20B) || value (32B) || callData.
+     * @return returnData Array containing low-level execution return bytes.
      */
-    function executeFromExecutor(
-        bytes32,
-        /* mode */
-        bytes calldata executionCalldata
-    )
+    function executeFromExecutor(bytes32 mode, bytes calldata executionCalldata)
         external
         payable
         override
         returns (bytes[] memory returnData)
     {
+        mode; // silence unused parameter warning
         require(installedExecutors[msg.sender], "UNAUTHORIZED_EXECUTOR");
         returnData = new bytes[](1);
         returnData[0] = _executeWithHook(executionCalldata);
     }
 
     /**
-     * @notice Install an ERC-7579 module (Validator, Hook, Executor).
+     * @notice Installs an ERC-7579 module (Validator, Hook, Executor).
+     * @dev Restricted to the root owner.
+     * @param moduleTypeId Numeric identifier of module type (1: Validator, 2: Executor, 4: Hook).
+     * @param module Address of module contract to install.
+     * @param initData Optional initialization data passed to module.
      */
-    function installModule(
-        uint256 moduleTypeId,
-        address module,
-        bytes calldata /* initData */
-    )
+    function installModule(uint256 moduleTypeId, address module, bytes calldata initData)
         external
         override
         onlyRootOwner
     {
+        initData; // silence unused parameter warning
         if (moduleTypeId == MODULE_TYPE_HOOK) {
             installedHook = IERC7579Hook(module);
         } else if (moduleTypeId == MODULE_TYPE_VALIDATOR) {
@@ -138,17 +169,18 @@ contract TecAccount is IERC7579Account {
     }
 
     /**
-     * @notice Uninstall an ERC-7579 module.
+     * @notice Uninstalls an ERC-7579 module.
+     * @dev Restricted to the root owner.
+     * @param moduleTypeId Numeric identifier of module type.
+     * @param module Address of module contract to uninstall.
+     * @param deInitData Optional de-initialization data passed to module.
      */
-    function uninstallModule(
-        uint256 moduleTypeId,
-        address module,
-        bytes calldata /* deInitData */
-    )
+    function uninstallModule(uint256 moduleTypeId, address module, bytes calldata deInitData)
         external
         override
         onlyRootOwner
     {
+        deInitData; // silence unused parameter warning
         if (moduleTypeId == MODULE_TYPE_HOOK) {
             require(address(installedHook) == module, "MISMATCH");
             installedHook = IERC7579Hook(address(0));
@@ -164,18 +196,19 @@ contract TecAccount is IERC7579Account {
     }
 
     /**
-     * @notice Check whether a module is installed.
+     * @notice Checks whether a specific module is currently installed.
+     * @param moduleTypeId Numeric identifier of module type.
+     * @param module Address of module to query.
+     * @param additionalContext Contextual data.
+     * @return True if module is currently installed.
      */
-    function isModuleInstalled(
-        uint256 moduleTypeId,
-        address module,
-        bytes calldata /* additionalContext */
-    )
+    function isModuleInstalled(uint256 moduleTypeId, address module, bytes calldata additionalContext)
         external
         view
         override
         returns (bool)
     {
+        additionalContext; // silence unused parameter warning
         if (moduleTypeId == MODULE_TYPE_HOOK) return address(installedHook) == module;
         if (moduleTypeId == MODULE_TYPE_VALIDATOR) return address(installedValidator) == module;
         if (moduleTypeId == MODULE_TYPE_EXECUTOR) return installedExecutors[module];
@@ -184,6 +217,11 @@ contract TecAccount is IERC7579Account {
 
     /**
      * @notice ERC-4337 UserOperation validation callback.
+     * @dev Forwards to installed validator or validates direct rootOwner ECDSA signature.
+     * @param userOp The packed user operation structure.
+     * @param userOpHash Hash of user operation calculated by EntryPoint.
+     * @param missingAccountFunds Gas prefund shortfall required by EntryPoint.
+     * @return validationData Packed validation data (0 for success, 1 for signature failure).
      */
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
         external
@@ -208,12 +246,21 @@ contract TecAccount is IERC7579Account {
         }
     }
 
+    /**
+     * @notice Returns the account implementation identifier.
+     * @return Unique string identifier for TecAccount.
+     */
     function accountId() external pure override returns (string memory) {
         return ACCOUNT_ID;
     }
 
     // --- Internal Execution Engine ---
 
+    /**
+     * @dev Executes a transaction with preCheck and postCheck hook verification.
+     * @param executionCalldata Packed execution payload: target (20B) || value (32B) || callData.
+     * @return result Low-level return data from the target execution.
+     */
     function _executeWithHook(bytes calldata executionCalldata) internal returns (bytes memory result) {
         bytes memory hookData;
         (address target, uint256 value, bytes memory data) = _decodeExecution(executionCalldata);
@@ -238,6 +285,13 @@ contract TecAccount is IERC7579Account {
         }
     }
 
+    /**
+     * @dev Decodes packed execution calldata into target, value, and callData components.
+     * @param executionCalldata Packed payload with layout target (20B) || value (32B) || callData.
+     * @return target Destination contract address.
+     * @return value Native ETH transmitted with call.
+     * @return data Calldata executed on destination contract.
+     */
     function _decodeExecution(bytes calldata executionCalldata)
         internal
         pure
@@ -250,6 +304,12 @@ contract TecAccount is IERC7579Account {
         data = executionCalldata[52:];
     }
 
+    /**
+     * @dev Cryptographically recovers signer address from hash and 65-byte ECDSA signature.
+     * @param hash 32-byte digest that was signed.
+     * @param signature 65-byte ECDSA signature (r, s, v).
+     * @return Recovered signer address (or address(0) if signature is invalid/malleable).
+     */
     function _recover(bytes32 hash, bytes memory signature) internal pure returns (address) {
         if (signature.length != 65) return address(0);
         bytes32 r;

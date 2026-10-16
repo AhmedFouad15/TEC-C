@@ -13,34 +13,68 @@ import {PackedUserOperation} from "../interfaces/PackedUserOperation.sol";
  *      from day-to-day autonomous AI execution.
  */
 contract SessionKeyValidator is IERC7579Validator {
+    /// @notice EIP-1271 magic value returned on successful signature validation
     bytes4 internal constant EIP1271_SUCCESS = 0x1626ba7e;
+    /// @notice EIP-1271 failure return value
     bytes4 internal constant EIP1271_FAILED = 0xffffffff;
 
+    /**
+     * @notice Structure storing registration data for an ephemeral AI session key.
+     * @param sessionKey The public address of the authorized session key.
+     * @param validAfter Timestamp after which the key becomes active.
+     * @param validUntil Timestamp after which the key expires.
+     * @param mandateRoot EIP-712 mandate commitment digest (WeIdentity W3C credential).
+     * @param isActive Boolean flag indicating if the session key is currently active.
+     */
     struct SessionKeyData {
         address sessionKey;
         uint48 validAfter;
         uint48 validUntil;
-        bytes32 mandateRoot; // EIP-712 mandate digest commitment (WeIdentity W3C credential)
+        bytes32 mandateRoot;
         bool isActive;
     }
 
-    // account => sessionKey => SessionKeyData
+    /// @notice Nested mapping storing session key configuration: account => sessionKey => SessionKeyData
     mapping(address => mapping(address => SessionKeyData)) public sessionKeys;
 
-    // WeIdentity compliance events
+    /**
+     * @notice Emitted when a new session key is registered for a smart account.
+     * @param account The smart account granting the session authorization.
+     * @param sessionKey The ephemeral session key address.
+     * @param validAfter Earliest valid execution timestamp.
+     * @param validUntil Expiration execution timestamp.
+     * @param mandateRoot EIP-712 mandate digest commitment (WeIdentity W3C verifiable credential).
+     */
     event SessionKeyRegistered(
         address indexed account, address indexed sessionKey, uint48 validAfter, uint48 validUntil, bytes32 mandateRoot
     );
+
+    /**
+     * @notice Emitted when an active session key is explicitly revoked.
+     * @param account The smart account revoking authorization.
+     * @param sessionKey The revoked session key address.
+     */
     event SessionKeyRevoked(address indexed account, address indexed sessionKey);
 
+    /// @notice Reverts if validUntil timestamp is not strictly greater than validAfter.
     error InvalidTimeRange();
+    /// @notice Reverts if session key is not currently active.
     error SessionKeyNotActive();
+    /// @notice Reverts if current block timestamp is outside the session validity window.
     error SessionKeyExpired();
+    /// @notice Reverts if session key address is invalid or zero.
     error InvalidSignature();
+    /// @notice Reverts if caller is not the smart account owning the session configuration.
     error UnauthorizedCaller();
 
     /**
      * @notice Registers an ephemeral session key for a smart account with strict time and mandate bounds.
+     * @dev Restricted strictly to the calling smart account (`msg.sender == account`).
+     * @param account The smart account address granting authorization.
+     * @param sessionKey The public address of the session key to register.
+     * @param validAfter Earliest timestamp after which transactions are permitted.
+     * @param validUntil Expiration timestamp after which transactions revert.
+     * @param mandateRoot EIP-712 mandate commitment digest for WeIdentity W3C anchoring.
      */
     function registerSessionKey(
         address account,
@@ -66,6 +100,9 @@ contract SessionKeyValidator is IERC7579Validator {
 
     /**
      * @notice Revokes an active session key immediately.
+     * @dev Restricted strictly to the smart account.
+     * @param account The smart account address revoking the session key.
+     * @param sessionKey The address of the session key to deactivate.
      */
     function revokeSessionKey(address account, address sessionKey) external {
         if (msg.sender != account) revert UnauthorizedCaller();
@@ -76,6 +113,11 @@ contract SessionKeyValidator is IERC7579Validator {
     /**
      * @notice Verifies whether a given mandate digest matches the on-chain committed mandateRoot for a session key.
      * @dev Provides cryptographic anchoring for WeIdentity W3C Verifiable Credentials.
+     * @param account The smart account address.
+     * @param sessionKey The ephemeral session key address.
+     * @param mandateDigest EIP-712 mandate digest to verify against on-chain root.
+     * @return isValid True if committedRoot is non-zero and equals mandateDigest.
+     * @return committedRoot The on-chain root stored for this session key.
      */
     function verifyMandateCommitment(address account, address sessionKey, bytes32 mandateDigest)
         external
@@ -87,8 +129,11 @@ contract SessionKeyValidator is IERC7579Validator {
     }
 
     /**
-     * @notice Validates an ERC-4337 PackedUserOperation signed by a session key.
-     * @dev Signature format: abi.encodePacked(address sessionKey, bytes signature)
+     * @notice Validates an ERC-4337 PackedUserOperation signed by an ephemeral session key.
+     * @dev Slices sessionKey and signature from userOp.signature. Verifies time window and WeIdentity commitment.
+     * @param userOp The packed ERC-4337 UserOperation.
+     * @param userOpHash Hash of the user operation calculated by EntryPoint.
+     * @return validationData Packed validation data (0 for success, 1 for failure, or time range).
      */
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
         external
@@ -129,7 +174,11 @@ contract SessionKeyValidator is IERC7579Validator {
     }
 
     /**
-     * @notice Standard ERC-1271 signature validation.
+     * @notice Standard ERC-1271 off-chain signature validation for ephemeral session keys.
+     * @param sender The address of the smart account.
+     * @param hash The 32-byte hash of the data being verified.
+     * @param data Signature payload (sessionKey || ECDSA signature || optional mandate digest).
+     * @return Magic value 0x1626ba7e if signature is valid, 0xffffffff otherwise.
      */
     function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata data)
         external
@@ -159,10 +208,21 @@ contract SessionKeyValidator is IERC7579Validator {
 
     // --- Internal Cryptographic Utilities ---
 
+    /**
+     * @dev Prefixes a message hash with "\x19Ethereum Signed Message:\n32" and hashes it.
+     * @param messageHash The raw 32-byte message hash.
+     * @return Resulting EIP-191 digest.
+     */
     function _toEthSignedMessageHash(bytes32 messageHash) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
     }
 
+    /**
+     * @dev Recovers signer address from hash and 65-byte ECDSA signature, rejecting malleable signatures.
+     * @param messageHash 32-byte digest that was signed.
+     * @param signature 65-byte ECDSA signature (r, s, v).
+     * @return Recovered signer address (or address(0) if invalid).
+     */
     function _recoverSigner(bytes32 messageHash, bytes memory signature) internal pure returns (address) {
         if (signature.length != 65) return address(0);
         bytes32 r;
@@ -181,6 +241,13 @@ contract SessionKeyValidator is IERC7579Validator {
         return ecrecover(messageHash, v, r, s);
     }
 
+    /**
+     * @dev Packs boolean failure status and validity bounds into standard ERC-4337 validationData format.
+     * @param sigFailed True if signature validation failed.
+     * @param validUntil Expiration timestamp for the UserOp.
+     * @param validAfter Earliest timestamp for the UserOp.
+     * @return Packed 256-bit validationData value.
+     */
     function _packValidationData(bool sigFailed, uint48 validUntil, uint48 validAfter) internal pure returns (uint256) {
         return (sigFailed ? 1 : 0) | (uint256(validUntil) << 160) | (uint256(validAfter) << (160 + 48));
     }

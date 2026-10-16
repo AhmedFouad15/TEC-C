@@ -16,24 +16,42 @@ import {IERC20, IERC20Metadata} from "../interfaces/IERC20.sol";
  */
 contract TetherGuardHook is IERC7579Hook {
     // --- Risk Tiers (Dual-Axis Risk Engine - Axis 1: Asset Universe) ---
-    // Tier 1: Core Preservation & Mega Assets (Giga Tokens: BTC/ETH, Stablecoins: USDC/USDT/e-CNY, Commodities: PAXG Gold/Silver, Shibor MMFs)
+
+    /// @notice Tier 1: Core Preservation & Mega Assets (BTC, ETH, USDC, USDT, e-CNY, PAXG, Shibor MMFs)
     uint8 public constant RISK_TIER_CORE_PRESERVATION = 1;
-    // Tier 2: Growth & Active DeFi (Merged Liquid Staking stETH/rETH, AMMs, Curve/Uniswap LPs, Yield Vaults)
+
+    /// @notice Tier 2: Growth & Active DeFi (Liquid Staking stETH/rETH, AMMs, Curve/Uniswap LPs, Yield Vaults)
     uint8 public constant RISK_TIER_GROWTH_DEFI = 2;
-    // Tier 3: Omni-Universe / Unrestricted (Allows EVERYTHING to be held and traded; zero whitelist restriction, strictly bound by Tether Radius)
+
+    /// @notice Tier 3: Omni-Universe / Unrestricted (Zero whitelist restriction; strictly bound by Tether Radius)
     uint8 public constant RISK_TIER_UNRESTRICTED = 3;
 
-    // Aliases for backwards compatibility
+    /// @notice Backwards compatibility alias for Tier 1 Conservative
     uint8 public constant RISK_TIER_CONSERVATIVE = 1;
+
+    /// @notice Backwards compatibility alias for Tier 2 Balanced
     uint8 public constant RISK_TIER_BALANCED = 2;
+
+    /// @notice Backwards compatibility alias for Tier 3 Aggressive
     uint8 public constant RISK_TIER_AGGRESSIVE = 3;
 
     // --- Dynamic Elasticity Parameters (Axis 2 Learning Engine - Vault-Native) ---
-    uint256 public constant MAX_DAILY_GROWTH_PERCENTAGE = 10; // Strictly max 10% autonomous increase per day
-    uint256 public constant CALIBRATION_COOLDOWN = 1 days; // Minimum 24 hours between autonomous calibrations
-    uint256 public constant STEP_UP_COOLDOWN = 1 days; // Alias for cooldown
+
+    /// @notice Maximum autonomous daily percentage increase allowed during elasticity calibration (10%)
+    uint256 public constant MAX_DAILY_GROWTH_PERCENTAGE = 10;
+
+    /// @notice Minimum cooldown period required between autonomous calibrations (24 hours)
+    uint256 public constant CALIBRATION_COOLDOWN = 1 days;
+
+    /// @notice Cooldown alias for backward compatibility
+    uint256 public constant STEP_UP_COOLDOWN = 1 days;
 
     // --- State Storage Per Account ---
+
+    /**
+     * @notice Account policy state tracking daily spending velocity, risk tier, and elasticity parameters.
+     * @dev Enforces strict ceiling constraints and tracks consecutive ratifications for autonomous calibration.
+     */
     struct AccountPolicy {
         uint256 tetherRadius; // Current active daily spending radius
         uint256 baselineRadius; // Initial baseline radius chosen at onboarding
@@ -47,11 +65,24 @@ contract TetherGuardHook is IERC7579Hook {
         address rootOwner; // Passkey WebAuthn FaceID root owner
     }
 
+    /// @notice Mapping from smart account address to its active AccountPolicy configuration
     mapping(address => AccountPolicy) public policies;
+
+    /// @notice Mapping from account => target contract => authorization status
     mapping(address => mapping(address => bool)) public whitelistedTargets;
+
+    /// @notice Mapping from account => target contract => assigned risk tier (1, 2, or 3)
     mapping(address => mapping(address => uint8)) public targetRiskTiers;
+
+    /// @notice Mapping from account => session key address => authorization status
     mapping(address => mapping(address => bool)) public authorizedSessionKeys;
+
     // --- Asynchronous Morning Review System ---
+
+    /**
+     * @notice Status lifecycle for an autonomous AI transaction pending user morning review.
+     * @dev PENDING_REVIEW: unreviewed; LIKED_AND_RATIFIED: user ratified; REVERT_REQUESTED: flagged; NOTED: user added note.
+     */
     enum ReviewStatus {
         PENDING_REVIEW,
         LIKED_AND_RATIFIED,
@@ -59,6 +90,10 @@ contract TetherGuardHook is IERC7579Hook {
         NOTED
     }
 
+    /**
+     * @notice Execution record logged when an autonomous AI session key executes on-chain.
+     * @dev Surfaces in the morning review UI for user feedback, ratifications, or cognitive unwinds.
+     */
     struct AutonomousExecutionRecord {
         uint256 id;
         address target;
@@ -68,20 +103,34 @@ contract TetherGuardHook is IERC7579Hook {
         string userNote;
     }
 
+    /// @notice Total autonomous executions logged per smart account
     mapping(address => uint256) public executionCount;
+
+    /// @notice Execution history per smart account (account => record ID => AutonomousExecutionRecord)
     mapping(address => mapping(uint256 => AutonomousExecutionRecord)) public executionRecords;
 
+    /// @notice Global counter of all audited executions processed by this hook across all accounts
     uint256 public totalAuditedExecutions;
 
     // --- 5-Minute Biometric Verification Window & Sign Approval (Breaking the Tether) ---
+
+    /// @notice Active duration for biometric grace period after successful Passkey verification (5 minutes)
     uint256 public constant BIOMETRIC_VERIFICATION_WINDOW = 5 minutes;
+
+    /// @notice Native precompile address for RIP-7212 secp256r1 curve verification
     address public constant RIP7212_PRECOMPILE = address(0x100);
+
+    /// @notice Factory / deployer address allowed to set initial passkey coordinates during onboarding
     address public deployer;
 
+    /// @notice Initializes the hook deployer address
     constructor() {
         deployer = msg.sender;
     }
 
+    /**
+     * @notice Hardware WebAuthn P-256 public key coordinates (qx, qy) and registration flag.
+     */
     struct WebAuthnPasskey {
         uint256 qx;
         uint256 qy;
@@ -110,7 +159,11 @@ contract TetherGuardHook is IERC7579Hook {
     mapping(address => mapping(bytes32 => bool)) public signRejections;
 
     // --- Dead-Man's Switch & Inactive AI Heartbeat ---
+
+    /// @notice Default timeout for AI agent heartbeat watchdog (48 hours)
     uint256 public constant DEFAULT_AI_HEARTBEAT_TIMEOUT = 48 hours;
+
+    /// @notice Default inactivity threshold before Dead-Man's Switch recovery can be triggered (90 days)
     uint256 public constant DEFAULT_DEADMAN_TIMEOUT = 90 days;
 
     /// @notice Last timestamp when an AI session key broadcast a heartbeat or executed successfully
@@ -129,8 +182,14 @@ contract TetherGuardHook is IERC7579Hook {
     mapping(address => uint256) public lastUserActivity;
 
     // --- Multi-Token & Chainlink Price Feed Oracles (USD Normalized Tether Radius) ---
+
+    /// @notice Sentinel address representing native Ether for Chainlink pricing
     address public constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
+    /**
+     * @notice Breakdown detail for an individual token held by a smart account.
+     * @dev Values are normalized to 8 decimal places conforming to standard Chainlink USD feeds.
+     */
     struct TokenBalanceDetail {
         address token;
         string symbol;
@@ -147,69 +206,313 @@ contract TetherGuardHook is IERC7579Hook {
     mapping(address => address) public globalPriceFeeds;
 
     // --- Events for WeBank WeIdentity Audit Trails ---
+
+    /**
+     * @notice Emitted when an account's spending velocity radius or risk tier is configured or updated.
+     * @param account The address of the smart account.
+     * @param newRadius The new daily spending limit in native or USD-normalized units.
+     * @param riskTier The newly assigned risk tier (1: Core, 2: Growth, 3: Unrestricted).
+     */
     event TetherRadiusConfigured(address indexed account, uint256 newRadius, uint8 riskTier);
+
+    /**
+     * @notice Emitted when an authorized execution consumes spending allowance within the daily tether radius.
+     * @param account The address of the smart account.
+     * @param amount The value consumed in this execution.
+     * @param remainingRadius The remaining daily spending allowance in the current epoch.
+     * @param epoch The current 24-hour epoch index.
+     */
     event TetherRadiusConsumed(address indexed account, uint256 amount, uint256 remainingRadius, uint256 epoch);
+
+    /**
+     * @notice Emitted when an execution exceeds the daily radius or targets an unwhitelisted asset with biometric approval.
+     * @param account The address of the smart account.
+     * @param caller The address initiating the execution (root owner or AI session key).
+     * @param amount The value of the breakout execution.
+     * @param target The target contract address.
+     */
     event TetherBroken(address indexed account, address indexed caller, uint256 amount, address indexed target);
+
+    /**
+     * @notice Emitted when a target protocol is added to or removed from an account's whitelist.
+     * @param account The address of the smart account.
+     * @param target The protocol target contract address.
+     * @param riskTier The risk tier assigned to this target (1, 2, or 3).
+     * @param status True if whitelisted, false if revoked.
+     */
     event TargetWhitelisted(address indexed account, address indexed target, uint8 riskTier, bool status);
+
+    /**
+     * @notice Emitted when an AI session key's authorization status is updated for an account.
+     * @param account The address of the smart account.
+     * @param sessionKey The ephemeral AI agent session key address.
+     * @param status True if authorized, false if revoked.
+     */
     event SessionKeyAuthorized(address indexed account, address indexed sessionKey, bool status);
+
+    /**
+     * @notice Emitted after an execution completes, providing an immutable audit record for WeBank WeIdentity.
+     * @param account The address of the smart account.
+     * @param isRoot True if initiated by root owner, false if executed autonomously by AI.
+     * @param value The value executed in native or normalized units.
+     * @param target The target contract address.
+     * @param auditIndex The global sequential audit index.
+     */
     event PostExecutionAudited(
         address indexed account, bool isRoot, uint256 value, address indexed target, uint256 auditIndex
     );
+
+    /**
+     * @notice Emitted when the AI or vault-native calibration engine adjusts the daily tether radius.
+     * @param account The address of the smart account.
+     * @param previousRadius The spending radius before adjustment.
+     * @param newRadius The spending radius after adjustment.
+     * @param rationale Cryptographic audit explanation or rationale for the adjustment.
+     */
     event AutonomousRadiusAdjusted(
         address indexed account, uint256 previousRadius, uint256 newRadius, string rationale
     );
+
+    /**
+     * @notice Emitted when dynamic elasticity is enabled or disabled for an account.
+     * @param account The address of the smart account.
+     * @param enabled True if dynamic elasticity learning is enabled, false otherwise.
+     * @param maxCeiling The absolute upper limit the radius cannot exceed.
+     */
     event DynamicElasticityToggled(address indexed account, bool enabled, uint256 maxCeiling);
+
+    /**
+     * @notice Emitted when an autonomous AI execution is recorded for the user's morning review dashboard.
+     * @param account The address of the smart account.
+     * @param recordId Sequential record ID for this execution within the account.
+     * @param target The target contract address called.
+     * @param value The value executed.
+     * @param timestamp The block timestamp of the execution.
+     */
     event AutonomousExecutionLogged(
         address indexed account, uint256 indexed recordId, address indexed target, uint256 value, uint256 timestamp
     );
+
+    /**
+     * @notice Emitted when the user ratifies ("Likes") an autonomous execution during morning review.
+     * @param account The address of the smart account.
+     * @param recordId The execution record ID ratified.
+     * @param value The amount replenished back into the daily spending radius.
+     * @param newDailySpent The updated aggregate daily spent figure.
+     */
     event TransactionRatified(address indexed account, uint256 indexed recordId, uint256 value, uint256 newDailySpent);
+
+    /**
+     * @notice Emitted when the user flags an autonomous execution for cognitive unwind, applying a trust penalty.
+     * @param account The address of the smart account.
+     * @param recordId The execution record ID flagged.
+     * @param reason The user's feedback or reason for flagging the execution.
+     * @param penalizedRadius The contracted tether radius following the 20% trust penalty.
+     */
     event TransactionFlaggedForRevert(
         address indexed account, uint256 indexed recordId, string reason, uint256 penalizedRadius
     );
+
+    /**
+     * @notice Emitted when the user submits feedback notes for the AI brain with optional velocity allowance reduction.
+     * @param account The address of the smart account.
+     * @param recordId The execution record ID noted.
+     * @param note The user-provided instruction or teaching note.
+     * @param penalizeBrain True if a 10% allowance penalty was applied to the AI discretionary allowance.
+     * @param resultingRadius The resulting daily spending radius after any penalty.
+     */
     event TransactionNoteSubmitted(
         address indexed account, uint256 indexed recordId, string note, bool penalizeBrain, uint256 resultingRadius
     );
+
+    /**
+     * @notice Emitted when biometric authentication succeeds, opening the 5-minute grace period window.
+     * @param account The address of the smart account.
+     * @param verifier The caller that successfully submitted biometric verification.
+     * @param validUntil Expiration timestamp for the 5-minute biometric grace window.
+     */
     event BiometricVerificationCompleted(address indexed account, address indexed verifier, uint256 validUntil);
+
+    /**
+     * @notice Emitted when the active biometric verification window is cleared or revoked.
+     * @param account The address of the smart account.
+     */
     event BiometricVerificationRevoked(address indexed account);
+
+    /**
+     * @notice Emitted when a user submits a sign approval (Accept/Reject) for a proposed breakout execution.
+     * @param account The address of the smart account.
+     * @param executionHash Keccak256 hash of the execution calldata.
+     * @param approved True if approved (Accept), false if rejected (Reject).
+     */
     event SignApprovalSubmitted(address indexed account, bytes32 indexed executionHash, bool approved);
+
+    /**
+     * @notice Emitted when an AI agent session key records a liveness heartbeat.
+     * @param account The address of the smart account.
+     * @param sessionKey The session key address broadcasting the heartbeat.
+     * @param timestamp The block timestamp when the heartbeat was received.
+     */
     event AIHeartbeatRecorded(address indexed account, address indexed sessionKey, uint256 timestamp);
+
+    /**
+     * @notice Emitted when the custom AI heartbeat watchdog timeout is configured for an account.
+     * @param account The address of the smart account.
+     * @param newTimeout The watchdog timeout in seconds (minimum 1 hour).
+     */
     event AIHeartbeatTimeoutConfigured(address indexed account, uint256 newTimeout);
+
+    /**
+     * @notice Emitted when the Dead-Man's Switch recovery guardian and inactivity timeout are set.
+     * @param account The address of the smart account.
+     * @param guardian The designated corporate guardian / recovery address.
+     * @param timeoutSeconds The inactivity duration required before guardian can trigger recovery.
+     */
     event DeadmanSwitchConfigured(address indexed account, address indexed guardian, uint256 timeoutSeconds);
+
+    /**
+     * @notice Emitted when the corporate guardian triggers Dead-Man's Switch recovery after extended user inactivity.
+     * @param account The address of the smart account.
+     * @param guardian The corporate guardian that executed recovery.
+     * @param newRootOwner The new root owner address installed on the account.
+     * @param timestamp The block timestamp of recovery execution.
+     */
     event DeadmanSwitchTriggered(
         address indexed account, address indexed guardian, address newRootOwner, uint256 timestamp
     );
+
+    /**
+     * @notice Emitted when user activity is detected or pinged to refresh the Dead-Man's Switch inactivity timer.
+     * @param account The address of the smart account.
+     * @param timestamp The block timestamp of the activity ping.
+     */
     event UserActivityPinged(address indexed account, uint256 timestamp);
+
+    /**
+     * @notice Emitted when an account-specific Chainlink oracle price feed override is configured.
+     * @param account The address of the smart account.
+     * @param token The token address (or NATIVE_ETH sentinel).
+     * @param feed The Chainlink AggregatorV3 price feed contract address.
+     */
     event AccountPriceFeedConfigured(address indexed account, address indexed token, address indexed feed);
+
+    /**
+     * @notice Emitted when a default global Chainlink oracle price feed is configured.
+     * @param token The token address (or NATIVE_ETH sentinel).
+     * @param feed The Chainlink AggregatorV3 price feed contract address.
+     */
     event GlobalPriceFeedConfigured(address indexed token, address indexed feed);
+
+    /**
+     * @notice Emitted when WebAuthn P-256 Passkey hardware public key coordinates are registered for an account.
+     * @param account The address of the smart account.
+     * @param qx The P-256 public key affine X coordinate.
+     * @param qy The P-256 public key affine Y coordinate.
+     */
     event PasskeyConfigured(address indexed account, uint256 qx, uint256 qy);
 
     // --- Custom Errors ---
+
+    /// @notice Reverted when an execution attempt exceeds the remaining daily spending allowance without breakout authorization.
+    /// @param attempted The attempted spending amount.
+    /// @param remainingRadius The remaining daily allowance in the current epoch.
     error TetherRadiusExceeded(uint256 attempted, uint256 remainingRadius);
+
+    /// @notice Reverted when an AI session key attempts to interact with an unwhitelisted contract or the guard hook itself.
+    /// @param target The unauthorized target contract address.
     error UnauthorizedTarget(address target);
+
+    /// @notice Reverted when the target contract's risk tier exceeds the account's configured risk tier threshold.
+    /// @param target The target contract address.
+    /// @param targetTier The risk tier classification of the target contract.
+    /// @param allowedTier The maximum risk tier permitted by the account's policy.
     error AssetTierNotPermitted(address target, uint8 targetTier, uint8 allowedTier);
+
+    /// @notice Reverted when an unauthorized address attempts an administrative or restricted action.
     error UnauthorizedCaller();
+
+    /// @notice Reverted when an invalid tether radius (e.g., zero) is specified.
     error InvalidTetherRadius();
+
+    /// @notice Reverted when autonomous radius adjustment is called on an account without dynamic elasticity enabled.
     error DynamicAdjustmentDisabled();
+
+    /// @notice Reverted when proposed radius adjustment exceeds the user's hard elastic ceiling.
+    /// @param proposed The proposed new radius.
+    /// @param maxCeiling The configured hard maximum elastic ceiling.
     error ExceedsElasticCeiling(uint256 proposed, uint256 maxCeiling);
+
+    /// @notice Reverted when radius adjustment is attempted before the 24-hour step-up cooldown expires.
+    /// @param nextEligibleTime The timestamp when the next adjustment is permitted.
     error StepUpCooldownActive(uint256 nextEligibleTime);
+
+    /// @notice Reverted when an autonomous step-up exceeds the maximum allowed daily growth rate (10%).
+    /// @param proposed The proposed new radius.
+    /// @param maxAllowed The maximum radius permitted under the 10% daily limit.
     error ExcessiveStepUpJump(uint256 proposed, uint256 maxAllowed);
+
+    /// @notice Reverted when referencing a non-existent autonomous execution record ID.
     error InvalidRecordId();
+
+    /// @notice Reverted when attempting to review an execution record that is not in PENDING_REVIEW status.
+    /// @param currentStatus The existing review status of the record.
     error RecordAlreadyReviewed(ReviewStatus currentStatus);
+
+    /// @notice Reverted when a breakout transaction is attempted without an active 5-minute biometric grace period.
     error BiometricVerificationRequired();
+
+    /// @notice Reverted when breakout execution requires explicit sign approval from the root owner.
     error SignApprovalRequired();
+
+    /// @notice Reverted when an execution attempt matches an explicit user rejection hash.
     error ExecutionRejectedByUser();
+
+    /// @notice Reverted when a gasless sign approval ECDSA signature fails verification against the root owner.
     error InvalidApprovalSignature();
+
+    /// @notice Reverted when an AI session key attempts execution after the heartbeat watchdog timeout has elapsed.
+    /// @param lastBeat The timestamp of the last recorded heartbeat.
+    /// @param currentTime The current block timestamp.
     error AIHeartbeatStale(uint256 lastBeat, uint256 currentTime);
+
+    /// @notice Reverted when Dead-Man's Switch recovery is triggered before the required inactivity period has elapsed.
+    /// @param lastActivity The timestamp of last detected user activity.
+    /// @param eligibleTime The earliest timestamp when Dead-Man's recovery can be executed.
     error DeadmanSwitchNotEligible(uint256 lastActivity, uint256 eligibleTime);
+
+    /// @notice Reverted when an address other than the designated corporate guardian attempts Dead-Man's Switch recovery.
     error UnauthorizedGuardian();
+
+    /// @notice Reverted when RIP-7212 P-256 precompile verification fails for a passkey signature.
     error InvalidP256Signature();
+
+    /// @notice Reverted when a Chainlink price feed returns a non-positive price answer.
+    /// @param token The token address queried.
+    /// @param price The invalid price returned by the oracle.
     error InvalidOraclePrice(address token, int256 price);
+
+    /// @notice Reverted when a Chainlink price feed returns data older than the staleness threshold.
+    /// @param token The token address queried.
+    /// @param updatedAt The timestamp when the price was last updated by Chainlink.
     error StaleOraclePrice(address token, uint256 updatedAt);
+
+    /// @notice Reverted when USD-normalized pricing is required for a token with no configured price feed.
+    /// @param token The token address lacking a Chainlink price feed.
     error MissingOraclePriceFeed(address token);
+
+    /// @notice Reverted when P-256 verification coordinates do not match the account's registered passkey.
     error UnauthorizedPasskey();
+
+    /// @notice Reverted when a signature is submitted after its expiration deadline.
     error ExpiredSignature();
+
+    /// @notice Reverted when a biometric challenge is reused, protecting against replay attacks.
     error ChallengeAlreadyUsed();
 
+    /**
+     * @notice Restricts execution to either the smart account itself or its registered root owner passkey address.
+     * @param account The smart account whose policy is being accessed or modified.
+     */
     modifier onlyAccountOrOwner(address account) {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
             revert UnauthorizedCaller();
@@ -259,6 +562,10 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Overload for backwards compatibility (defaults to static limited mode).
+     * @param account The address of the smart account.
+     * @param rootOwner The Passkey / WebAuthn root owner address.
+     * @param initialRadius The initial daily spending tether radius.
+     * @param initialRiskTier The user's risk tolerance tier (1: Core, 2: Growth, 3: Unrestricted).
      */
     function initializeAccountPolicy(address account, address rootOwner, uint256 initialRadius, uint8 initialRiskTier)
         external
@@ -322,6 +629,8 @@ contract TetherGuardHook is IERC7579Hook {
      *      completely independent of off-chain AI calculation.
      *      Maximum increase is strictly capped at 10% per day.
      *      Requires positive user ratifications and zero active reverts.
+     * @param account The smart account to calibrate.
+     * @return newRadius The newly computed and updated daily Tether Radius.
      */
     function calibrateDynamicRadius(address account) external returns (uint256 newRadius) {
         AccountPolicy storage p = policies[account];
@@ -370,6 +679,9 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Toggle dynamic elasticity on/off and update the maximum elastic ceiling.
+     * @param account The address of the smart account.
+     * @param enabled True to enable autonomous elasticity calibration, false to enforce static limits.
+     * @param maxCeiling The absolute upper limit the radius can never exceed.
      */
     function setDynamicElasticity(address account, bool enabled, uint256 maxCeiling)
         external
@@ -386,6 +698,9 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Updates The Tether Radius or Risk Tier (can only be called by root owner or account).
+     * @param account The address of the smart account.
+     * @param newRadius The newly configured daily spending radius.
+     * @param newRiskTier The newly assigned risk tolerance tier (1, 2, or 3).
      */
     function setTetherRadius(address account, uint256 newRadius, uint8 newRiskTier)
         external
@@ -403,6 +718,10 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Whitelists an on-chain protocol and sets its risk tier rating.
+     * @param account The address of the smart account.
+     * @param target The target contract address to whitelist or modify.
+     * @param status True to allow interactions, false to revoke.
+     * @param tier The risk tier classification for this target contract.
      */
     function setTargetWhitelist(address account, address target, bool status, uint8 tier)
         external
@@ -416,6 +735,9 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Authorizes or revokes an ephemeral AI Agent session key.
+     * @param account The address of the smart account.
+     * @param sessionKey The ephemeral AI session key address.
+     * @param status True to authorize, false to revoke.
      */
     function setSessionKeyAuthorization(address account, address sessionKey, bool status)
         external
@@ -431,6 +753,9 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Configures a per-account Chainlink price feed override for a token or NATIVE_ETH.
+     * @param account The address of the smart account.
+     * @param token The token address (or NATIVE_ETH sentinel).
+     * @param feed The Chainlink AggregatorV3 price feed contract address.
      */
     function setAccountPriceFeed(address account, address token, address feed) external onlyAccountOrOwner(account) {
         accountPriceFeeds[account][token] = feed;
@@ -439,6 +764,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Configures a global default Chainlink price feed for a token or NATIVE_ETH.
+     * @param token The token address (or NATIVE_ETH sentinel).
+     * @param feed The Chainlink AggregatorV3 price feed contract address.
      */
     function setGlobalPriceFeed(address token, address feed) external {
         if (msg.sender != deployer || deployer == address(0)) {
@@ -450,6 +777,9 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Resolves active price feed for an account and token (account override > global default).
+     * @param account The address of the smart account.
+     * @param token The token address queried.
+     * @return feed The resolved AggregatorV3 price feed address (or address(0) if none).
      */
     function getPriceFeed(address account, address token) public view returns (address) {
         address feed = accountPriceFeeds[account][token];
@@ -460,6 +790,10 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Fetches the latest USD price (8 decimals) and feed decimals from the configured Chainlink oracle.
      * @dev Validates price freshness (< 24h) and non-negative answer.
+     * @param account The address of the smart account.
+     * @param token The token address queried (or NATIVE_ETH sentinel).
+     * @return priceUSD The latest asset price normalized to Chainlink feed decimals.
+     * @return feedDecimals The number of decimals reported by the Chainlink aggregator.
      */
     function getLatestPrice(address account, address token) public view returns (uint256 priceUSD, uint8 feedDecimals) {
         address feed = getPriceFeed(account, token);
@@ -482,7 +816,13 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @dev Internal helper to calculate USD value normalized to 8 decimals.
+     * @notice Computes normalized 8-decimal USD value for a given token balance and oracle price.
+     * @dev Internal helper accounting for both token decimals and oracle feed decimals.
+     * @param amount The token balance or transaction amount.
+     * @param tokenDecimals The decimal places of the underlying token (e.g. 18 for WETH, 6 for USDC).
+     * @param priceUSD The price fetched from Chainlink.
+     * @param feedDecimals The decimal places of the Chainlink feed (typically 8).
+     * @return val The calculated value normalized strictly to 8 decimal places.
      */
     function _calculateUSD(uint256 amount, uint8 tokenDecimals, uint256 priceUSD, uint8 feedDecimals)
         internal
@@ -502,7 +842,12 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @dev Safe oracle lookup helper for read-only portfolio views without reverting.
+     * @notice Performs a fault-tolerant oracle lookup for portfolio views without reverting on oracle failure.
+     * @dev Internal view helper returning zeros if feed is missing, negative, or stale.
+     * @param account The address of the smart account.
+     * @param token The token address to query.
+     * @return priceUSD The reported oracle price (0 if query fails).
+     * @return feedDecimals The oracle decimals (0 if query fails).
      */
     function _safeGetPrice(address account, address token)
         internal
@@ -532,6 +877,12 @@ contract TetherGuardHook is IERC7579Hook {
      *         and normalizes the value into 8-decimal USD via Chainlink Price Feeds.
      * @dev If feeds are configured, returns the total USD value of the call.
      *      If no feeds are configured, falls back to raw nativeValue/tokenAmount for backwards compatibility.
+     * @param account The address of the smart account.
+     * @param target The target contract address being executed.
+     * @param nativeValue The native Ether value accompanying the transaction.
+     * @param msgData The execution calldata payload.
+     * @return effectiveAmount The computed effective value (USD 8-decimal or raw units).
+     * @return isUSD True if value was calculated using Chainlink USD price feeds, false otherwise.
      */
     function calculateCallUSDValue(address account, address target, uint256 nativeValue, bytes calldata msgData)
         public
@@ -651,6 +1002,10 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice ERC-7579 Pre-execution Hook verification.
      * @dev Enforces The Tether Radius, target whitelist, risk tiers, and the 5-minute Biometric Verification / Sign Approval protocol.
+     * @param msgSender The address of the caller initiating execution on the smart account.
+     * @param value The amount of native Ether transferred with the execution call.
+     * @param msgData The execution calldata payload (ERC-7579 execution format).
+     * @return hookData Contextual byte payload passed forward to postCheck callback.
      */
     function preCheck(address msgSender, uint256 value, bytes calldata msgData)
         external
@@ -772,6 +1127,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice ERC-7579 Post-execution Hook callback for WeIdentity audit logs and Morning Review recording.
+     * @dev Automatically parses hookData and logs autonomous executions for asynchronous morning review.
+     * @param hookData The byte payload returned from preCheck containing execution context.
      */
     function postCheck(bytes calldata hookData) external override {
         // Unpack hookData for telemetry confirmation
@@ -802,6 +1159,8 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Morning Review: User "Likes" / Ratifies an autonomous transaction done while inactive.
      * @dev Replenishes The Tether Radius by the amount of this transaction (since it has explicit user ratification).
+     * @param account The address of the smart account.
+     * @param recordId The unique ID of the autonomous execution record to ratify.
      */
     function ratifyTransaction(address account, uint256 recordId) external onlyAccountOrOwner(account) {
         AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
@@ -830,6 +1189,9 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Morning Review: User rejects / flags an autonomous transaction for cognitive unwind.
      * @dev Marks transaction as REVERT_REQUESTED, contracts the dynamic Tether Radius as a trust penalty.
+     * @param account The address of the smart account.
+     * @param recordId The unique ID of the autonomous execution record to flag.
+     * @param reason The user's feedback or rationale for flagging the transaction.
      */
     function flagTransactionForRevert(address account, uint256 recordId, string calldata reason)
         external
@@ -864,6 +1226,10 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Morning Review: User attaches a feedback note to teach the AI Brain, with optional Brain allowance penalty.
      * @dev The Vault itself is sovereign and NEVER penalized. This penalty only restricts the autonomous AI Brain's
      *      discretionary Tether Radius allowance, leaving all Vault treasury funds and user root capabilities intact.
+     * @param account The address of the smart account.
+     * @param recordId The unique ID of the autonomous execution record being annotated.
+     * @param note Explanatory feedback or guidance text for future autonomous transactions.
+     * @param penalizeBrain True to reduce the autonomous spending allowance by 10%, false to keep radius unchanged.
      */
     function submitTransactionNote(address account, uint256 recordId, string calldata note, bool penalizeBrain)
         external
@@ -895,6 +1261,9 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice View an individual autonomous execution record.
+     * @param account The address of the smart account.
+     * @param recordId The unique ID of the execution record.
+     * @return The AutonomousExecutionRecord struct.
      */
     function getExecutionRecord(address account, uint256 recordId)
         external
@@ -906,6 +1275,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice View all pending review records for the morning review dashboard.
+     * @param account The address of the smart account.
+     * @return pending An array of AutonomousExecutionRecord structs currently in PENDING_REVIEW status.
      */
     function getPendingReviews(address account) external view returns (AutonomousExecutionRecord[] memory) {
         uint256 total = executionCount[account];
@@ -929,6 +1300,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice View complete policy configuration for an account.
+     * @param account The address of the smart account.
+     * @return The AccountPolicy struct containing current parameters.
      */
     function getAccountPolicy(address account) external view returns (AccountPolicy memory) {
         return policies[account];
@@ -936,6 +1309,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice View remaining spending radius in current 24h epoch.
+     * @param account The address of the smart account.
+     * @return The remaining spending allowance for the current epoch.
      */
     function getRemainingRadius(address account) external view returns (uint256) {
         AccountPolicy storage p = policies[account];
@@ -955,6 +1330,7 @@ contract TetherGuardHook is IERC7579Hook {
      * @dev Opens an active 5-minute verification grace period. During this window, any
      *      breakout transaction sent by the Brain requires only a simple sign approval
      *      (Normal Accept or Reject), rather than prompting for biometric authentication repeatedly.
+     * @param account The address of the smart account.
      */
     function completeBiometricVerification(address account) external onlyAccountOrOwner(account) {
         uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
@@ -965,6 +1341,7 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Explicitly revokes / clears the active biometric verification window (e.g. user locks app).
+     * @param account The address of the smart account.
      */
     function revokeBiometricVerification(address account) external onlyAccountOrOwner(account) {
         biometricVerifiedUntil[account] = 0;
@@ -1007,6 +1384,11 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Relayed / Gasless Sign Approval with an ECDSA signature from the Root Owner.
      * @dev Protected with nonce, deadline, and chainId to prevent signature replay and cross-chain attacks.
+     * @param account The smart account address.
+     * @param executionHash The keccak256 hash of the target execution calldata.
+     * @param approve True to approve, false to reject.
+     * @param deadline Expiration timestamp for the gasless signature.
+     * @param signature Cryptographic ECDSA signature from the root owner.
      */
     function submitSignApprovalWithSignature(
         address account,
@@ -1053,6 +1435,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Check whether the 5-minute biometric verification window is currently active.
+     * @param account The address of the smart account.
+     * @return True if the biometric window is active, false otherwise.
      */
     function isBiometricActive(address account) external view returns (bool) {
         return block.timestamp <= biometricVerifiedUntil[account];
@@ -1060,6 +1444,10 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Check approval status for an execution hash.
+     * @param account The address of the smart account.
+     * @param executionHash The keccak256 hash of the execution calldata.
+     * @return isApproved True if explicitly approved by user.
+     * @return isRejected True if explicitly rejected by user.
      */
     function getSignApprovalStatus(address account, bytes32 executionHash)
         external
@@ -1075,6 +1463,7 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Broadcasts an AI liveness heartbeat from an authorized session key.
+     * @param account The address of the smart account.
      */
     function recordAIHeartbeat(address account) external {
         if (
@@ -1089,6 +1478,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Configures custom AI heartbeat timeout (e.g. 24 hours, 48 hours).
+     * @param account The address of the smart account.
+     * @param timeoutSeconds The timeout threshold in seconds (minimum 1 hour).
      */
     function configureAIHeartbeatTimeout(address account, uint256 timeoutSeconds) external onlyAccountOrOwner(account) {
         require(timeoutSeconds >= 1 hours, "TIMEOUT_TOO_SHORT");
@@ -1098,6 +1489,9 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Configures Dead-Man's Switch guardian and inactivity threshold.
+     * @param account The address of the smart account.
+     * @param guardian The designated corporate guardian / recovery multisig.
+     * @param timeoutSeconds Inactivity threshold in seconds (0 = defaults to 90 days).
      */
     function configureDeadmanSwitch(address account, address guardian, uint256 timeoutSeconds)
         external
@@ -1114,6 +1508,7 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Pings user activity to reset Dead-Man's Switch timer.
+     * @param account The address of the smart account.
      */
     function pingUserActivity(address account) external onlyAccountOrOwner(account) {
         lastUserActivity[account] = block.timestamp;
@@ -1123,6 +1518,8 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Triggers Dead-Man's Switch recovery after user has been inactive for the designated timeout.
      * @dev Rotates the Root Owner to a designated corporate guardian / successor, restoring vault sovereignty.
+     * @param account The address of the smart account.
+     * @param newRootOwner The replacement root owner address to install.
      */
     function triggerDeadmanRecovery(address account, address newRootOwner) external {
         if (msg.sender != deadmanGuardians[account]) {
@@ -1145,6 +1542,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice View helper to check if AI Heartbeat is currently healthy.
+     * @param account The address of the smart account.
+     * @return True if heartbeat is active within the timeout window, false if stale.
      */
     function isAIHeartbeatAlive(address account) external view returns (bool) {
         if (lastAIHeartbeat[account] == 0) return true;
@@ -1155,6 +1554,8 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice View helper to check if Dead-Man's Switch is currently triggerable by the guardian.
+     * @param account The address of the smart account.
+     * @return True if user inactivity period has elapsed and guardian can trigger recovery.
      */
     function isDeadmanSwitchTriggerable(address account) external view returns (bool) {
         if (deadmanGuardians[account] == address(0) || lastUserActivity[account] == 0) return false;
@@ -1169,6 +1570,9 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Configures the WebAuthn P-256 Passkey coordinates (qx, qy) for an account.
      * @dev Allows deployer to register initial coordinates during onboarding if not yet registered.
+     * @param account The address of the smart account.
+     * @param qx Affine X coordinate of the user's secp256r1 public key.
+     * @param qy Affine Y coordinate of the user's secp256r1 public key.
      */
     function setAccountPasskey(address account, uint256 qx, uint256 qy) external {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -1186,6 +1590,13 @@ contract TetherGuardHook is IERC7579Hook {
      * @dev Opens the 5-minute Biometric Verification window upon successful hardware verification.
      *      Coordinates (qx, qy) must strictly match the account's registered passkey.
      *      SEC-01: Enforces deadline and tracks challenge replay protection.
+     * @param account The address of the smart account.
+     * @param messageHash The signed challenge digest.
+     * @param r Signature r value.
+     * @param s Signature s value (normalized).
+     * @param qx Public key X coordinate.
+     * @param qy Public key Y coordinate.
+     * @param deadline Expiration timestamp for the biometric challenge.
      */
     function completeBiometricVerificationWithP256(
         address account,
@@ -1229,6 +1640,12 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Backward-compatible overload for WebAuthn P-256 biometric verification.
+     * @param account The address of the smart account.
+     * @param messageHash The signed challenge digest.
+     * @param r Signature r value.
+     * @param s Signature s value.
+     * @param qx Public key X coordinate.
+     * @param qy Public key Y coordinate.
      */
     function completeBiometricVerificationWithP256(
         address account,
@@ -1244,7 +1661,10 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @dev Helper to extract the destination target from execution calldata.
+     * @notice Extracts the destination target from execution calldata.
+     * @dev In standard ERC-7579 execution encoding, the first 20 bytes contain the target address.
+     * @param msgData The raw execution calldata.
+     * @return target The extracted target contract address (or address(0) if data is shorter than 20 bytes).
      */
     function _extractTarget(bytes calldata msgData) internal pure returns (address target) {
         if (msgData.length >= 20) {
@@ -1256,7 +1676,11 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @dev Recovers signer from standard Ethereum signed message hash with EIP-2 malleability protection.
+     * @notice Recovers signer from standard Ethereum signed message hash with EIP-2 malleability protection.
+     * @dev Validates s value to prevent signature malleability attacks.
+     * @param ethHash The 32-byte Ethereum signed message hash.
+     * @param sig The 65-byte ECDSA signature (r, s, v).
+     * @return The recovered address, or address(0) if recovery fails or signature is malleable.
      */
     function _recoverSigner(bytes32 ethHash, bytes memory sig) internal pure returns (address) {
         if (sig.length != 65) return address(0);
