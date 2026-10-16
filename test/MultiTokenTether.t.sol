@@ -261,7 +261,7 @@ contract MultiTokenTetherTest is Test {
     // =========================================================================
     // --- Test 10: Comprehensive Portfolio Valuation (getTotalPortfolioValueUSD) ---
     // =========================================================================
-    function test_GetTotalPortfolioValueUSD_ReturnsAccurateValuation() public {
+    function test_GetTotalPortfolioValueUSD_ReturnsAccurateValuation() public view {
         // Treasury Balances:
         // 10 ETH @ $3,000 = $30,000
         // 100,000 USDC @ $1.00 = $100,000
