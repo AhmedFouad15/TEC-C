@@ -1051,7 +1051,7 @@ contract TetherGuardHook is IERC7579Hook {
         if (msgSender == p.rootOwner) {
             lastUserActivity[account] = block.timestamp;
             if (isBreakout) {
-                // "Breaking the Tether: Not if they are logged in 5alas!"
+                // Breaking the Tether: Active biometric verification required (5-minute window)
                 // Even the logged-in root owner MUST have an active biometric verification window (within last 5 minutes).
                 if (block.timestamp > biometricVerifiedUntil[account]) {
                     revert BiometricVerificationRequired();

@@ -152,7 +152,7 @@ contract TetherGuardHookTest is Test {
         // Root Owner initiates a transaction exceeding the radius (e.g. 10 ETH) WITHOUT active biometric verification
         bytes memory msgData = abi.encodePacked(address(lidoStaking), uint256(10 ether), hex"");
 
-        // "Not if they are logged in 5alas!" -> Must revert with BiometricVerificationRequired!
+        // Invariant: Without active biometric verification, breakout reverts with BiometricVerificationRequired!
         vm.prank(tecAccount);
         vm.expectRevert(TetherGuardHook.BiometricVerificationRequired.selector);
         hook.preCheck(rootOwner, 10 ether, msgData);

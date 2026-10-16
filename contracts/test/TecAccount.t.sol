@@ -123,7 +123,7 @@ contract TecAccountTest is Test {
 
         bytes memory executionCalldata = abi.encodePacked(address(lidoStaking), uint256(breakoutAmount), callPayload);
 
-        // 1. "Not if they are logged in 5alas!": Without active biometric verification, breakout reverts!
+        // 1. Invariant: Without active biometric verification, breakout reverts!
         vm.prank(rootOwner);
         vm.expectRevert(TetherGuardHook.BiometricVerificationRequired.selector);
         account.execute(bytes32(0), executionCalldata);
