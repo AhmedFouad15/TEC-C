@@ -1,0 +1,269 @@
+"""Typed domain models shared by every layer of the Brain.
+
+UNIT CONVENTION (applies to every field below unless its description says otherwise):
+
+* Rates — APY, hurdle, PD, edges, scores — are **fractions per year**: 0.0215 means 2.15 %/yr.
+  Convert to percent only when displaying.
+* Money is **float USD**. The vault (TetherGuardHook) measures the Tether Radius in **8-decimal USD**
+  (Chainlink normalised); convert only at the chain boundary with :func:`usd_to_onchain` /
+  :func:`onchain_to_usd`. Never pass wei or USD×1e8 into the risk engine.
+* Probabilities are in [0, 1].
+* Prices of pegged assets are in **peg units** (USDC 0.88 means 0.88 USD; stETH 0.94 means 0.94 ETH).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import ROUND_HALF_EVEN, Decimal
+from enum import Enum, IntEnum
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+ONCHAIN_USD_DECIMALS = 8
+
+
+def usd_to_onchain(usd: float) -> int:
+    """Float USD -> 8-decimal USD integer used by TetherGuardHook (round half-even)."""
+    scaled = Decimal(str(usd)) * (Decimal(10) ** ONCHAIN_USD_DECIMALS)
+    return int(scaled.quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
+
+
+def onchain_to_usd(value: int) -> float:
+    """8-decimal USD integer from TetherGuardHook -> float USD."""
+    return float(Decimal(value) / (Decimal(10) ** ONCHAIN_USD_DECIMALS))
+
+
+Fraction = Field(ge=0.0, le=1.0)
+
+
+# --- Enums -------------------------------------------------------------------------------------
+
+
+class RiskTier(IntEnum):
+    """Matches TetherGuardHook RISK_TIER_* constants."""
+
+    CONSERVATIVE = 1
+    BALANCED = 2
+    AGGRESSIVE = 3
+
+
+class ActionType(str, Enum):
+    STAKE = "stake"
+    DEPOSIT = "deposit"
+    OPTIMIZE_YIELD = "optimize_yield"
+    SWAP = "swap"
+    WITHDRAW = "withdraw"
+    TRANSFER = "transfer"
+    REDUCE_EXPOSURE = "reduce_exposure"
+    BUY_DISCOUNT = "buy_discount"
+
+
+class AssetKind(str, Enum):
+    NATIVE = "native"
+    STABLE_FIAT = "stable_fiat"
+    STABLE_CRYPTO = "stable_crypto"
+    STABLE_ALGORITHMIC = "stable_algorithmic"
+    LST = "lst"
+    GOLD = "gold"
+    BTC_WRAPPED = "btc_wrapped"
+
+
+class AutonomyMode(str, Enum):
+    AUTO = "AUTO"
+    PROPOSE = "PROPOSE"
+    BREAKOUT = "BREAKOUT"
+    BLOCKED = "BLOCKED"
+
+
+class CardLabel(str, Enum):
+    GOOD = "GOOD"
+    BETTER = "BETTER"
+    BEST = "BEST"
+    REDUCE_EXPOSURE = "REDUCE_EXPOSURE"
+    OPPORTUNITY = "OPPORTUNITY"
+
+
+REDEMPTION_OPEN = 0.0
+REDEMPTION_DELAYED = 0.5
+REDEMPTION_PAUSED = 1.0
+_REDEMPTION_VALUES = {REDEMPTION_OPEN, REDEMPTION_DELAYED, REDEMPTION_PAUSED}
+
+Peg = Literal["USD", "ETH", "XAU"]
+
+_STATIC = ConfigDict(frozen=True, extra="forbid")
+
+
+# --- Static reference data ---------------------------------------------------------------------
+
+
+class Asset(BaseModel):
+    """A token the Brain can hold or reason about (static, from data/assets.json)."""
+
+    model_config = _STATIC
+
+    symbol: str
+    name: str
+    kind: AssetKind
+    peg: Peg | None = None
+    tier: RiskTier
+    cluster: str | None = Field(None, description="Contagion cluster id, e.g. usd_fiat")
+    reserve_quality: float = Field(1.0, ge=0, le=1, description="q: share of value left if the peg mechanism fails")
+    lgd: float = Field(0.0, ge=0, le=1, description="Loss given impairment, fraction of position")
+    pd_base: float = Field(0.0, ge=0, le=1, description="Baseline annual probability of permanent impairment")
+    redemption_fee: float = Field(0.0, ge=0, le=0.05, description="Fraction charged on redemption")
+    redemption_delay_days: float = Field(0.0, ge=0)
+    coverage_default: float = Field(
+        1.0, ge=0, le=1.5, description="Claim per token honoured by the redemption mechanism (BRAIN_DESIGN §2.4)"
+    )
+    note: str = ""
+
+
+class Venue(BaseModel):
+    """A place money can go: a protocol position the Brain can propose (static, data/venues.json)."""
+
+    model_config = _STATIC
+
+    id: str
+    name: str
+    protocol: str
+    action: ActionType
+    accepts: list[str] = Field(min_length=1, description="Asset symbols that can be deposited")
+    produces: str | None = Field(None, description="Asset symbol received, if any")
+    tier: RiskTier
+    pd_base: float = Field(ge=0, le=1, description="Annual probability of permanent impairment of the venue")
+    lgd: float = Field(ge=0, le=1, description="Loss given impairment, fraction of position")
+    entry_slippage_bps: float = Field(0.0, ge=0, description="Normal-conditions entry cost, basis points")
+    exit_slippage_bps: float = Field(0.0, ge=0, description="Normal-conditions exit slippage, basis points")
+    redemption_delay_days: float = Field(0.0, ge=0, description="Wait before exit proceeds are available")
+    exposures: list[str] = Field(default_factory=list, description="Pegged assets this position depends on")
+    target_address: str | None = Field(None, description="On-chain target, filled at deployment (Phase 7)")
+    note: str = ""
+
+
+class ContagionLink(BaseModel):
+    """Directed link: distress in `source` raises failure risk of `target` by rho (BRAIN_DESIGN §2.5)."""
+
+    model_config = _STATIC
+
+    source: str
+    target: str
+    rho: float = Field(ge=0, le=1)
+    note: str = ""
+
+
+# --- Market inputs -----------------------------------------------------------------------------
+
+
+class PegState(BaseModel):
+    """Live state of a pegged asset — the inputs of the regime model (BRAIN_DESIGN §2.4)."""
+
+    model_config = _STATIC
+
+    symbol: str
+    price: float = Field(gt=0, description="Price in peg units")
+    sentiment_negative: float = Field(0.0, ge=0, le=1, description="FinBERT P(negative) for matched entity")
+    redemption_status: float = Field(REDEMPTION_OPEN, description="0 open, 0.5 delayed/limited, 1 paused")
+    liquidity_stress: float = Field(0.0, ge=0, le=1, description="Pool imbalance / depth drop vs 7-day avg")
+    coverage: float = Field(1.0, ge=0, le=1.5, description="Claim per token honoured by redemption")
+    source: str = "unknown"
+    as_of: datetime | None = None
+
+    @field_validator("redemption_status")
+    @classmethod
+    def _known_redemption_status(cls, value: float) -> float:
+        if value not in _REDEMPTION_VALUES:
+            raise ValueError("redemption_status must be 0 (open), 0.5 (delayed) or 1 (paused)")
+        return value
+
+
+class VenueQuote(BaseModel):
+    model_config = _STATIC
+
+    venue_id: str
+    apy: float = Field(ge=-1, le=10, description="Fraction per year")
+    depth_usd: float = Field(ge=0)
+    source: str = "unknown"
+    as_of: datetime | None = None
+
+
+class NewsSignal(BaseModel):
+    model_config = _STATIC
+
+    entity: str
+    p_negative: float = Field(ge=0, le=1)
+    headline: str
+    source: str = "unknown"
+
+
+class MarketSnapshot(BaseModel):
+    """Everything the risk engine reads about the market at one moment."""
+
+    model_config = _STATIC
+
+    as_of: datetime
+    hurdle_rate: float = Field(ge=-0.05, le=0.5, description="1Y Shibor, fraction per year")
+    shibor: dict[str, float] = Field(default_factory=dict, description="Tenor -> fraction per year")
+    prices_usd: dict[str, float] = Field(default_factory=dict)
+    venues: dict[str, VenueQuote] = Field(default_factory=dict)
+    pegs: dict[str, PegState] = Field(default_factory=dict)
+    news: list[NewsSignal] = Field(default_factory=list)
+    source: str
+
+
+# --- Intent and decision contracts -------------------------------------------------------------
+
+
+class Mandate(BaseModel):
+    """A user's request, parsed into typed form."""
+
+    raw_text: str
+    action: ActionType
+    asset: str
+    amount: float = Field(ge=0, description="In units of `asset`")
+    amount_usd: float | None = Field(None, ge=0)
+    horizon_days: int = Field(365, gt=0)
+    recipients: list[str] = Field(default_factory=list, description="Must stay empty unless whitelisted")
+    constraints: list[str] = Field(default_factory=list)
+    parser: Literal["rules", "llm"] = "rules"
+
+
+class ScoreBreakdown(BaseModel):
+    """Every term of score = excess − (1+λ)·PD·LGD − c_in − c_out_stress + w_a·a, fractions per year."""
+
+    excess_yield: float
+    pd: float = Field(ge=0, le=1)
+    lgd: float = Field(ge=0, le=1)
+    expected_loss: float
+    loss_weighted: float
+    c_in: float
+    c_out_stress: float
+    affinity_term: float = 0.0
+    total: float
+
+
+class Candidate(BaseModel):
+    venue_id: str
+    action: ActionType
+    asset_in: str
+    amount_usd: float = Field(ge=0)
+    apy: float
+    score: ScoreBreakdown | None = None
+    rejected_reasons: list[str] = Field(default_factory=list)
+
+
+class Card(BaseModel):
+    label: CardLabel
+    candidate: Candidate
+    mode: AutonomyMode
+    headline: str
+    explanation: list[str] = Field(default_factory=list)
+
+
+class Decision(BaseModel):
+    mandate: Mandate
+    mode: AutonomyMode
+    auto_amount_usd: float = Field(0.0, ge=0)
+    proposed_amount_usd: float = Field(0.0, ge=0)
+    cards: list[Card] = Field(default_factory=list)
+    trace: list[str] = Field(default_factory=list)
