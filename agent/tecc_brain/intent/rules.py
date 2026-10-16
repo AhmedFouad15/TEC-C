@@ -96,8 +96,9 @@ def parse(
     ref: Reference,
     portfolio: Portfolio | None = None,
     allowed_recipients: frozenset[str] = frozenset(),
+    known_identities: frozenset[str] = frozenset(),
 ) -> ParseOutcome:
-    verdict = scan(text, allowed_recipients)
+    verdict = scan(text, allowed_recipients, known_identities)
     if not verdict.allowed:
         return ParseOutcome(
             mandate=None, verdict=verdict, errors=[f"refused by firewall: {', '.join(t.value for t in verdict.threats)}"]

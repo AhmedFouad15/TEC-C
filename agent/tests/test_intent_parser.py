@@ -42,8 +42,9 @@ def test_valid_llm_reply_produces_an_llm_mandate_with_restored_amount():
 
 
 def test_llm_only_ever_sees_masked_text():
+    did = f"did:weid:101:{ADDR}"
     llm = FakeLLM(GOOD_REPLY)
-    LLMParser(llm).parse(f"Stake my 10 ETH for did:weid:101:{ADDR}", REF)
+    LLMParser(llm, known_identities=frozenset({did})).parse(f"Stake my 10 ETH for {did}", REF)
     [prompt] = llm.prompts
     assert "<AMT_1>" in prompt
     assert ADDR not in prompt and " 10 " not in prompt
@@ -86,3 +87,10 @@ def test_attacks_never_reach_the_llm(attack):
     outcome = LLMParser(llm).parse(attack, REF)
     assert outcome.mandate is None and not outcome.verdict.allowed
     assert llm.prompts == []
+
+
+def test_llm_receives_the_firewall_approved_text_not_the_raw_input():
+    llm = FakeLLM(GOOD_REPLY)
+    LLMParser(llm).parse("Stake my 1\u200b0 ETH", REF)
+    [prompt] = llm.prompts
+    assert "\u200b" not in prompt
