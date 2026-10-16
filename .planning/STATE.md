@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** The risk engine must be right and defensible — 3-regime peg model, fundamental fair value, loss-averse %/yr scoring reproducing the spec numbers.
-**Current focus:** Phase 5.1 — Sharpe & CVaR
+**Current focus:** Phase 6 — API Layer (LangGraph pipeline)
 
 ## Current Position
 
-Phase: 5.1 of 8 (Sharpe & CVaR, inserted)
+Phase: 6 of 8 (API Layer)
 Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-16 — Phase 5 complete (348 tests)
+Status: Ready to plan
+Last activity: 2026-10-16 — Phase 5.1 Sharpe & CVaR complete (361 tests)
 
-Progress: ██████░░░░ 58% (14/24 plans)
+Progress: ██████░░░░ 63% (15/24 plans)
 
 ## Performance Metrics
 
