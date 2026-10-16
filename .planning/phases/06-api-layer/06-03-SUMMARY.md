@@ -33,3 +33,4 @@ completed: 2026-10-16
 
 ## Next
 - Phase 7: Foundry + Anvil, deploy Ahmed's contracts, UserOperation + session-key signature, executor, event listener.
+- Security follow-up `92ab05f`: Host-header check (DNS rebinding) and Origin check (CSRF) in loopback mode.
