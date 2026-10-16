@@ -198,4 +198,4 @@ def opportunity_cards(
                 ],
             )
         )
-    return cards
+    return sorted(cards, key=lambda c: c.candidate.apy, reverse=True)

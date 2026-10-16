@@ -136,3 +136,14 @@ def test_stale_heartbeat_blocks_everything():
 def test_spent_radius_shrinks_the_autonomous_slice():
     decision = _plan(SCENE_1, spent_today_usd=300)
     assert decision.auto_amount_usd == pytest.approx(0.8 * 200)
+
+
+def test_personal_history_shows_up_in_the_explanation():
+    best = _card(_plan(SCENE_1), CardLabel.BEST)
+    assert best.candidate.score.affinity_term > 0
+    assert any("approved this protocol before" in line for line in best.explanation)
+
+
+def test_opportunities_are_ranked_by_edge():
+    edges = [c.candidate.apy for c in _plan(SCENE_1, snapshot=DISTRESS).cards if c.label == CardLabel.OPPORTUNITY]
+    assert len(edges) >= 2 and edges == sorted(edges, reverse=True)

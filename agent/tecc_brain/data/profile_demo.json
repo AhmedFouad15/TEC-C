@@ -1,0 +1,8 @@
+{
+  "account": "demo",
+  "tier": 2,
+  "lam": 1.0,
+  "tau": 0.6,
+  "approvals": {"aave_v3_usdc": [5, 2]},
+  "note": "Demo cardholder: Balanced tier, has ratified three earlier Aave deposits in Morning Review (Beta(2,2) prior + 3 likes). Never used Curve or Lido through Tec-C."
+}

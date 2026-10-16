@@ -231,6 +231,58 @@ class Portfolio(BaseModel):
         return sum(p.amount_usd for p in self.positions)
 
 
+# --- User profile and vault state --------------------------------------------------------------
+
+# Minimum posterior approval probability before the Brain may act alone, by tier (BRAIN_DESIGN §2.3).
+APPROVAL_THRESHOLDS: dict[RiskTier, float] = {
+    RiskTier.CONSERVATIVE: 0.80,
+    RiskTier.BALANCED: 0.70,
+    RiskTier.AGGRESSIVE: 0.60,
+}
+APPROVAL_PRIOR = (2.0, 2.0)  # Beta(2, 2): no opinion, weak
+
+
+class BrainProfile(BaseModel):
+    """What the Brain has learned about one user (Phase 5 adds the update rules and persistence)."""
+
+    account: str
+    tier: RiskTier
+    lam: float = Field(ge=0, description="Loss aversion λ: expected loss is weighted (1 + λ)")
+    tau: float = Field(0.6, ge=0, le=1, description="Brain trust τ: scales the soft tether")
+    approvals: dict[str, tuple[float, float]] = Field(
+        default_factory=dict, description="venue_id -> Beta(alpha, beta) of the user approving the Brain's trades"
+    )
+    note: str = ""
+
+    def _beta(self, venue_id: str) -> tuple[float, float]:
+        return self.approvals.get(venue_id, APPROVAL_PRIOR)
+
+    def approval_mean(self, venue_id: str) -> float:
+        alpha, beta = self._beta(venue_id)
+        return alpha / (alpha + beta)
+
+    def has_history(self, venue_id: str) -> bool:
+        alpha, beta = self._beta(venue_id)
+        return alpha + beta > sum(APPROVAL_PRIOR)
+
+    def affinity(self, venue_id: str) -> float:
+        """−1 … +1 learned like/dislike; 0 without history."""
+        return 2.0 * self.approval_mean(venue_id) - 1.0 if self.has_history(venue_id) else 0.0
+
+
+class VaultState(BaseModel):
+    """What the Brain knows about the on-chain vault right now (Phase 7 reads it from TetherGuardHook)."""
+
+    tether_radius_usd: float = Field(ge=0)
+    spent_today_usd: float = Field(0.0, ge=0)
+    heartbeat_alive: bool = True
+    whitelist: set[str] | None = None
+
+    @property
+    def remaining_usd(self) -> float:
+        return max(0.0, self.tether_radius_usd - self.spent_today_usd)
+
+
 # --- Intent and decision contracts -------------------------------------------------------------
 
 
@@ -287,4 +339,5 @@ class Decision(BaseModel):
     auto_amount_usd: float = Field(0.0, ge=0)
     proposed_amount_usd: float = Field(0.0, ge=0)
     cards: list[Card] = Field(default_factory=list)
+    rejected: list[Candidate] = Field(default_factory=list, description="Candidates removed by hard filters, with reasons")
     trace: list[str] = Field(default_factory=list)
