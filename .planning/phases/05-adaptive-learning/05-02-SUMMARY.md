@@ -37,7 +37,7 @@ completed: 2026-10-16
 
 ## TDD Cycle
 - **RED** (`d676fa1`): 36 tests (notes, note learning, quiz).
-- **GREEN**: 326/326 green.
+- **GREEN** (`7afc5a8`): 326/326 green.
 
 ## Deviations from Plan
 - `NotePreference.quote` stores the user's words (≤200 chars) for card explanations; set when learned, not when parsed.
