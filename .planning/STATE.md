@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-10-16)
 ## Current Position
 
 Phase: 2 of 8 (Risk Engine)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-10-16 — Phase 1 complete (01-02)
+Plan: 0 of 3 in current phase
+Status: Ready to execute
+Last activity: 2026-10-16 — Phase 2 planned (3 TDD plans)
 
 Progress: █░░░░░░░░░ 9% (2/22 plans)
 
@@ -44,6 +44,7 @@ Recent decisions affecting current work:
 - Init: no ERC-4337 bundler — direct account.execute on Anvil
 - Init: local branch member2/brain, no push without approval
 - 01-01: keep httpx (not httpx2) for TestClient — supply-chain caution
+- 02: PD adds only regime failure above the quiet-state floor (no double count with pd_base)
 - 01-02: c_out_stress = (exit_bps/1e4)/0.30/horizon + hurdle·delay/365
 
 ### Deferred Issues
