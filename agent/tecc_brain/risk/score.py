@@ -59,14 +59,17 @@ def score_venue(
     affinity: float = 0.0,
     w_a: float = AFFINITY_WEIGHT,
     horizon_days: int = 365,
+    cost_factors: Mapping[str, float] | None = None,
 ) -> ScoreBreakdown:
+    """`cost_factors` are this user's learned weights on c_in / c_out_stress (from review notes, 1.0–1.5)."""
+    factors = cost_factors or {}
     horizon_years = horizon_days / 365.0
     excess = quote.apy - snapshot.hurdle_rate
     pd = venue_pd(venue, assessments)
     expected_loss = pd * venue.lgd
     loss_weighted = (1.0 + lam) * expected_loss
-    c_in = entry_cost(venue, horizon_years)
-    c_out = stressed_exit_cost(venue, snapshot.hurdle_rate, horizon_years)
+    c_in = entry_cost(venue, horizon_years) * factors.get("c_in", 1.0)
+    c_out = stressed_exit_cost(venue, snapshot.hurdle_rate, horizon_years) * factors.get("c_out_stress", 1.0)
     affinity_term = w_a * affinity
     return ScoreBreakdown(
         excess_yield=excess,

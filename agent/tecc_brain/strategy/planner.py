@@ -17,6 +17,7 @@ from tecc_brain.models import (
     Decision,
     MarketSnapshot,
     Mandate,
+    NotePreference,
     Portfolio,
     VaultState,
     Venue,
@@ -54,8 +55,16 @@ def mandate_amount_usd(mandate: Mandate, snapshot: MarketSnapshot) -> tuple[floa
     return max(computed, mandate.amount_usd), True
 
 
+def protocol_stance(profile: BrainProfile, protocol: str) -> NotePreference | None:
+    """The user's latest note about this protocol, if any (later notes override earlier ones)."""
+    return next((p for p in reversed(profile.preferences) if p.protocol == protocol), None)
+
+
 def _auto_blockers(venue: Venue, profile: BrainProfile, view: MarketView, snapshot: MarketSnapshot, ref: Reference) -> list[str]:
     blockers = []
+    stance = protocol_stance(profile, venue.protocol)
+    if stance is not None and stance.polarity < 0:
+        blockers.append(f"you asked to avoid {venue.protocol}" + (f" (“{stance.quote}”)" if stance.quote else ""))
     threshold = APPROVAL_THRESHOLDS[profile.tier]
     if not profile.has_history(venue.id):
         blockers.append("first use of this protocol — needs your approval")
@@ -76,6 +85,18 @@ def _auto_blockers(venue: Venue, profile: BrainProfile, view: MarketView, snapsh
         if news.p_negative >= NEWS_AUTONOMY_THRESHOLD and any(news.entity.lower() in k for k in keys):
             blockers.append(f"negative news on {news.entity} ({news.p_negative:.0%})")
     return list(dict.fromkeys(blockers))
+
+
+def _personal_lines(profile: BrainProfile, venue: Venue) -> list[str]:
+    lines = []
+    stance = protocol_stance(profile, venue.protocol)
+    if stance is not None and stance.polarity > 0 and stance.quote:
+        lines.append(f"You said: “{stance.quote}”.")
+    for factor, label in (("c_in", "Entry cost"), ("c_out_stress", "Panic-exit cost")):
+        weight = profile.cost_factors.get(factor, 1.0)
+        if weight != 1.0:
+            lines.append(f"{label} weighted ×{weight:.2f} because of your review notes.")
+    return lines
 
 
 def _card(label: CardLabel, candidate: Candidate, venue: Venue, mode: AutonomyMode, extra: list[str]) -> Card:
@@ -138,6 +159,7 @@ def plan(
         candidate.score = score_venue(
             venue, quote, snapshot, view.assessments,
             lam=profile.lam, affinity=profile.affinity(venue.id), horizon_days=mandate.horizon_days,
+            cost_factors=profile.cost_factors,
         )
         passing.append((venue, candidate))
         trace.append(f"Scored {venue.id}: {candidate.score.total * 100:+.2f}%/yr.")
@@ -186,6 +208,7 @@ def plan(
             extra.append(f"${amount:,.0f} exceeds today's ${vault.remaining_usd:,.0f} radius → FaceID to break the tether.")
         else:
             mode = AutonomyMode.PROPOSE
+        extra += _personal_lines(profile, venue)
         extra += [f"Not automatic: {b}." for b in blockers[venue.id]]
         cards.append(_card(label, candidate, venue, mode, extra))
         trace.append(f"{label.value}: {venue.id} ({mode.value}).")
