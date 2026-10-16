@@ -6,6 +6,8 @@ Steps: market view → candidates → hard filters → loss-averse scores → Go
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from tecc_brain.models import (
     APPROVAL_THRESHOLDS,
     ActionType,
@@ -138,27 +140,39 @@ def _card(label: CardLabel, candidate: Candidate, venue: Venue, mode: AutonomyMo
     )
 
 
-def plan(
+@dataclass
+class OptionsAssessment:
+    """What the Econometric & Liquidity agent hands to the Gatekeeper: every option sized, filtered and scored."""
+
+    mandate: Mandate
+    amount_usd: float | None
+    verified: bool
+    view: MarketView
+    passing: list[tuple[Venue, Candidate]] = field(default_factory=list)
+    rejected: list[Candidate] = field(default_factory=list)
+    trace: list[str] = field(default_factory=list)
+
+
+def assess_options(
     mandate: Mandate,
     snapshot: MarketSnapshot,
-    portfolio: Portfolio,
     profile: BrainProfile,
     vault: VaultState,
     ref: Reference,
-) -> Decision:
-    trace: list[str] = []
+    view: MarketView | None = None,
+) -> OptionsAssessment:
+    """Size the request, apply the hard filters and score every venue that accepts the asset."""
+    view = view if view is not None else assess_market(snapshot, ref)
     amount, verified = mandate_amount_usd(mandate, snapshot)
+    out = OptionsAssessment(mandate=mandate, amount_usd=amount, verified=verified, view=view)
     if amount is None:
-        trace.append(f"Blocked: no market price for {mandate.asset}, so the request cannot be sized safely.")
-        return Decision(mandate=mandate, mode=AutonomyMode.BLOCKED, trace=trace)
-    view = assess_market(snapshot, ref)
+        out.trace.append(f"Blocked: no market price for {mandate.asset}, so the request cannot be sized safely.")
+        return out
     stressed = [c.cluster for c in view.clusters.values() if c.stressed]
-    trace.append(f"Request: {mandate.action.value} ${amount:,.0f} of {mandate.asset}.")
-    trace.append(f"Market: hurdle {snapshot.hurdle_rate * 100:.2f}% (1Y Shibor); stressed clusters: {', '.join(stressed) or 'none'}.")
+    out.trace.append(f"Request: {mandate.action.value} ${amount:,.0f} of {mandate.asset}.")
+    out.trace.append(f"Market: hurdle {snapshot.hurdle_rate * 100:.2f}% (1Y Shibor); stressed clusters: {', '.join(stressed) or 'none'}.")
 
     ctx = FilterContext(tier=profile.tier, whitelist=vault.whitelist, heartbeat_alive=vault.heartbeat_alive)
-    passing: list[tuple[Venue, Candidate]] = []
-    rejected: list[Candidate] = []
     for venue in ref.venues.values():
         if mandate.asset not in venue.accepts or venue.id not in snapshot.venues:
             continue
@@ -167,16 +181,33 @@ def plan(
         reasons = hard_filter_reasons(venue, quote, amount, view.assessments, ctx)
         if reasons:
             candidate.rejected_reasons = [r.value for r in reasons]
-            rejected.append(candidate)
-            trace.append(f"Rejected {venue.id}: {', '.join(r.value for r in reasons)} — {REASON_TEXT[reasons[0]]}")
+            out.rejected.append(candidate)
+            out.trace.append(f"Rejected {venue.id}: {', '.join(r.value for r in reasons)} — {REASON_TEXT[reasons[0]]}")
             continue
         candidate.score = score_venue(
             venue, quote, snapshot, view.assessments,
             lam=profile.lam, affinity=profile.affinity(venue.id), horizon_days=mandate.horizon_days,
             cost_factors=profile.cost_factors,
         )
-        passing.append((venue, candidate))
-        trace.append(f"Scored {venue.id}: {candidate.score.total * 100:+.2f}%/yr.")
+        out.passing.append((venue, candidate))
+        out.trace.append(f"Scored {venue.id}: {candidate.score.total * 100:+.2f}%/yr.")
+    return out
+
+
+def decide(
+    assessment: OptionsAssessment,
+    snapshot: MarketSnapshot,
+    portfolio: Portfolio,
+    profile: BrainProfile,
+    vault: VaultState,
+    ref: Reference,
+) -> Decision:
+    """Good/Better/Best, the autonomy gate (soft tether, split sizing) and the portfolio cards."""
+    mandate, amount, verified, view = assessment.mandate, assessment.amount_usd, assessment.verified, assessment.view
+    passing, rejected = assessment.passing, assessment.rejected
+    trace = list(assessment.trace)
+    if amount is None:
+        return Decision(mandate=mandate, mode=AutonomyMode.BLOCKED, trace=trace)
 
     limit = soft_limit(profile, vault)
     if not verified:
@@ -249,3 +280,14 @@ def plan(
         rejected=rejected,
         trace=trace,
     )
+
+
+def plan(
+    mandate: Mandate,
+    snapshot: MarketSnapshot,
+    portfolio: Portfolio,
+    profile: BrainProfile,
+    vault: VaultState,
+    ref: Reference,
+) -> Decision:
+    return decide(assess_options(mandate, snapshot, profile, vault, ref), snapshot, portfolio, profile, vault, ref)
