@@ -315,30 +315,21 @@ class PegGuardArbitrageExecutor:
 
     @staticmethod
     def _resolve_symbol(intent: ExecutionIntent) -> str:
+        from tecc_brain.pegguard import PEGGUARD_ASSET_CATALOG, resolve_canonical_symbol
+
         vid = intent.venue_id.lower()
         asset = intent.asset_in.strip()
-        asset_lower = asset.lower()
-        if "steth" in vid or asset_lower == "steth":
-            return "stETH"
-        if "wbeth" in vid or asset_lower == "wbeth":
-            return "WBETH"
-        if "reth" in vid or asset_lower == "reth":
-            return "rETH"
-        if "ezeth" in vid or asset_lower == "ezeth":
-            return "ezETH"
-        if "ust" in vid or asset_lower == "ust":
+        canonical_asset = resolve_canonical_symbol(asset)
+        if canonical_asset in PEGGUARD_ASSET_CATALOG and canonical_asset != "ETH":
+            return canonical_asset
+        for cat_sym in sorted(PEGGUARD_ASSET_CATALOG.keys(), key=len, reverse=True):
+            if cat_sym.lower() in vid:
+                return cat_sym
+        if "ust" in vid or canonical_asset == "UST":
             return "UST"
-        if "dai" in vid or asset_lower == "dai":
-            return "DAI"
-        if "frax" in vid or asset_lower == "frax":
-            return "FRAX"
-        if "fdusd" in vid or asset_lower == "fdusd":
-            return "FDUSD"
-        if "usdc" in vid or asset_lower == "usdc":
-            return "USDC"
-        if asset_lower == "eth":
+        if asset.lower() == "eth":
             return "stETH"
-        return asset
+        return canonical_asset
 
     def submit(
         self,

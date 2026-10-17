@@ -35,21 +35,45 @@ LAYER4_GROK_WEIGHT = 0.20
 # Default Cross-Stablecoin Contagion Exposure Matrix beta_ij (PegGuard.pdf Page 7)
 # Measures reserve overlap and Curve 3pool / DeFi liquidity co-dependency across pegged assets (i, j).
 DEFAULT_CONTAGION_MATRIX: dict[str, dict[str, float]] = {
-    "USDC": {"DAI": 0.45, "FRAX": 0.40, "USDT": 0.20, "FDUSD": 0.15},
-    "DAI": {"USDC": 0.65, "FRAX": 0.45, "USDT": 0.25, "stETH": 0.20},
-    "FRAX": {"USDC": 0.60, "DAI": 0.45, "USDT": 0.25},
-    "USDT": {"USDC": 0.20, "DAI": 0.20, "FDUSD": 0.25},
+    # Category 1: Fiat-Backed & Decentralized Stablecoins (Class B)
+    "USDC": {"DAI": 0.45, "USDS": 0.45, "FRAX": 0.40, "crvUSD": 0.30, "GHO": 0.25, "PYUSD": 0.25, "USDT": 0.20, "FDUSD": 0.15},
+    "USDT": {"USDC": 0.20, "DAI": 0.20, "USDe": 0.25, "FDUSD": 0.25},
+    "DAI": {"USDC": 0.65, "USDS": 0.90, "FRAX": 0.45, "USDT": 0.25, "stETH": 0.20},
+    "USDS": {"USDC": 0.65, "DAI": 0.90, "FRAX": 0.40, "USDT": 0.25},
+    "FRAX": {"USDC": 0.60, "DAI": 0.45, "crvUSD": 0.35, "USDT": 0.25},
+    "USDe": {"USDT": 0.35, "USDC": 0.30, "stETH": 0.35, "WBTC": 0.25},
+    "crvUSD": {"USDC": 0.45, "USDT": 0.35, "FRAX": 0.30, "wstETH": 0.25},
+    "GHO": {"USDC": 0.45, "DAI": 0.35, "USDT": 0.25, "wstETH": 0.20},
+    "LUSD": {"USDC": -0.15, "USDT": -0.10, "DAI": -0.10},  # Negative Contagion Beta (flight-to-safety premium during fiat bank runs)
+    "PYUSD": {"USDC": 0.35, "USDT": 0.20},
+    "EURC": {"USDC": 0.40},
     "FDUSD": {"USDC": 0.25, "USDT": 0.30},
-    "stETH": {"WBETH": 0.35, "rETH": 0.30, "ezETH": 0.40},
-    "WBETH": {"stETH": 0.35, "rETH": 0.25},
-    "rETH": {"stETH": 0.30, "WBETH": 0.25},
-    "ezETH": {"stETH": 0.45, "rETH": 0.25},
+    # Category 2: ETH-Anchored LSTs & LRTs (Class A)
+    "stETH": {"wstETH": 0.95, "WBETH": 0.35, "rETH": 0.30, "cbETH": 0.30, "weETH": 0.40, "ezETH": 0.40},
+    "wstETH": {"stETH": 0.95, "WBETH": 0.35, "rETH": 0.30, "weETH": 0.40, "ezETH": 0.40},
+    "WBETH": {"stETH": 0.35, "wstETH": 0.35, "rETH": 0.25, "cbETH": 0.30},
+    "rETH": {"stETH": 0.30, "wstETH": 0.30, "WBETH": 0.25, "cbETH": 0.25},
+    "cbETH": {"stETH": 0.30, "wstETH": 0.30, "WBETH": 0.30, "rETH": 0.25},
+    "weETH": {"stETH": 0.45, "wstETH": 0.45, "ezETH": 0.55},
+    "ezETH": {"stETH": 0.45, "wstETH": 0.45, "weETH": 0.55, "rETH": 0.25},
+    # Category 3: BTC-Anchored Wrapped Bitcoin Derivatives (Class A)
+    "WBTC": {"cbBTC": 0.35, "tBTC": 0.30},
+    "cbBTC": {"WBTC": 0.35, "tBTC": 0.25},
+    "tBTC": {"WBTC": 0.30, "cbBTC": 0.25},
+    # Category 4: Tokenized RWAs — Gold & US Treasuries
     "PAXG": {"XAUT": 0.30},
     "XAUT": {"PAXG": 0.30},
+    "USDY": {"OUSG": 0.60, "USDC": 0.25},
+    "OUSG": {"USDY": 0.60, "USDC": 0.25},
 }
 
-CRYPTO_PEGGED_ASSETS = {"stETH", "WBETH", "rETH", "ezETH"}
-FIAT_PEGGED_STABLECOINS = {"USDC", "USDT", "DAI", "FRAX", "FDUSD", "UST"}
+ETH_ANCHORED_ASSETS = {"stETH", "wstETH", "WBETH", "rETH", "cbETH", "weETH", "ezETH"}
+BTC_ANCHORED_ASSETS = {"WBTC", "cbBTC", "tBTC"}
+GOLD_ANCHORED_ASSETS = {"PAXG", "XAUT"}
+CRYPTO_PEGGED_ASSETS = ETH_ANCHORED_ASSETS | BTC_ANCHORED_ASSETS | GOLD_ANCHORED_ASSETS
+FIAT_PEGGED_STABLECOINS = {
+    "USDC", "USDT", "DAI", "USDS", "FRAX", "USDe", "crvUSD", "GHO", "LUSD", "PYUSD", "EURC", "FDUSD", "UST", "USDY", "OUSG"
+}
 
 
 class PegRegime(IntEnum):
@@ -61,6 +85,501 @@ class PegRegime(IntEnum):
 
 
 HedgeClass = Literal["CLASS_A_CRYPTO_PERP", "CLASS_B_FISCO_PAR_REPO"]
+AssetCategory = Literal[
+    "1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+    "2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+    "3_WRAPPED_BITCOIN_DERIVATIVES",
+    "4_TOKENIZED_RWAS_GOLD_AND_TREASURIES",
+]
+
+
+class PegGuardAssetSpec(BaseModel):
+    """Canonical specification for each asset in the 4-Category PegGuard Universe
+    spanning Ethereum L1, Arbitrum One L2, and FISCO BCOS Consortium Settlement.
+    """
+
+    symbol: str
+    name: str
+    category: AssetCategory
+    anchor_asset: str = Field(description="Real / Anchor asset: USD, EUR, ETH, BTC, or XAU")
+    hedge_class: HedgeClass
+    p_par: float = Field(1.000, gt=0, description="Par or exchange-rate reference in anchor units")
+    y_asset: float = Field(0.0, description="Annualized staking/collateral/treasury yield y_asset")
+    r_fee: float = Field(0.001, ge=0, description="Primary redemption fee r_fee")
+    tau_redeem_days: float = Field(1.0, ge=0, description="Primary settlement / withdrawal queue delay in days")
+    peg_mechanism: str
+    ethereum_l1_venues: list[str]
+    arbitrum_l2_venues: list[str]
+    fisco_bcos_role: str
+    primary_long_venue: str
+    primary_short_venue: str
+    primary_short_instrument: str
+
+
+PEGGUARD_ASSET_CATALOG: dict[str, PegGuardAssetSpec] = {
+    # =========================================================================
+    # 1. Fiat-Backed & Decentralized Stablecoins (Class B — Par-Pegged to USD / EUR)
+    # =========================================================================
+    "USDC": PegGuardAssetSpec(
+        symbol="USDC",
+        name="USD Coin (Circle)",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.000,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Fiat-Backed (Primary mint/burn via Circle; BlackRock Circle Reserve Fund)",
+        ethereum_l1_venues=["Curve 3pool", "Uniswap V3 (USDC/USDT)", "Aave V3", "Morpho"],
+        arbitrum_l2_venues=["Native USDC + USDC.e", "Curve 2pool", "Uniswap V3", "Camelot", "Aave V3"],
+        fisco_bcos_role="Primary Par-Repo Collateral / Borrow Asset; cross-chain state lock between Arbitrum/ETH & FISCO BCOS vault",
+        primary_long_venue="ethereum_curve_3pool",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "USDT": PegGuardAssetSpec(
+        symbol="USDT",
+        name="Tether USD",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.001,
+        tau_redeem_days=2.0,
+        peg_mechanism="1:1 Fiat-Backed (0.10% primary redemption fee; min $100k size)",
+        ethereum_l1_venues=["Curve 3pool", "Uniswap V3", "Aave V3"],
+        arbitrum_l2_venues=["USDT (Arbitrum Native Bridge)", "Curve 2pool", "Uniswap V3", "Aave V3"],
+        fisco_bcos_role="Par-Capped Short Liability Benchmark (min[P_USDT, 1.000] eliminates >$1.00 retail squeeze)",
+        primary_long_venue="ethereum_curve_3pool",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "DAI": PegGuardAssetSpec(
+        symbol="DAI",
+        name="DAI (Sky / MakerDAO)",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.001,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Soft-Pegged via Peg Stability Module (PSM) & Sky Savings Rate",
+        ethereum_l1_venues=["Curve 3pool", "Uniswap V3", "Spark", "Aave V3"],
+        arbitrum_l2_venues=["Bridged DAI & USDS", "Curve", "Uniswap V3", "Balancer", "Aave V3"],
+        fisco_bcos_role="Contagion Matrix (beta_ij) Tracked Asset (high reserve correlation to USDC via PSM)",
+        primary_long_venue="ethereum_curve_3pool",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "USDS": PegGuardAssetSpec(
+        symbol="USDS",
+        name="USDS (Sky / MakerDAO)",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.001,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Soft-Pegged via Peg Stability Module (PSM) & Sky Savings Rate",
+        ethereum_l1_venues=["Curve USDS/USDC", "Uniswap V3", "Spark", "Aave V3"],
+        arbitrum_l2_venues=["Bridged DAI & USDS", "Curve", "Uniswap V3", "Balancer", "Aave V3"],
+        fisco_bcos_role="Contagion Matrix (beta_ij) Tracked Asset (high reserve correlation to USDC via PSM)",
+        primary_long_venue="ethereum_curve_3pool",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "FRAX": PegGuardAssetSpec(
+        symbol="FRAX",
+        name="Frax (Frax Finance)",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.002,
+        tau_redeem_days=2.0,
+        peg_mechanism="1:1 Hybrid Collateralized (Curve AMO + sFRAX T-Bill yield backing)",
+        ethereum_l1_venues=["Curve FRAX/USDC", "Fraxlend", "Uniswap V3"],
+        arbitrum_l2_venues=["Curve FRAX/USDC", "Camelot", "Ramses", "Fraxlend"],
+        fisco_bcos_role="Contagion Matrix (beta_ij) Tracked Asset (coupled to USDC via Curve FRAXBP pool)",
+        primary_long_venue="ethereum_curve_frax_usdc",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "USDe": PegGuardAssetSpec(
+        symbol="USDe",
+        name="Ethena USDe",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.002,
+        tau_redeem_days=3.0,
+        peg_mechanism="1:1 Synthetic Dollar (Backed by staked ETH/BTC + short perpetual futures)",
+        ethereum_l1_venues=["Curve USDe/USDC", "Uniswap V3", "Morpho", "Pendle"],
+        arbitrum_l2_venues=["Curve USDe/USDC", "Camelot", "Pendle", "Morpho"],
+        fisco_bcos_role="High-Carry Basis Candidate; Layer 3 monitors Ethena reserve funding rate vs FISCO BCOS repo cost",
+        primary_long_venue="ethereum_curve_usde_usdc",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "crvUSD": PegGuardAssetSpec(
+        symbol="crvUSD",
+        name="Curve USD",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.001,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Soft-Liquidation AMM Peg (PegKeepers + LLAMMA bands)",
+        ethereum_l1_venues=["Curve crvUSD/USDC", "Curve crvUSD/USDT", "Aave V3"],
+        arbitrum_l2_venues=["Curve crvUSD/USDC", "Convex"],
+        fisco_bcos_role="Hedged via FISCO BCOS Par-Repo; Layer 4 tracks PegKeeper debt ceiling",
+        primary_long_venue="ethereum_curve_crvusd_usdc",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "GHO": PegGuardAssetSpec(
+        symbol="GHO",
+        name="Aave GHO",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.001,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Facilitated Mint/Burn & GHO Stability Module (GSM)",
+        ethereum_l1_venues=["Balancer", "Curve GHO/USDC", "Uniswap V3"],
+        arbitrum_l2_venues=["Balancer", "Ramses", "Camelot", "Aave V3"],
+        fisco_bcos_role="Ideal Layer 1 Dual-Anchor case (tracks structural discount vs GSM par)",
+        primary_long_venue="ethereum_curve_gho_usdc",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "LUSD": PegGuardAssetSpec(
+        symbol="LUSD",
+        name="Liquity USD",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.005,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Hard Redemption Floor (Direct redemption for ETH at $1.00 minus fee)",
+        ethereum_l1_venues=["Curve LUSD/3Crv", "Uniswap V3", "Aave V3"],
+        arbitrum_l2_venues=["Curve", "Uniswap V3", "Beefy"],
+        fisco_bcos_role="Negative Contagion Beta: often trades at >$1.01 premium during fiat bank runs (SVB)",
+        primary_long_venue="ethereum_curve_lusd_3crv",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "PYUSD": PegGuardAssetSpec(
+        symbol="PYUSD",
+        name="PayPal USD (Paxos)",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.000,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 NYDFS-Regulated Fiat Stablecoin (FDIC Deposits & US Treasuries)",
+        ethereum_l1_venues=["Curve PayPool (PYUSD/USDC)", "Aave V3"],
+        arbitrum_l2_venues=["Curve", "Uniswap V3"],
+        fisco_bcos_role="Regulated institutional leg for FISCO BCOS consortium settlement",
+        primary_long_venue="ethereum_curve_paypool",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "EURC": PegGuardAssetSpec(
+        symbol="EURC",
+        name="Euro Coin (Circle)",
+        category="1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+        anchor_asset="EUR",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.000,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Euro Fiat Reserves",
+        ethereum_l1_venues=["Curve EURC/USDC", "Uniswap V3"],
+        arbitrum_l2_venues=["Uniswap V3", "Aave V3"],
+        fisco_bcos_role="EUR Par-Repo Leg inside FISCO BCOS multi-currency consortium settlement",
+        primary_long_venue="ethereum_curve_eurc_usdc",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_EUR_REPO",
+    ),
+    # =========================================================================
+    # 2. Liquid Staking & Restaking Derivatives — LSTs & LRTs (Class A — ETH-Anchored)
+    # =========================================================================
+    "stETH": PegGuardAssetSpec(
+        symbol="stETH",
+        name="Lido Staked ETH",
+        category="2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+        anchor_asset="ETH",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.000,
+        y_asset=0.032,
+        r_fee=0.000,
+        tau_redeem_days=3.0,
+        peg_mechanism="1:1 Rebasing Peg (P_par = 1.000 ETH; balance updates daily)",
+        ethereum_l1_venues=["Curve stETH/ETH", "Uniswap V3", "Aave V3"],
+        arbitrum_l2_venues=["Wrapped as wstETH on L2"],
+        fisco_bcos_role="Tracks Lido withdrawal queue delay (tau_redeem); notarized on FISCO BCOS",
+        primary_long_venue="ethereum_curve_steth_pool",
+        primary_short_venue="perpetual_exchange_eth_perp",
+        primary_short_instrument="SHORT_ETH_PERP",
+    ),
+    "wstETH": PegGuardAssetSpec(
+        symbol="wstETH",
+        name="Wrapped Lido stETH",
+        category="2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+        anchor_asset="ETH",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.180,
+        y_asset=0.032,
+        r_fee=0.000,
+        tau_redeem_days=3.0,
+        peg_mechanism="Yield-Accruing Exchange Rate (FV_fund ~ 1.18+ ETH, grows at ~3.2% APR)",
+        ethereum_l1_venues=["Uniswap V3", "Balancer", "Curve", "Aave V3", "Morpho"],
+        arbitrum_l2_venues=["Uniswap V3 (wstETH/ETH)", "Balancer", "Camelot", "Aave V3", "GMX"],
+        fisco_bcos_role="Primary Arbitrum LST Target: Layer 1 Dual-Anchor prevents Parity Fallacy against growing exchange rate",
+        primary_long_venue="arbitrum_uniswap_v3_wsteth_eth",
+        primary_short_venue="perpetual_exchange_eth_perp",
+        primary_short_instrument="SHORT_ETH_PERP",
+    ),
+    "WBETH": PegGuardAssetSpec(
+        symbol="WBETH",
+        name="Binance Wrapped Beacon ETH",
+        category="2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+        anchor_asset="ETH",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.085,
+        y_asset=0.034,
+        r_fee=0.000,
+        tau_redeem_days=4.0,
+        peg_mechanism="Yield-Accruing Exchange Rate (FV_fund ~ 1.085+ ETH)",
+        ethereum_l1_venues=["Curve WBETH/ETH", "Uniswap V3", "Binance Spot"],
+        arbitrum_l2_venues=["Bridged via LayerZero/Wormhole"],
+        fisco_bcos_role="Oct 2025 flash-crash benchmark asset; cross-venue triangulation",
+        primary_long_venue="ethereum_curve_wbeth_eth",
+        primary_short_venue="perpetual_exchange_eth_perp",
+        primary_short_instrument="SHORT_ETH_PERP",
+    ),
+    "rETH": PegGuardAssetSpec(
+        symbol="rETH",
+        name="Rocket Pool ETH",
+        category="2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+        anchor_asset="ETH",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.120,
+        y_asset=0.031,
+        r_fee=0.0005,
+        tau_redeem_days=2.0,
+        peg_mechanism="Yield-Accruing Exchange Rate (FV_fund ~ 1.12+ ETH; decentralized node operators)",
+        ethereum_l1_venues=["Uniswap V3", "Balancer rETH/WETH", "Curve", "Aave V3"],
+        arbitrum_l2_venues=["Uniswap V3 (rETH/ETH)", "Balancer", "Radiant", "Aave V3"],
+        fisco_bcos_role="High decentralization score; tracks Rocket Pool deposit/burn buffer on L1 & Arbitrum",
+        primary_long_venue="arbitrum_uniswap_v3_reth_eth",
+        primary_short_venue="perpetual_exchange_eth_perp",
+        primary_short_instrument="SHORT_ETH_PERP",
+    ),
+    "cbETH": PegGuardAssetSpec(
+        symbol="cbETH",
+        name="Coinbase Wrapped Staked ETH",
+        category="2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+        anchor_asset="ETH",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.070,
+        y_asset=0.030,
+        r_fee=0.000,
+        tau_redeem_days=3.0,
+        peg_mechanism="Yield-Accruing Exchange Rate (FV_fund ~ 1.07+ ETH; Coinbase custodial staked ETH)",
+        ethereum_l1_venues=["Uniswap V3 (cbETH/ETH)", "Curve", "Aave V3"],
+        arbitrum_l2_venues=["Uniswap V3 (cbETH/ETH)", "Balancer", "Aave V3"],
+        fisco_bcos_role="Subject to SEC/custodial news shocks (monitored by Layer 4 FinBERT 50% weight)",
+        primary_long_venue="ethereum_uniswap_v3_cbeth_eth",
+        primary_short_venue="perpetual_exchange_eth_perp",
+        primary_short_instrument="SHORT_ETH_PERP",
+    ),
+    "weETH": PegGuardAssetSpec(
+        symbol="weETH",
+        name="Ether.fi Wrapped eETH",
+        category="2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+        anchor_asset="ETH",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.050,
+        y_asset=0.038,
+        r_fee=0.000,
+        tau_redeem_days=7.0,
+        peg_mechanism="Yield-Accruing Restaking Ratio (FV_fund ~ 1.05+ ETH; EigenLayer restaked ETH)",
+        ethereum_l1_venues=["Curve weETH/WETH", "Uniswap V3", "Balancer", "Aave V3", "Pendle"],
+        arbitrum_l2_venues=["Camelot", "Ramses", "Uniswap V3", "Aave V3", "Pendle"],
+        fisco_bcos_role="Top Arbitrum LRT: tracks both Beacon Chain + EigenLayer 7-day escrow delay (tau_redeem >= 7d)",
+        primary_long_venue="arbitrum_camelot_weeth_eth",
+        primary_short_venue="perpetual_exchange_eth_perp",
+        primary_short_instrument="SHORT_ETH_PERP",
+    ),
+    "ezETH": PegGuardAssetSpec(
+        symbol="ezETH",
+        name="Renzo Restaked ETH",
+        category="2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+        anchor_asset="ETH",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.030,
+        y_asset=0.040,
+        r_fee=0.000,
+        tau_redeem_days=7.0,
+        peg_mechanism="Yield-Accruing Restaking Ratio (EigenLayer Restaked ETH)",
+        ethereum_l1_venues=["Balancer ezETH/WETH", "Curve", "Uniswap V3", "Pendle"],
+        arbitrum_l2_venues=["Balancer", "Camelot", "Uniswap V3", "Pendle"],
+        fisco_bcos_role="April 2024 de-peg to 0.85 ETH benchmark on Arbitrum/L1 while reserves stayed solvent",
+        primary_long_venue="arbitrum_balancer_ezeth_weth",
+        primary_short_venue="perpetual_exchange_eth_perp",
+        primary_short_instrument="SHORT_ETH_PERP",
+    ),
+    # =========================================================================
+    # 3. Wrapped Bitcoin Derivatives (Class A — BTC-Anchored)
+    # =========================================================================
+    "WBTC": PegGuardAssetSpec(
+        symbol="WBTC",
+        name="Wrapped Bitcoin (BitGo / BiT Global)",
+        category="3_WRAPPED_BITCOIN_DERIVATIVES",
+        anchor_asset="BTC",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.001,
+        tau_redeem_days=2.0,
+        peg_mechanism="1:1 Custodial Mint/Burn via institutional merchants",
+        ethereum_l1_venues=["Uniswap V3 (WBTC/WETH, WBTC/USDC)", "Curve", "Aave V3"],
+        arbitrum_l2_venues=["Uniswap V3", "Camelot", "GMX", "Curve tBTC/WBTC", "Aave V3"],
+        fisco_bcos_role="Layer 4 FinBERT monitors BitGo/custody governance news vs on-chain merchant burns",
+        primary_long_venue="ethereum_uniswap_v3_wbtc",
+        primary_short_venue="perpetual_exchange_btc_perp",
+        primary_short_instrument="SHORT_BTC_PERP",
+    ),
+    "cbBTC": PegGuardAssetSpec(
+        symbol="cbBTC",
+        name="Coinbase Wrapped BTC",
+        category="3_WRAPPED_BITCOIN_DERIVATIVES",
+        anchor_asset="BTC",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.000,
+        tau_redeem_days=1.0,
+        peg_mechanism="1:1 Automated Coinbase Custodial Mint/Burn",
+        ethereum_l1_venues=["Uniswap V3 (cbBTC/WBTC, cbBTC/USDC)", "Curve", "Morpho"],
+        arbitrum_l2_venues=["Uniswap V3 (cbBTC/WBTC)", "Camelot", "Aave V3"],
+        fisco_bcos_role="Direct cross-arbitrage pair against WBTC (cbBTC/WBTC basis trading)",
+        primary_long_venue="ethereum_uniswap_v3_cbbtc_wbtc",
+        primary_short_venue="perpetual_exchange_btc_perp",
+        primary_short_instrument="SHORT_BTC_PERP",
+    ),
+    "tBTC": PegGuardAssetSpec(
+        symbol="tBTC",
+        name="Threshold Network BTC",
+        category="3_WRAPPED_BITCOIN_DERIVATIVES",
+        anchor_asset="BTC",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.001,
+        tau_redeem_days=2.0,
+        peg_mechanism="1:1 Permissionless Threshold Cryptography Bridge",
+        ethereum_l1_venues=["Curve tBTC/WBTC", "Uniswap V3", "Aave V3"],
+        arbitrum_l2_venues=["Curve tBTC/WBTC", "Balancer", "Beefy"],
+        fisco_bcos_role="Permissionless mint/burn anchor when custodial bridges face regulatory discounts",
+        primary_long_venue="ethereum_curve_tbtc_wbtc",
+        primary_short_venue="perpetual_exchange_btc_perp",
+        primary_short_instrument="SHORT_BTC_PERP",
+    ),
+    # =========================================================================
+    # 4. Tokenized Real-World Assets (RWAs): Gold & US Treasuries
+    # =========================================================================
+    "PAXG": PegGuardAssetSpec(
+        symbol="PAXG",
+        name="Paxos Gold",
+        category="4_TOKENIZED_RWAS_GOLD_AND_TREASURIES",
+        anchor_asset="XAU",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.002,
+        tau_redeem_days=2.0,
+        peg_mechanism="1:1 Physical London Good Delivery Gold Backing (Brink's vaults, NYDFS regulated)",
+        ethereum_l1_venues=["Uniswap V3 (PAXG/USDC, PAXG/WETH)", "Curve"],
+        arbitrum_l2_venues=["Bridged via Arbitrum canonical bridge"],
+        fisco_bcos_role="Hedged via XAU/USDT perp or tokenized gold repo on FISCO BCOS; physical tau_redeem = T+2",
+        primary_long_venue="ethereum_uniswap_v3_paxg",
+        primary_short_venue="fisco_bcos_gold_repo_or_xau_perp",
+        primary_short_instrument="SHORT_XAU_USDT_PERP",
+    ),
+    "XAUT": PegGuardAssetSpec(
+        symbol="XAUT",
+        name="Tether Gold",
+        category="4_TOKENIZED_RWAS_GOLD_AND_TREASURIES",
+        anchor_asset="XAU",
+        hedge_class="CLASS_A_CRYPTO_PERP",
+        p_par=1.000,
+        y_asset=0.0,
+        r_fee=0.0025,
+        tau_redeem_days=2.0,
+        peg_mechanism="1:1 Swiss Vault Physical Gold (1 Fine Troy Oz)",
+        ethereum_l1_venues=["Uniswap V3 (XAUT/USDT, XAUT/PAXG)", "Curve"],
+        arbitrum_l2_venues=["Low L2 depth (mainly L1)"],
+        fisco_bcos_role="Relative-value gold peg pair: PAXG / XAUT (eliminates gold directional delta)",
+        primary_long_venue="ethereum_uniswap_v3_xaut_paxg",
+        primary_short_venue="fisco_bcos_gold_repo_or_xau_perp",
+        primary_short_instrument="SHORT_XAU_USDT_PERP",
+    ),
+    "USDY": PegGuardAssetSpec(
+        symbol="USDY",
+        name="Ondo US Dollar Yield",
+        category="4_TOKENIZED_RWAS_GOLD_AND_TREASURIES",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.065,
+        y_asset=0.048,
+        r_fee=0.001,
+        tau_redeem_days=2.0,
+        peg_mechanism="Yield-Accruing RWA Token (Short-Term US Treasury Bills & Bank Demand Deposits, ~4.8% APY)",
+        ethereum_l1_venues=["Curve", "Flux Finance", "Mantle/ETH"],
+        arbitrum_l2_venues=["Arbitrum Ondo RWA pools", "Camelot"],
+        fisco_bcos_role="Institutional RWA Asset pledged inside FISCO BCOS smart-contract repo vaults against par-capped stablecoin credit lines",
+        primary_long_venue="arbitrum_ondo_rwa_pool",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+    "OUSG": PegGuardAssetSpec(
+        symbol="OUSG",
+        name="Ondo Short-Term US Government Treasuries",
+        category="4_TOKENIZED_RWAS_GOLD_AND_TREASURIES",
+        anchor_asset="USD",
+        hedge_class="CLASS_B_FISCO_PAR_REPO",
+        p_par=1.080,
+        y_asset=0.049,
+        r_fee=0.001,
+        tau_redeem_days=2.0,
+        peg_mechanism="Yield-Accruing RWA Token (Short-Term US Treasury Bills, ~4.9% APY)",
+        ethereum_l1_venues=["Flux Finance", "Curve"],
+        arbitrum_l2_venues=["Arbitrum Ondo RWA pools"],
+        fisco_bcos_role="Institutional RWA Asset pledged inside FISCO BCOS smart-contract repo vaults against par-capped stablecoin credit lines",
+        primary_long_venue="ethereum_flux_ousg_pool",
+        primary_short_venue="fisco_bcos_par_capped_repo_facility",
+        primary_short_instrument="FISCO_BCOS_PAR_CAPPED_USDT_REPO",
+    ),
+}
 
 
 # =============================================================================
@@ -793,7 +1312,8 @@ def evaluate_layer5_hedge_and_sizing(
         for peer, beta_ij in betas.items()
         if peer != symbol
     )
-    contagion_brake = max(0.0, 1.0 - contagion_sum)
+    # Positive contagion_sum brakes position size; negative contagion beta (e.g. LUSD flight-to-safety) is capped at 1.0
+    contagion_brake = max(0.0, min(1.0, 1.0 - max(0.0, contagion_sum)))
 
     raw_size = inp.base_size_usd * convex_mult * layer4.token_score_t * contagion_brake
     if layer4.i_safe_veto == 0 or layer1.abnormal_spread_delta >= 0.0:
@@ -801,9 +1321,20 @@ def evaluate_layer5_hedge_and_sizing(
 
     final_size = min(raw_size, inp.max_order_cap_usd) if inp.max_order_cap_usd is not None else raw_size
 
-    # Asset-Specific Hedge Selection (Class A vs Class B)
-    if symbol in CRYPTO_PEGGED_ASSETS:
-        hedge_class: HedgeClass = "CLASS_A_CRYPTO_PERP"
+    spec = PEGGUARD_ASSET_CATALOG.get(symbol)
+    if spec is not None:
+        hedge_class: HedgeClass = spec.hedge_class
+        long_venue = spec.primary_long_venue
+        long_inst = f"LONG_SPOT_{symbol}"
+        short_venue = spec.primary_short_venue
+        short_inst = spec.primary_short_instrument
+        repo_quote = (
+            compute_fisco_par_capped_repo(q_borrowed_usdt=final_size, p_usdt_market=inp.p_usdt_market)
+            if hedge_class == "CLASS_B_FISCO_PAR_REPO"
+            else None
+        )
+    elif symbol in CRYPTO_PEGGED_ASSETS:
+        hedge_class = "CLASS_A_CRYPTO_PERP"
         long_venue = "ethereum_curve_steth_pool" if symbol == "stETH" else "ethereum_spot_dex"
         long_inst = f"LONG_SPOT_{symbol}"
         short_venue = "perpetual_exchange_eth_perp"
@@ -1150,14 +1681,133 @@ def crisis_scenario_steth_3ac(order_size_usd: float = 500.0) -> PegGuardMarketIn
     )
 
 
-def default_pegguard_input_for_symbol(symbol: str, order_size_usd: float = 250.0) -> PegGuardMarketInput:
-    """Returns a realistic default PegGuardMarketInput for a given symbol when invoked by PegGuardArbitrageExecutor."""
-    norm = symbol.strip()
-    if norm.upper() == "UST":
-        return crisis_scenario_terra_ust(order_size_usd=order_size_usd)
-    if norm in CRYPTO_PEGGED_ASSETS or norm.lower() in ("steth", "wbeth", "reth", "ezeth"):
-        canonical = "stETH" if norm.lower() == "steth" else norm
-        inp = crisis_scenario_steth_3ac(order_size_usd=order_size_usd)
-        return inp.model_copy(update={"symbol": canonical})
-    inp = crisis_scenario_svb_usdc(order_size_usd=order_size_usd)
-    return inp.model_copy(update={"symbol": norm.upper()})
+def resolve_canonical_symbol(symbol: str) -> str:
+    """Normalizes any asset symbol case-insensitively to its canonical PEGGUARD_ASSET_CATALOG key."""
+    s = symbol.strip()
+    by_lower = {k.lower(): k for k in PEGGUARD_ASSET_CATALOG}
+    if s.lower() in by_lower:
+        return by_lower[s.lower()]
+    return s.upper()
+
+
+def default_pegguard_input_for_symbol(
+    symbol: str,
+    order_size_usd: float = 250.0,
+    current_ratio: float | None = None,
+) -> PegGuardMarketInput:
+    """Returns a calibrated PegGuardMarketInput for any symbol in PEGGUARD_ASSET_CATALOG (or UST/FDUSD).
+
+    If `current_ratio` is provided (e.g. from the continuous de-peg scanner), `r_direct` and the synthetic
+    cross-leg `p_pegged_usdt` are set to match `current_ratio` relative to the asset's anchor.
+    """
+    canonical = resolve_canonical_symbol(symbol)
+    if canonical == "UST":
+        inp = crisis_scenario_terra_ust(order_size_usd=order_size_usd)
+        if current_ratio is not None:
+            inp = inp.model_copy(
+                update={
+                    "layer1": inp.layer1.model_copy(
+                        update={"r_direct": current_ratio, "p_pegged_usdt": current_ratio, "p_anchor_usdt": 1.000}
+                    )
+                }
+            )
+        return inp
+
+    spec = PEGGUARD_ASSET_CATALOG.get(canonical)
+    if spec is not None and spec.hedge_class == "CLASS_A_CRYPTO_PERP":
+        base = crisis_scenario_steth_3ac(order_size_usd=order_size_usd)
+        ratio = current_ratio if current_ratio is not None else round(spec.p_par * 0.930, 6)
+        anchor_usdt = 2500.0 if spec.anchor_asset == "ETH" else (65000.0 if spec.anchor_asset == "BTC" else 2350.0)
+        avg_1w_a = round(spec.p_par * (1.000 if current_ratio is not None else 0.996), 6)
+        avg_1m_a = round(spec.p_par * (1.000 if current_ratio is not None else 0.998), 6)
+        l1 = base.layer1.model_copy(
+            update={
+                "symbol": canonical,
+                "p_par": spec.p_par,
+                "y_asset": spec.y_asset,
+                "r_fee": spec.r_fee,
+                "tau_redeem_days": spec.tau_redeem_days,
+                "r_direct": ratio,
+                "p_pegged_usdt": round(ratio * anchor_usdt, 4),
+                "p_anchor_usdt": anchor_usdt,
+                "avg_1w": avg_1w_a,
+                "avg_1m": avg_1m_a,
+                "avg_1y": round(spec.p_par * 1.000, 6),
+            }
+        )
+        delta_est = ratio - spec.p_par
+        spread_series = [
+            round(delta_est * 0.5, 6),
+            round(delta_est * 0.8, 6),
+            round(delta_est * 1.12, 6),
+            round(delta_est * 1.06, 6),
+            round(delta_est * 1.02, 6),
+            round(delta_est, 6),
+        ]
+        l3_update_a: dict[str, float] = {"order_size_usd": order_size_usd, "tau_redeem_days": spec.tau_redeem_days}
+        if current_ratio is not None:
+            l3_update_a["funding_rate_8h"] = 0.0
+        return base.model_copy(
+            update={
+                "symbol": canonical,
+                "layer1": l1,
+                "spread_series": spread_series,
+                "layer3": base.layer3.model_copy(update=l3_update_a),
+                "layer4": base.layer4.model_copy(update={"symbol": canonical}),
+                "layer5": base.layer5.model_copy(
+                    update={"symbol": canonical, "base_size_usd": order_size_usd, "max_order_cap_usd": order_size_usd}
+                ),
+            }
+        )
+
+    base = crisis_scenario_svb_usdc(order_size_usd=order_size_usd)
+    p_par = spec.p_par if spec else 1.000
+    y_asset = spec.y_asset if spec else 0.0
+    r_fee = spec.r_fee if spec else 0.001
+    tau_days = spec.tau_redeem_days if spec else 2.0
+    ratio = current_ratio if current_ratio is not None else round(p_par * 0.880, 6)
+    p_usdt = base.layer1.p_anchor_usdt  # 1.040 in SVB scenario unless overridden
+    liq_res = 1.000 if current_ratio is not None else base.layer1.liquid_reserves
+    avg_1w = round(p_par * (1.000 if current_ratio is not None else 0.995), 6)
+    avg_1m = round(p_par * (1.000 if current_ratio is not None else 0.999), 6)
+    l1 = base.layer1.model_copy(
+        update={
+            "symbol": canonical,
+            "p_par": p_par,
+            "liquid_reserves": liq_res,
+            "y_asset": y_asset,
+            "r_fee": r_fee,
+            "tau_redeem_days": tau_days,
+            "r_direct": ratio,
+            "p_pegged_usdt": round(ratio * p_usdt, 6),
+            "p_anchor_usdt": p_usdt,
+            "avg_1w": avg_1w,
+            "avg_1m": avg_1m,
+            "avg_1y": round(p_par * 1.000, 6),
+        }
+    )
+    delta_est = ratio - p_par
+    spread_series = [
+        round(delta_est * 0.4, 6),
+        round(delta_est * 0.75, 6),
+        round(delta_est * 1.10, 6),
+        round(delta_est * 1.05, 6),
+        round(delta_est * 0.98, 6),
+        round(delta_est, 6),
+    ]
+    l3_update_b: dict[str, float] = {"order_size_usd": order_size_usd, "tau_redeem_days": tau_days}
+    if current_ratio is not None:
+        l3_update_b["funding_rate_8h"] = 0.0
+    return base.model_copy(
+        update={
+            "symbol": canonical,
+            "layer1": l1,
+            "spread_series": spread_series,
+            "layer3": base.layer3.model_copy(update=l3_update_b),
+            "layer4": base.layer4.model_copy(update={"symbol": canonical}),
+            "layer5": base.layer5.model_copy(
+                update={"symbol": canonical, "base_size_usd": order_size_usd, "max_order_cap_usd": order_size_usd}
+            ),
+        }
+    )
+

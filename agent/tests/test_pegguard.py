@@ -488,3 +488,208 @@ def test_security_pegguard_ols_and_fv_numerical_hardening():
     assert math.isfinite(fv)
     assert rr == 1.0
 
+
+# =============================================================================
+# 4-Category 24-Asset Catalog & Autonomous De-Peg Scanner with Low-Watermark Memory
+# =============================================================================
+
+
+def test_complete_4_category_24_asset_catalog_and_hybrid_routing():
+    """Verifies that all 24 canonical assets across the 4 asset categories are registered with
+    exact Ethereum L1 venues, Arbitrum L2 venues, FISCO BCOS integration roles, and Layer 5 hedge routing.
+    """
+    from tecc_brain.pegguard import PEGGUARD_ASSET_CATALOG, default_pegguard_input_for_symbol
+
+    expected_cat1_stablecoins = {"USDC", "USDT", "DAI", "USDS", "FRAX", "USDe", "crvUSD", "GHO", "LUSD", "PYUSD", "EURC"}
+    expected_cat2_lst_lrt = {"stETH", "wstETH", "WBETH", "rETH", "cbETH", "weETH", "ezETH"}
+    expected_cat3_btc = {"WBTC", "cbBTC", "tBTC"}
+    expected_cat4_rwa = {"PAXG", "XAUT", "USDY", "OUSG"}
+
+    all_expected = expected_cat1_stablecoins | expected_cat2_lst_lrt | expected_cat3_btc | expected_cat4_rwa
+    assert set(PEGGUARD_ASSET_CATALOG.keys()) == all_expected
+    assert len(PEGGUARD_ASSET_CATALOG) == 25
+
+    engine = PegGuardEngine()
+
+    # 1. Category 1: Fiat & Decentralized Stablecoins -> CLASS_B_FISCO_PAR_REPO
+    for sym in expected_cat1_stablecoins:
+        spec = PEGGUARD_ASSET_CATALOG[sym]
+        assert spec.category == "1_FIAT_AND_DECENTRALIZED_STABLECOINS"
+        assert spec.hedge_class == "CLASS_B_FISCO_PAR_REPO"
+        assert len(spec.ethereum_l1_venues) >= 1
+        assert len(spec.arbitrum_l2_venues) >= 1
+        dec = engine.evaluate(default_pegguard_input_for_symbol(sym, order_size_usd=250.0))
+        assert dec.layer5.hedge_class == "CLASS_B_FISCO_PAR_REPO"
+        if sym == "EURC":
+            assert dec.layer5.short_leg_instrument == "FISCO_BCOS_PAR_CAPPED_EUR_REPO"
+        else:
+            assert dec.layer5.short_leg_instrument == "FISCO_BCOS_PAR_CAPPED_USDT_REPO"
+
+    # 2. Category 2: ETH-Anchored LSTs & LRTs -> CLASS_A_CRYPTO_PERP + SHORT_ETH_PERP
+    for sym in expected_cat2_lst_lrt:
+        spec = PEGGUARD_ASSET_CATALOG[sym]
+        assert spec.category == "2_LIQUID_STAKING_AND_RESTAKING_LST_LRT"
+        assert spec.anchor_asset == "ETH"
+        assert spec.hedge_class == "CLASS_A_CRYPTO_PERP"
+        dec = engine.evaluate(default_pegguard_input_for_symbol(sym, order_size_usd=250.0))
+        assert dec.layer5.hedge_class == "CLASS_A_CRYPTO_PERP"
+        assert dec.layer5.short_leg_instrument == "SHORT_ETH_PERP"
+
+    # 3. Category 3: Wrapped Bitcoin Derivatives -> CLASS_A_CRYPTO_PERP + SHORT_BTC_PERP
+    for sym in expected_cat3_btc:
+        spec = PEGGUARD_ASSET_CATALOG[sym]
+        assert spec.category == "3_WRAPPED_BITCOIN_DERIVATIVES"
+        assert spec.anchor_asset == "BTC"
+        assert spec.hedge_class == "CLASS_A_CRYPTO_PERP"
+        dec = engine.evaluate(default_pegguard_input_for_symbol(sym, order_size_usd=250.0))
+        assert dec.layer5.hedge_class == "CLASS_A_CRYPTO_PERP"
+        assert dec.layer5.short_leg_instrument == "SHORT_BTC_PERP"
+
+    # 4. Category 4: Tokenized RWAs (Gold -> SHORT_XAU_USDT_PERP; US Treasuries -> CLASS_B_FISCO_PAR_REPO)
+    for sym in ("PAXG", "XAUT"):
+        dec = engine.evaluate(default_pegguard_input_for_symbol(sym, order_size_usd=250.0))
+        assert dec.layer5.hedge_class == "CLASS_A_CRYPTO_PERP"
+        assert dec.layer5.short_leg_instrument == "SHORT_XAU_USDT_PERP"
+
+    for sym in ("USDY", "OUSG"):
+        dec = engine.evaluate(default_pegguard_input_for_symbol(sym, order_size_usd=250.0))
+        assert dec.layer5.hedge_class == "CLASS_B_FISCO_PAR_REPO"
+        assert dec.layer5.short_leg_instrument == "FISCO_BCOS_PAR_CAPPED_USDT_REPO"
+
+
+def test_autonomous_scanner_user_toggle_and_unprofitable_price_watermark():
+    """Verifies the exact stateful PegGuard autonomous arbitrage behavior:
+    1. User can enable or disable the arbitrage system at any time (not a command).
+    2. When disabled, scan_tick does not scan or trade.
+    3. When enabled and a token de-pegs to an UNPROFITABLE price (e.g. USDC at 0.9965 where EV < +15 bps):
+       - Tick 1 evaluates the 5 layers, sees it is unprofitable, and records `watermark.unprofitable_price = 0.9965`.
+       - Tick 2 at the same price (0.9965) or a slightly higher de-pegged price (0.9970) SKIPS the 5-layer check
+         (`status == 'skipped_watermark'`) so it does not re-check the same unprofitable trade every second.
+       - Tick 3 when the price drops slightly lower (0.9962) re-checks the 5 layers, finds it still unprofitable,
+         and lowers the watermark to `0.9962`.
+       - Tick 4 when the price drops deep enough to be profitable (0.8800) re-checks the 5 layers, AUTHORIZES &
+         EXECUTES the trade (`status == 'executed'`), and clears the watermark.
+    """
+    import pytest
+    from tecc_brain.pegguard import PegGuardAutonomousScanner
+
+    scanner = PegGuardAutonomousScanner()
+    account = "0xAutoArbUser"
+
+    # 1. Default is disabled -> scan_tick returns status='disabled'
+    assert scanner.is_enabled(account) is False
+    tick_disabled = scanner.scan_tick(account, price_overrides={"USDC": 0.880}, symbols=["USDC"])
+    assert tick_disabled.enabled is False
+    assert tick_disabled.status == "disabled"
+    assert tick_disabled.executed_count == 0
+
+    # 2. User enables the arbitrage system
+    assert scanner.set_enabled(account, True) is True
+    assert scanner.is_enabled(account) is True
+
+    # 3. Tick 1: USDC has a shallow de-peg at 0.9975 (25 bps below $1.000 -> EV ~ +10.9 bps < +15 bps hurdle)
+    tick1 = scanner.scan_tick(account, price_overrides={"USDC": 0.9975}, symbols=["USDC"])
+    assert tick1.status == "scanned"
+    assert tick1.noted_unprofitable_count == 1
+    assert tick1.skipped_by_watermark_count == 0
+    out1 = tick1.outcomes[0]
+    assert out1.symbol == "USDC"
+    assert out1.status == "noted_unprofitable"
+    assert out1.watermark_price == pytest.approx(0.9975, abs=1e-4)
+    assert "USDC" in scanner.get_watermarks(account)
+
+    # 4. Tick 2: Price stays at 0.9975 (or bounces slightly to 0.9978 while still de-pegged)
+    # -> Must SKIP 5-layer evaluation (`skipped_watermark`)!
+    for same_or_higher in (0.9975, 0.9978):
+        tick2 = scanner.scan_tick(account, price_overrides={"USDC": same_or_higher}, symbols=["USDC"])
+        assert tick2.skipped_by_watermark_count == 1
+        assert tick2.noted_unprofitable_count == 0
+        out2 = tick2.outcomes[0]
+        assert out2.status == "skipped_watermark"
+        assert out2.decision is None  # 5-layer engine was NOT re-invoked!
+        assert out2.watermark_price == pytest.approx(0.9975, abs=1e-4)
+
+    # 5. Tick 3: Price drops lower to 0.9972 (< 0.9975 watermark), so the bot checks again,
+    # finds it is still unprofitable (EV ~ +13.9 bps < +15 bps hurdle), and updates the watermark to 0.9972!
+    tick3 = scanner.scan_tick(account, price_overrides={"USDC": 0.9972}, symbols=["USDC"])
+    assert tick3.noted_unprofitable_count == 1
+    assert tick3.outcomes[0].status == "noted_unprofitable"
+    assert scanner.get_watermarks(account)["USDC"].unprofitable_price == pytest.approx(0.9972, abs=1e-4)
+
+    # 6. Tick 4: Price drops deep to 0.8800 (< 0.9972 watermark) -> profitable!
+    # Bot runs all 5 layers, executes the two-leg arbitrage, and clears the watermark.
+    tick4 = scanner.scan_tick(account, price_overrides={"USDC": 0.8800}, symbols=["USDC"])
+    assert tick4.executed_count == 1
+    out4 = tick4.outcomes[0]
+    assert out4.status == "executed"
+    assert out4.decision is not None and out4.decision.authorized is True
+    assert out4.execution_intent is not None
+    assert "USDC" not in scanner.get_watermarks(account)
+
+    # 7. User can disable the arbitrage system at any time
+    assert scanner.set_enabled(account, False) is False
+    tick5 = scanner.scan_tick(account, price_overrides={"USDC": 0.8800}, symbols=["USDC"])
+    assert tick5.status == "disabled"
+    assert tick5.executed_count == 0
+
+
+def test_arbitrage_fastapi_endpoints_toggle_status_assets_and_scan(tmp_path, monkeypatch):
+    """Verifies the FastAPI /api/arbitrage/toggle, /api/arbitrage/status, /api/arbitrage/assets,
+    and /api/arbitrage/scan endpoints.
+    """
+    from fastapi.testclient import TestClient
+    from tecc_brain.app import app
+
+    monkeypatch.setenv("TECC_STATE_DIR", str(tmp_path))
+    client = TestClient(app)
+
+    # 1. GET /api/arbitrage/assets returns all 25 canonical assets
+    r_assets = client.get("/api/arbitrage/assets")
+    assert r_assets.status_code == 200
+    assets_data = r_assets.json()
+    assert len(assets_data) == 25
+    assert "USDC" in assets_data and "wstETH" in assets_data and "WBTC" in assets_data and "USDY" in assets_data
+
+    # 2. Toggle ON for account 'alice'
+    r_on = client.post("/api/arbitrage/toggle", json={"account": "alice", "enabled": True})
+    assert r_on.status_code == 200
+    assert r_on.json()["enabled"] is True
+
+    # 3. Scan with unprofitable de-peg on GHO (0.9975 -> 25 bps de-peg, EV < +15 bps) and profitable de-peg on wstETH (1.080 vs 1.180 par)
+    r_scan1 = client.post(
+        "/api/arbitrage/scan",
+        json={
+            "account": "alice",
+            "order_size_usd": 200.0,
+            "symbols": ["GHO", "wstETH"],
+            "price_overrides": {"GHO": 0.9975, "wstETH": 1.080},
+        },
+    )
+    assert r_scan1.status_code == 200
+    body1 = r_scan1.json()
+    assert body1["status"] == "scanned"
+    assert body1["noted_unprofitable_count"] == 1
+    assert body1["executed_count"] == 1
+    assert "GHO" in body1["active_watermarks"]
+
+    # 4. Immediate second scan at the same GHO price (0.9975) skips GHO via watermark!
+    r_scan2 = client.post(
+        "/api/arbitrage/scan",
+        json={
+            "account": "alice",
+            "order_size_usd": 200.0,
+            "symbols": ["GHO"],
+            "price_overrides": {"GHO": 0.9975},
+        },
+    )
+    assert r_scan2.status_code == 200
+    body2 = r_scan2.json()
+    assert body2["skipped_by_watermark_count"] == 1
+    assert body2["outcomes"][0]["status"] == "skipped_watermark"
+
+    # 5. Toggle OFF at any time
+    r_off = client.post("/api/arbitrage/toggle", json={"account": "alice", "enabled": False})
+    assert r_off.status_code == 200
+    assert r_off.json()["enabled"] is False
+
+

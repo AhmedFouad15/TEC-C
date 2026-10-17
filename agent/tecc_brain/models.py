@@ -325,6 +325,10 @@ class BrainProfile(BaseModel):
     seen_events: list[str] = Field(default_factory=list, description="Applied event ids, so a re-sync is harmless")
     preferences: list[NotePreference] = Field(default_factory=list, description="Last 20 note preferences; latest wins")
     cost_factors: dict[str, float] = Field(default_factory=dict, description="c_in / c_out_stress multipliers (1.0–1.5)")
+    arbitrage_enabled: bool = Field(
+        False,
+        description="User-toggleable option: whether autonomous PegGuard de-peg arbitrage scanning is enabled",
+    )
 
     def _beta(self, venue_id: str) -> tuple[float, float]:
         return self.approvals.get(venue_id, APPROVAL_PRIOR)
