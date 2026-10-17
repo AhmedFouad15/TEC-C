@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from tecc_brain import __version__
-from tecc_brain.api import arbitrage, insight, mandate, options, profile, risk
+from tecc_brain.api import arbitrage, biometrics, insight, mandate, options, profile, risk
 from tecc_brain.api.deps import allowed_origins, require_client
 from tecc_brain.monitor.hourly import start_scheduler, stop_scheduler
 
@@ -30,7 +30,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization"],
 )
-for module in (mandate, risk, profile, insight, options, arbitrage):
+for module in (mandate, risk, profile, insight, options, arbitrage, biometrics):
     app.include_router(module.router, dependencies=[Depends(require_client)])
 
 
