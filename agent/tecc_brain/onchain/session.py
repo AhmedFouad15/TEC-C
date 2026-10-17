@@ -37,20 +37,25 @@ def session_signature(private_key: bytes | str, hash32: bytes, mandate_digest: b
     return bytes.fromhex(signer.address[2:]) + sig + mandate_digest
 
 
-def provision_session_key(rpc: Rpc, dep: LocalDeployment, mandate: UserMandate, fund_wei: int = GAS_FUNDING_WEI) -> None:
+def provision_session_key(
+    rpc: Rpc, dep: LocalDeployment, mandate: UserMandate, fund_wei: int = GAS_FUNDING_WEI,
+    owner_key: bytes | str | None = None,
+) -> None:
+    """`owner_key` signs as the root owner on real networks; on Anvil the owner is a node-managed account."""
     owner = dep.root_owner
+    k = owner_key
     hook = Contract.load("TetherGuardHook", dep.hook)
     validator = Contract.load("SessionKeyValidator", dep.validator)
     account = Contract.load("TecAccount", dep.account)
     digest = mandate.digest(dep.chain_id, dep.validator)
 
-    hook.transact(rpc, "completeBiometricVerification", dep.account, sender=owner)
+    hook.transact(rpc, "completeBiometricVerification", dep.account, sender=owner, key=k)
     register = validator.encode(
         "registerSessionKey", dep.account, mandate.session_key, mandate.valid_after, mandate.valid_until, digest
     )
-    account.transact(rpc, "execute", b"\x00" * 32, execution_calldata(dep.validator, 0, register), sender=owner)
-    hook.transact(rpc, "setSessionKeyAuthorization", dep.account, mandate.session_key, True, sender=owner)
-    account.transact(rpc, "installModule", MODULE_TYPE_EXECUTOR, mandate.session_key, b"", sender=owner)
-    hook.transact(rpc, "revokeBiometricVerification", dep.account, sender=owner)
+    account.transact(rpc, "execute", b"\x00" * 32, execution_calldata(dep.validator, 0, register), sender=owner, key=k)
+    hook.transact(rpc, "setSessionKeyAuthorization", dep.account, mandate.session_key, True, sender=owner, key=k)
+    account.transact(rpc, "installModule", MODULE_TYPE_EXECUTOR, mandate.session_key, b"", sender=owner, key=k)
+    hook.transact(rpc, "revokeBiometricVerification", dep.account, sender=owner, key=k)
     if fund_wei:
-        rpc.send_unlocked({"from": owner, "to": mandate.session_key, "value": hex(fund_wei)})
+        rpc.send({"from": owner, "to": mandate.session_key, "value": hex(fund_wei)}, k)

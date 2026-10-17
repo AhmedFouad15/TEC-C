@@ -362,8 +362,8 @@ def test_crisis_4_order_book_depth_and_panic_slippage_stress_test():
 
 def test_pegguard_executor_executes_class_a_class_b_and_blocks_ust_and_respects_cross_chain_tether():
     """Verifies PegGuardArbitrageExecutor & MarketRouter end-to-end:
-    1. Class A (stETH) executes Long Spot + Short ETH-PERP (`0xcca1...`).
-    2. Class B (USDC) executes Long Spot + FISCO BCOS Par-Capped USDT Repo (`0xccb2...`).
+    1. Class A (stETH) is authorized as Long Spot + Short ETH-PERP (simulated: no live perp venue).
+    2. Class B (USDC) is authorized as Long Spot + FISCO BCOS Par-Capped USDT Repo (simulated).
     3. Regime 3 collapse (UST) is vetoed (`status == 'failed'`) and consumes $0 of cross-chain tether radius.
     4. Cross-Chain Tether Radius locks arbitrage once the $500 daily limit is reached.
     """
@@ -377,20 +377,23 @@ def test_pegguard_executor_executes_class_a_class_b_and_blocks_ust_and_respects_
     assert "PegGuard ABSTAINED/VETOED UST" in res_ust.detail
     assert router.tether_tracker.get_spent(account) == 0.0
 
-    # 2. Class A: stETH 3AC discount ($250) -> Submitted via Long Spot + Short ETH-PERP
+    # 2. Class A: stETH 3AC discount ($250) -> authorized two-leg plan, simulated (no live perp venue yet)
     res_steth = router.submit(_arb_intent("curve_steth_eth", "stETH", usd=250.0), account, market="arbitrage")
-    assert res_steth.status == "submitted"
-    assert res_steth.tx_hash and res_steth.tx_hash.startswith("0xcca1")
+    assert res_steth.status == "simulated"
+    assert res_steth.tx_hash is None
     assert "Class A Two-Leg Arbitrage (stETH)" in res_steth.detail
-    assert router.tether_tracker.get_spent(account) == 250.0
+    assert router.tether_tracker.get_spent(account) == 0.0  # a simulation spends nothing
 
     # 3. Class B: USDC SVB discount ($250) -> Submitted via FISCO BCOS Par-Capped USDT Repo
     res_usdc = router.submit(_arb_intent("curve_3pool_usdc", "USDC", usd=250.0), account, market="arbitrage")
-    assert res_usdc.status == "submitted"
-    assert res_usdc.tx_hash and res_usdc.tx_hash.startswith("0xccb2")
+    assert res_usdc.status == "simulated"
+    assert res_usdc.tx_hash is None
     assert "Class B Two-Leg Arbitrage (USDC via FISCO BCOS Par-Capped USDT Repo)" in res_usdc.detail
     assert "Par-Capped Liability=$250.00, Squeeze Saved=$10.00" in res_usdc.detail
-    assert router.tether_tracker.get_spent(account) == 500.0
+    assert router.tether_tracker.get_spent(account) == 0.0
+
+    # Real spending elsewhere today (e.g. $500 on Ethereum) uses up the cross-chain limit...
+    router.tether_tracker.record_spend(account, "crypto", 500.0)
     assert router.tether_tracker.get_remaining(account) == 0.0
 
     # 4. Further arbitrage is blocked by Cross-Chain Tether Radius ($500 / $500 spent)

@@ -78,17 +78,20 @@ class Contract:
         fn = self._fn(name, len(args))
         return tuple(decode([abi_type(o) for o in fn["outputs"]], bytes.fromhex(out[2:])))
 
-    def transact(self, rpc: Rpc, name: str, *args: Any, sender: str, value: int = 0) -> dict[str, Any]:
+    def transact(
+        self, rpc: Rpc, name: str, *args: Any, sender: str, value: int = 0, key: bytes | str | None = None
+    ) -> dict[str, Any]:
+        """Send a transaction: signed with `key` on real networks, or from the node's unlocked `sender` (Anvil)."""
         assert self.address, "contract has no address"
         tx = {"from": sender, "to": self.address, "data": "0x" + self.encode(name, *args).hex()}
         if value:
             tx["value"] = hex(value)
-        return rpc.send_unlocked(tx)
+        return rpc.send(tx, key)
 
-    def deploy(self, rpc: Rpc, sender: str, *args: Any) -> "Contract":
+    def deploy(self, rpc: Rpc, sender: str, *args: Any, key: bytes | str | None = None) -> "Contract":
         ctor = next((e for e in self.abi if e["type"] == "constructor"), {"inputs": []})
         data = self.bytecode + encode([abi_type(i) for i in ctor["inputs"]], list(args)).hex()
-        receipt = rpc.send_unlocked({"from": sender, "data": data})
+        receipt = rpc.send({"from": sender, "data": data}, key)
         return self.at(receipt["contractAddress"])
 
     def decode_error(self, data: str | None) -> str | None:

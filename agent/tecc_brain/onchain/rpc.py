@@ -8,6 +8,8 @@ import time
 import urllib.request
 from typing import Any
 
+from eth_account import Account
+
 
 class RpcError(RuntimeError):
     def __init__(self, code: int, message: str, data: str | None = None) -> None:
@@ -70,6 +72,43 @@ class Rpc:
         except RpcError as exc:
             raise RpcError(exc.code, f"transaction {receipt['transactionHash']} reverted: {exc.message}", exc.data) from None
         raise RpcError(-32000, f"transaction {receipt['transactionHash']} reverted")
+
+    def fee_fields(self) -> dict[str, Any]:
+        """EIP-1559 fees when the chain has a base fee, else a legacy (EIP-155) gas price.
+
+        Ethereum, Arbitrum and Anvil use EIP-1559; FISCO BCOS's web3 RPC and other consortium chains may not.
+        """
+        gas_price = int(self.call("eth_gasPrice"), 16)
+        block = self.call("eth_getBlockByNumber", ["latest", False]) or {}
+        if block.get("baseFeePerGas") is not None:
+            return {"type": 2, "maxFeePerGas": max(gas_price * 2, 1), "maxPriorityFeePerGas": min(gas_price, 10**9)}
+        return {"gasPrice": gas_price}
+
+    def send_signed(self, tx: dict[str, Any], private_key: bytes | str, gas_margin: float = 1.25) -> dict[str, Any]:
+        """Sign locally and send: works on any EVM JSON-RPC node (testnets, L2s, FISCO BCOS web3 RPC).
+        `tx` holds to/data/value (hex value, as for eth_sendTransaction); nonce, gas, fees and chain id are filled."""
+        signer = Account.from_key(private_key)
+        call = {"from": signer.address, **{k: tx[k] for k in ("to", "data", "value") if k in tx}}
+        gas = int(self.call("eth_estimateGas", [call]), 16)  # a revert surfaces here, before anything is signed
+        full: dict[str, Any] = {
+            **self.fee_fields(),
+            "chainId": self.chain_id(),
+            "nonce": int(self.call("eth_getTransactionCount", [signer.address, "pending"]), 16),
+            "gas": int(gas * gas_margin),
+            "data": tx.get("data", "0x"),
+            "value": int(tx.get("value", "0x0"), 16),
+        }
+        if tx.get("to"):
+            full["to"] = tx["to"]
+        signed = Account.sign_transaction(full, private_key)
+        receipt = self.wait(self.call("eth_sendRawTransaction", ["0x" + bytes(signed.raw_transaction).hex()]))
+        if receipt["status"] != "0x1":
+            self._raise_revert(call, receipt)
+        return receipt
+
+    def send(self, tx: dict[str, Any], private_key: bytes | str | None = None) -> dict[str, Any]:
+        """Signed with `private_key` when given (real networks), else from a node-managed dev account (Anvil)."""
+        return self.send_signed(tx, private_key) if private_key is not None else self.send_unlocked(tx)
 
     def send_raw(self, raw_tx: str) -> dict[str, Any]:
         receipt = self.wait(self.call("eth_sendRawTransaction", [raw_tx]))

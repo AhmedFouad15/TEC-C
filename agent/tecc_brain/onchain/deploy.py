@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from eth_account import Account
 from pydantic import BaseModel
 
 from tecc_brain.models import usd_to_onchain
@@ -55,39 +56,45 @@ def deploy_local(
     ceiling_usd: float = 2000.0,
     tier: int = 2,
     ref: Reference | None = None,
+    deployer_key: bytes | str | None = None,
+    fund_eth_wei: int = FUNDED_ETH_WEI,
 ) -> LocalDeployment:
+    """Deploy the suite. On Anvil the node's account 0 signs; on a real network pass `deployer_key` (a funded key,
+    which also becomes the root owner) and a small `fund_eth_wei` (or 0 on chains without a native coin)."""
     ref = ref or load_reference()
-    owner = rpc.call("eth_accounts")[0]
+    owner = Account.from_key(deployer_key).address if deployer_key is not None else rpc.call("eth_accounts")[0]
+    k = deployer_key
 
-    hook = Contract.load("TetherGuardHook").deploy(rpc, owner)
-    validator = Contract.load("SessionKeyValidator").deploy(rpc, owner)
-    account = Contract.load("TecAccount").deploy(rpc, owner, NO_BUNDLER_ENTRYPOINT)
-    account.transact(rpc, "initialize", owner, hook.address, validator.address, sender=owner)
+    hook = Contract.load("TetherGuardHook").deploy(rpc, owner, key=k)
+    validator = Contract.load("SessionKeyValidator").deploy(rpc, owner, key=k)
+    account = Contract.load("TecAccount").deploy(rpc, owner, NO_BUNDLER_ENTRYPOINT, key=k)
+    account.transact(rpc, "initialize", owner, hook.address, validator.address, sender=owner, key=k)
 
     feed = Contract.load("MockChainlinkFeed")
-    eth_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(eth_usd), "ETH / USD")
-    usdc_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(1.0), "USDC / USD")
-    usdc = Contract.load("MockERC20").deploy(rpc, owner, "USD Coin", "USDC", USDC_DECIMALS)
-    usdc.transact(rpc, "mint", account.address, FUNDED_USDC * 10**USDC_DECIMALS, sender=owner)
+    eth_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(eth_usd), "ETH / USD", key=k)
+    usdc_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(1.0), "USDC / USD", key=k)
+    usdc = Contract.load("MockERC20").deploy(rpc, owner, "USD Coin", "USDC", USDC_DECIMALS, key=k)
+    usdc.transact(rpc, "mint", account.address, FUNDED_USDC * 10**USDC_DECIMALS, sender=owner, key=k)
 
-    hook.transact(rpc, "setGlobalPriceFeed", NATIVE_ETH, eth_feed.address, sender=owner)
-    hook.transact(rpc, "setGlobalPriceFeed", usdc.address, usdc_feed.address, sender=owner)
+    hook.transact(rpc, "setGlobalPriceFeed", NATIVE_ETH, eth_feed.address, sender=owner, key=k)
+    hook.transact(rpc, "setGlobalPriceFeed", usdc.address, usdc_feed.address, sender=owner, key=k)
     hook.transact(
         rpc, "initializeAccountPolicy", account.address, owner, usd_to_onchain(radius_usd), tier, True,
-        usd_to_onchain(ceiling_usd), sender=owner,
+        usd_to_onchain(ceiling_usd), sender=owner, key=k,
     )
     # USDC moves are ERC-20 transfers whose call target is the token itself, so the token is whitelisted too
     # (tier 1, a core stablecoin). See SUMMARY: the hook does not check the transfer's recipient.
-    hook.transact(rpc, "setTargetWhitelist", account.address, usdc.address, True, 1, sender=owner)
+    hook.transact(rpc, "setTargetWhitelist", account.address, usdc.address, True, 1, sender=owner, key=k)
 
     protocol = Contract.load("MockDeFiProtocol")
     venues: dict[str, str] = {}
     for venue in ref.venues.values():
-        mock = protocol.deploy(rpc, owner)
-        hook.transact(rpc, "setTargetWhitelist", account.address, mock.address, True, int(venue.tier), sender=owner)
+        mock = protocol.deploy(rpc, owner, key=k)
+        hook.transact(rpc, "setTargetWhitelist", account.address, mock.address, True, int(venue.tier), sender=owner, key=k)
         venues[venue.id] = mock.address  # type: ignore[assignment]
 
-    rpc.send_unlocked({"from": owner, "to": account.address, "value": hex(FUNDED_ETH_WEI)})
+    if fund_eth_wei:
+        rpc.send({"from": owner, "to": account.address, "value": hex(fund_eth_wei)}, k)
     return LocalDeployment(
         chain_id=rpc.chain_id(), root_owner=owner, hook=hook.address, validator=validator.address,  # type: ignore[arg-type]
         account=account.address, usdc=usdc.address, eth_feed=eth_feed.address, usdc_feed=usdc_feed.address,  # type: ignore[arg-type]
