@@ -72,7 +72,9 @@ contract WebAuthnP256Validator is IERC7579Validator {
     event PasskeyRevoked(address indexed account);
     event PasskeyRevokedById(address indexed account, bytes32 indexed keyId);
     event RecoveryGuardianUpdated(address indexed account, address indexed guardian);
-    event PasskeyRecovered(address indexed account, address indexed guardian, bytes32 indexed newKeyId, uint256 newQx, uint256 newQy);
+    event PasskeyRecovered(
+        address indexed account, address indexed guardian, bytes32 indexed newKeyId, uint256 newQx, uint256 newQy
+    );
     event FallbackVerifierUpdated(address indexed verifier);
 
     // =========================================================================
@@ -353,14 +355,8 @@ contract WebAuthnP256Validator is IERC7579Validator {
         }
 
         // Full WebAuthn biometric envelope: (bytes authenticatorData, bytes32 clientDataHash, uint256 r, uint256 s, uint256 qx, uint256 qy)
-        (
-            bytes memory authData,
-            bytes32 clientDataHash,
-            uint256 r,
-            uint256 s,
-            uint256 qx,
-            uint256 qy
-        ) = abi.decode(userOp.signature, (bytes, bytes32, uint256, uint256, uint256, uint256));
+        (bytes memory authData, bytes32 clientDataHash, uint256 r, uint256 s, uint256 qx, uint256 qy) =
+            abi.decode(userOp.signature, (bytes, bytes32, uint256, uint256, uint256, uint256));
 
         if (!isAuthorizedPasskey(userOp.sender, qx, qy)) {
             return 1;

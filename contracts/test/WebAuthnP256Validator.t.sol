@@ -186,15 +186,13 @@ contract WebAuthnP256ValidatorTest is Test {
         vm.stopPrank();
 
         // 1. Verify real NIST P-256 signature via pure-Solidity Jacobian math (with 0x100 absent!)
-        bool validOnL1 = validator.verifyP256Signature(
-            RFC6979_MSG_HASH, RFC6979_R, RFC6979_S_LOW, RFC6979_QX, RFC6979_QY
-        );
+        bool validOnL1 =
+            validator.verifyP256Signature(RFC6979_MSG_HASH, RFC6979_R, RFC6979_S_LOW, RFC6979_QX, RFC6979_QY);
         assertTrue(validOnL1, "Pure-Solidity P-256 verifier must validate real RFC 6979 signature on L1");
 
         // 2. Verify corrupted signature fails in pure-Solidity fallback
-        bool invalidOnL1 = validator.verifyP256Signature(
-            RFC6979_MSG_HASH, RFC6979_R + 1, RFC6979_S_LOW, RFC6979_QX, RFC6979_QY
-        );
+        bool invalidOnL1 =
+            validator.verifyP256Signature(RFC6979_MSG_HASH, RFC6979_R + 1, RFC6979_S_LOW, RFC6979_QX, RFC6979_QY);
         assertFalse(invalidOnL1, "Tampered R must fail pure-Solidity P-256 verification");
 
         // 3. Complete Biometric Verification on TetherGuardHook using pure-Solidity fallback
@@ -214,9 +212,8 @@ contract WebAuthnP256ValidatorTest is Test {
         assertTrue(RFC6979_S_LOW <= validator.P256_N_DIV_2());
 
         // 1. Validator rejects high-S signature
-        bool validHighS = validator.verifyP256Signature(
-            RFC6979_MSG_HASH, RFC6979_R, RFC6979_S_HIGH, PASSKEY_QX, PASSKEY_QY
-        );
+        bool validHighS =
+            validator.verifyP256Signature(RFC6979_MSG_HASH, RFC6979_R, RFC6979_S_HIGH, PASSKEY_QX, PASSKEY_QY);
         assertFalse(validHighS, "High-S malleable signature must be rejected");
 
         // 2. ERC-4337 validateUserOp rejects high-S signature
@@ -264,14 +261,7 @@ contract WebAuthnP256ValidatorTest is Test {
         // TetherGuardHook reverts with BiometricUserVerificationRequired
         vm.expectRevert(TetherGuardHook.BiometricUserVerificationRequired.selector);
         hook.completeBiometricVerificationWithWebAuthn(
-            tecAccount,
-            passiveAuthData,
-            clientDataHash,
-            r,
-            s,
-            PASSKEY_QX,
-            PASSKEY_QY,
-            block.timestamp + 5 minutes
+            tecAccount, passiveAuthData, clientDataHash, r, s, PASSKEY_QX, PASSKEY_QY, block.timestamp + 5 minutes
         );
 
         // Case 2: True Biometric FaceID/TouchID verification (UP = 0x01 | UV = 0x04 -> flags = 0x05)
@@ -286,14 +276,7 @@ contract WebAuthnP256ValidatorTest is Test {
         assertEq(validator.validateUserOp(opBiometric, clientDataHash), 0);
 
         hook.completeBiometricVerificationWithWebAuthn(
-            tecAccount,
-            biometricAuthData,
-            clientDataHash,
-            r,
-            s,
-            PASSKEY_QX,
-            PASSKEY_QY,
-            block.timestamp + 5 minutes
+            tecAccount, biometricAuthData, clientDataHash, r, s, PASSKEY_QX, PASSKEY_QY, block.timestamp + 5 minutes
         );
         assertTrue(hook.isBiometricActive(tecAccount));
     }

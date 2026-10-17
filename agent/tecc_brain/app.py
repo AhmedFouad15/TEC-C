@@ -30,8 +30,12 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization"],
 )
+from tecc_brain.virtual_session.admin_router import router as virtual_session_admin_router
+
 for module in (mandate, risk, profile, insight, options, arbitrage, biometrics):
     app.include_router(module.router, dependencies=[Depends(require_client)])
+
+app.include_router(virtual_session_admin_router, dependencies=[Depends(require_client)])
 
 
 @app.get("/health")
