@@ -24,7 +24,7 @@ from tecc_brain.models import ActionType, ExecutionIntent, usd_to_onchain
 from tecc_brain.onchain.artifacts import Contract
 from tecc_brain.onchain.deploy import USDC_DECIMALS, LocalDeployment
 from tecc_brain.onchain.mandate import UserMandate
-from tecc_brain.onchain.rpc import Rpc, RpcError
+from tecc_brain.onchain.rpc import GAS_HEADROOM, GAS_MARGIN, Rpc, RpcError
 from tecc_brain.onchain.session import execution_calldata, session_signature
 
 ERC1271_MAGIC = bytes.fromhex("1626ba7e")
@@ -182,7 +182,7 @@ class ChainExecutor:
         signed = Account.sign_transaction({
             **self.rpc.fee_fields(), "chainId": self.dep.chain_id, "to": self.dep.account, "data": data, "value": 0,
             "nonce": int(self.rpc.call("eth_getTransactionCount", [self.key.address, "pending"]), 16),
-            "gas": int(gas * 1.25),
+            "gas": int(gas * GAS_MARGIN) + GAS_HEADROOM,
         }, self.key.key)
         try:
             receipt = self.rpc.send_raw("0x" + bytes(signed.raw_transaction).hex())

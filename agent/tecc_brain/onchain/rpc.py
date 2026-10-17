@@ -11,6 +11,10 @@ from typing import Any
 from eth_account import Account
 
 
+GAS_MARGIN = 1.25  # node estimates can fall short for nested calls (63/64 rule); unused gas is not charged
+GAS_HEADROOM = 30_000
+
+
 class RpcError(RuntimeError):
     def __init__(self, code: int, message: str, data: str | None = None) -> None:
         super().__init__(f"{message} (code {code})")
@@ -57,7 +61,13 @@ class Rpc:
         raise TimeoutError(f"no receipt for {tx_hash}")
 
     def send_unlocked(self, tx: dict[str, Any]) -> dict[str, Any]:
-        """eth_sendTransaction from a node-managed (Anvil dev) account. Reverts surface as RpcError before mining."""
+        """eth_sendTransaction from a node-managed (Anvil dev) account. Reverts surface as RpcError before mining.
+
+        The gas limit is set explicitly with a margin: the node's own estimate can come out a few hundred gas short
+        for nested calls (63/64 gas forwarding into the hook), and the transaction then reverts out of gas."""
+        if "gas" not in tx:
+            estimate = int(self.call("eth_estimateGas", [tx]), 16)
+            tx = {**tx, "gas": hex(int(estimate * GAS_MARGIN) + GAS_HEADROOM)}
         receipt = self.wait(self.call("eth_sendTransaction", [tx]))
         if receipt["status"] != "0x1":
             self._raise_revert(tx, receipt)
@@ -94,7 +104,7 @@ class Rpc:
             **self.fee_fields(),
             "chainId": self.chain_id(),
             "nonce": int(self.call("eth_getTransactionCount", [signer.address, "pending"]), 16),
-            "gas": int(gas * gas_margin),
+            "gas": int(gas * gas_margin) + GAS_HEADROOM,
             "data": tx.get("data", "0x"),
             "value": int(tx.get("value", "0x0"), 16),
         }
