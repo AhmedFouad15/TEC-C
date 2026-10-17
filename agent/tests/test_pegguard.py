@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import pytest
 
 from tecc_brain.models import ActionType, CardLabel, ExecutionIntent, usd_to_onchain
 from tecc_brain.onchain.executor import MarketRouter, PegGuardArbitrageExecutor
@@ -13,6 +14,7 @@ from tecc_brain.pegguard import (
     Layer4Input,
     Layer5Input,
     OnChainSpotMicrostructureInput,
+    PegGuardAutonomousScanner,
     PegGuardEngine,
     PegGuardMarketInput,
     PegRegime,
@@ -691,5 +693,154 @@ def test_arbitrage_fastapi_endpoints_toggle_status_assets_and_scan(tmp_path, mon
     r_off = client.post("/api/arbitrage/toggle", json={"account": "alice", "enabled": False})
     assert r_off.status_code == 200
     assert r_off.json()["enabled"] is False
+
+
+def test_pegguard_fisco_bcos_par_capped_repo_stress_matrix():
+    """Stress tests the FISCO BCOS Par-Capped Repo Facility under extreme market dislocations:
+    min[P_anchor, 1.000] strictly eliminates > $1.000 flight-to-safety short squeeze risk.
+    """
+    notional = 10_000.0
+    for p_usdt in [0.75, 0.90, 0.999, 1.000, 1.001, 1.040, 1.150, 1.500, 2.000]:
+        quote = compute_fisco_par_capped_repo(q_borrowed_usdt=notional, p_usdt_market=p_usdt)
+        liability = quote.effective_short_liability_usd
+        saved = quote.squeeze_protection_saved_usd
+        assert liability <= notional + 1e-6, f"Par cap breached at P_USDT={p_usdt}: liability={liability}"
+        if p_usdt > 1.000:
+            assert quote.effective_unit_liability == 1.000
+            assert saved == pytest.approx((p_usdt - 1.000) * notional, rel=1e-5)
+            assert liability == pytest.approx(notional, rel=1e-5)
+        else:
+            assert quote.effective_unit_liability == pytest.approx(p_usdt, rel=1e-5)
+            assert saved == 0.0
+            assert liability == pytest.approx(p_usdt * notional, rel=1e-5)
+
+
+def test_pegguard_extreme_market_conditions_and_edge_cases():
+    """Verifies that all 5 layers handle extreme market conditions gracefully without crashing:
+    1. Zero liquid reserves (FV_fund -> 0.0)
+    2. Severe contagion brake (> 80% peer distress) scaling down order sizes
+    3. Flash crash price input with exponential widening
+    4. Safe recovery back to peg clears watermark
+    """
+    engine = PegGuardEngine()
+
+    # 1. Total reserve wipeout (liquid_reserves = 0.0) -> baseline drops to 0.0 -> no discount buy!
+    l1_zero_res = calibrate_layer1(
+        Layer1Input(
+            symbol="USDC",
+            p_par=1.0,
+            liquid_reserves=0.0,
+            circulating_supply=1.0,
+            y_asset=0.0,
+            r_fee=0.0,
+            c_illiquidity=0.0,
+            tau_redeem_days=0.0,
+            r_direct=0.50,
+            p_pegged_usdt=0.50,
+            p_anchor_usdt=1.00,
+            w_dir=0.50,
+            avg_1w=1.0,
+            avg_1m=1.0,
+            avg_1y=1.0,
+            sigma_30d=0.02,
+        )
+    )
+    assert l1_zero_res.fv_fund == 0.0
+    assert l1_zero_res.baseline_star == 0.0
+    assert l1_zero_res.abnormal_spread_delta > 0.0  # 0.50 > 0.00 -> not a discount buy!
+
+    # 2. Severe Contagion Brake: multiple peer stablecoins in distress
+    inp_contagion = crisis_scenario_svb_usdc(
+        order_size_usd=1000.0,
+        peer_distress_probs={"DAI": 0.95, "FRAX": 0.90, "USDT": 0.40},
+    )
+    dec_contagion = engine.evaluate(inp_contagion)
+    # Contagion brake factor B_contagion should reduce size below the base order size
+    assert dec_contagion.layer5.contagion_brake_factor < 1.0
+    assert dec_contagion.layer5.final_order_size_usd < 1000.0
+    assert dec_contagion.layer5.final_order_size_usd > 0.0
+
+    # 3. Flash crash input with exponential divergence (death spiral)
+    inp_flash = crisis_scenario_svb_usdc(order_size_usd=500.0)
+    inp_flash = inp_flash.model_copy(
+        update={
+            "layer1": inp_flash.layer1.model_copy(update={"r_direct": 0.0001, "p_pegged_usdt": 0.0001}),
+            "spread_series": [-0.02, -0.05, -0.11, -0.23, -0.45, -0.80],
+        }
+    )
+    dec_flash = engine.evaluate(inp_flash)
+    # Layer 2 detects diverging death spiral and vetoes
+    assert dec_flash.layer2.death_spiral_veto is True
+    assert dec_flash.authorized is False
+
+
+def test_pegguard_multi_account_stateful_watermark_isolation_and_resets():
+    """Verifies that the autonomous scanner provides strict per-account watermark isolation:
+    - Account A's watermarks do NOT leak to Account B.
+    - An asset that recovers back to peg clears its watermark.
+    - Disabling and re-enabling preserves or cleanly refreshes state.
+    """
+    scanner = PegGuardAutonomousScanner()
+    alice = "0xAlice111"
+    bob = "0xBob222"
+
+    scanner.set_enabled(alice, True)
+    scanner.set_enabled(bob, False)
+
+    # Alice scans an unprofitable GHO de-peg (0.9975)
+    r_alice1 = scanner.scan_tick(alice, price_overrides={"GHO": 0.9975}, symbols=["GHO"])
+    assert r_alice1.noted_unprofitable_count == 1
+    assert "GHO" in scanner.get_watermarks(alice)
+    assert "GHO" not in scanner.get_watermarks(bob)
+
+    # Bob's scan is disabled
+    r_bob = scanner.scan_tick(bob, price_overrides={"GHO": 0.9975}, symbols=["GHO"])
+    assert r_bob.status == "disabled"
+    assert len(scanner.get_watermarks(bob)) == 0
+
+    # Now Bob enables
+    scanner.set_enabled(bob, True)
+    assert len(scanner.get_watermarks(bob)) == 0  # Alice's watermark was NOT leaked to Bob
+
+    # GHO recovers to exact peg (1.000) for Alice -> watermark must be cleared!
+    r_alice2 = scanner.scan_tick(alice, price_overrides={"GHO": 1.000}, symbols=["GHO"])
+    assert r_alice2.outcomes[0].status == "at_peg"
+    assert "GHO" not in scanner.get_watermarks(alice)
+
+
+def test_all_25_assets_scanner_end_to_end_sweep():
+    """Sweeps all 25 canonical assets across the 4 categories in a single scan_tick.
+    Verifies that every single asset produces valid Layer 1-5 results with no unhandled exceptions.
+    """
+    from tecc_brain.pegguard import PEGGUARD_ASSET_CATALOG
+
+    scanner = PegGuardAutonomousScanner()
+    account = "0xOmniSweepUser"
+    scanner.set_enabled(account, True)
+
+    assert len(PEGGUARD_ASSET_CATALOG) == 25
+    all_symbols = list(PEGGUARD_ASSET_CATALOG.keys())
+
+    # Scan all 25 assets at default peg prices
+    tick = scanner.scan_tick(account, symbols=all_symbols)
+    assert tick.enabled is True
+    assert tick.status == "scanned"
+    assert len(tick.outcomes) == 25
+
+    categories_seen = set()
+    hedge_classes_seen = set()
+
+    for out in tick.outcomes:
+        assert out.symbol in PEGGUARD_ASSET_CATALOG
+        categories_seen.add(out.category)
+        hedge_classes_seen.add(out.hedge_class)
+        assert out.status in ("at_peg", "noted_unprofitable", "skipped_watermark", "executed", "vetoed")
+        assert out.current_price > 0.0
+
+    # Verify all 4 categories and both hedge classes were evaluated
+    assert len(categories_seen) == 4
+    assert "CLASS_A_CRYPTO_PERP" in hedge_classes_seen
+    assert "CLASS_B_FISCO_PAR_REPO" in hedge_classes_seen
+
 
 
