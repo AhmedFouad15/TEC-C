@@ -672,7 +672,7 @@
           "options"
         ],
         "summary": "Monitor Events",
-        "description": "What the hourly job (or the last manual trigger) has found recently — for a UI timeline/log panel.",
+        "description": "What the hourly job (or the last manual trigger) has found recently \u2014 for a UI timeline/log panel.",
         "operationId": "monitor_events_api_monitor_events_get",
         "parameters": [
           {
@@ -708,6 +708,700 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arbitrage/toggle": {
+      "post": {
+        "tags": [
+          "arbitrage"
+        ],
+        "summary": "Toggle Arbitrage",
+        "description": "Enables or disables the autonomous PegGuard arbitrage bot for `req.account` at any time.",
+        "operationId": "toggle_arbitrage_api_arbitrage_toggle_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleArbitrageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArbitrageStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arbitrage/status": {
+      "get": {
+        "tags": [
+          "arbitrage"
+        ],
+        "summary": "Arbitrage Status",
+        "description": "Returns whether autonomous PegGuard arbitrage is enabled for `account` and any active unprofitable watermarks.",
+        "operationId": "arbitrage_status_api_arbitrage_status_get",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "demo",
+              "title": "Account"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArbitrageStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arbitrage/assets": {
+      "get": {
+        "tags": [
+          "arbitrage"
+        ],
+        "summary": "Arbitrage Assets",
+        "description": "Returns the complete 24-asset 4-category PegGuard catalog across Ethereum L1, Arbitrum L2, and FISCO BCOS.",
+        "operationId": "arbitrage_assets_api_arbitrage_assets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/PegGuardAssetSpec"
+                  },
+                  "type": "object",
+                  "title": "Response Arbitrage Assets Api Arbitrage Assets Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arbitrage/scan": {
+      "post": {
+        "tags": [
+          "arbitrage"
+        ],
+        "summary": "Scan Arbitrage",
+        "description": "Executes one autonomous PegGuard de-peg scan pass (only runs if `enabled == True` for `req.account`).",
+        "operationId": "scan_arbitrage_api_arbitrage_scan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanArbitrageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanTickReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biometrics/register": {
+      "post": {
+        "tags": [
+          "biometrics"
+        ],
+        "summary": "Register Passkey",
+        "description": "Registers a primary or backup hardware WebAuthn P-256 passkey on-chain/off-chain.",
+        "operationId": "register_passkey_api_biometrics_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPasskeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredPasskey"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biometrics/revoke": {
+      "post": {
+        "tags": [
+          "biometrics"
+        ],
+        "summary": "Revoke Passkey",
+        "description": "Revokes a specific device passkey while ensuring at least one passkey remains active.",
+        "operationId": "revoke_passkey_api_biometrics_revoke_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokePasskeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BiometricAccountStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biometrics/guardian": {
+      "post": {
+        "tags": [
+          "biometrics"
+        ],
+        "summary": "Set Guardian",
+        "description": "Configures an Emergency Passkey Recovery Guardian for device-loss recovery.",
+        "operationId": "set_guardian_api_biometrics_guardian_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetGuardianRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BiometricAccountStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biometrics/recover": {
+      "post": {
+        "tags": [
+          "biometrics"
+        ],
+        "summary": "Recover Passkey",
+        "description": "Executes guardian-authorized passkey recovery when the user's primary device is lost.",
+        "operationId": "recover_passkey_api_biometrics_recover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoverPasskeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredPasskey"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biometrics/verify": {
+      "post": {
+        "tags": [
+          "biometrics"
+        ],
+        "summary": "Verify Biometrics",
+        "description": "Verifies a hardware WebAuthn P-256 assertion (enforcing UP + UV flags and s <= N/2) and opens the 5-minute grace window.",
+        "operationId": "verify_biometrics_api_biometrics_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyWebAuthnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BiometricVerificationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/biometrics/status/{account}": {
+      "get": {
+        "tags": [
+          "biometrics"
+        ],
+        "summary": "Get Status",
+        "description": "Returns registered device passkeys, recovery guardian, and 5-minute biometric grace window status.",
+        "operationId": "get_status_api_biometrics_status__account__get",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BiometricAccountStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/sessions": {
+      "get": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "List Sessions",
+        "description": "GET /admin/sessions: List sessions: name, state, device, last seen, IP and country.",
+        "operationId": "list_sessions_admin_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Sessions Admin Sessions Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "Create Session",
+        "description": "POST /admin/sessions: Create a session. Ensures tunnel is up and returns link and QR.",
+        "operationId": "create_session_admin_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Create Session Admin Sessions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/sessions/{session_id}/approve": {
+      "post": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "Approve Session",
+        "description": "POST /admin/sessions/{id}/approve: Approve a pending pairing (after the code matches).",
+        "operationId": "approve_session_admin_sessions__session_id__approve_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Approve Session Admin Sessions  Session Id  Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/sessions/{session_id}/reconnect": {
+      "post": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "Reconnect Session",
+        "description": "POST /admin/sessions/{id}/reconnect: Issue a new link for RELINK_REQUIRED.",
+        "operationId": "reconnect_session_admin_sessions__session_id__reconnect_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reconnect Session Admin Sessions  Session Id  Reconnect Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/sessions/{session_id}": {
+      "delete": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "Revoke Session",
+        "description": "DELETE /admin/sessions/{id}: Revoke and wipe.",
+        "operationId": "revoke_session_admin_sessions__session_id__delete",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Revoke Session Admin Sessions  Session Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/killswitch": {
+      "post": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "Killswitch",
+        "description": "POST /admin/killswitch: Revoke everything and stop the tunnel.",
+        "operationId": "killswitch_admin_killswitch_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Killswitch Admin Killswitch Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/audit": {
+      "get": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "Get Audit Log",
+        "description": "GET /admin/audit: Audit log showing session creation, approval, logins, trades, revocations.",
+        "operationId": "get_audit_log_admin_audit_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Audit Log Admin Audit Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/virtual-sessions": {
+      "get": {
+        "tags": [
+          "virtual_sessions_admin"
+        ],
+        "summary": "Get Virtual Sessions Ui",
+        "description": "Section 8.4: Laptop UI ('Virtual Sessions' screen).",
+        "operationId": "get_virtual_sessions_ui_admin_virtual_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -804,6 +1498,201 @@
           "mode"
         ],
         "title": "Allocation"
+      },
+      "ApproveSessionRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 6,
+            "minLength": 6,
+            "title": "Code",
+            "description": "6-digit confirmation code shown on phone screen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "ApproveSessionRequest"
+      },
+      "ArbitrageStatusResponse": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "monitored_assets_count": {
+            "type": "integer",
+            "title": "Monitored Assets Count"
+          },
+          "active_watermarks": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/UnprofitableWatermark"
+            },
+            "type": "object",
+            "title": "Active Watermarks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "enabled",
+          "monitored_assets_count",
+          "active_watermarks"
+        ],
+        "title": "ArbitrageStatusResponse"
+      },
+      "AssetScanOutcome": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "anchor_asset": {
+            "type": "string",
+            "title": "Anchor Asset"
+          },
+          "hedge_class": {
+            "type": "string",
+            "title": "Hedge Class"
+          },
+          "current_price": {
+            "type": "number",
+            "title": "Current Price",
+            "description": "Current consensus ratio R_cons(t)"
+          },
+          "baseline_star": {
+            "type": "number",
+            "title": "Baseline Star",
+            "description": "Conservative Dual-Anchor Baseline*(t)"
+          },
+          "abnormal_spread_delta": {
+            "type": "number",
+            "title": "Abnormal Spread Delta",
+            "description": "R_cons(t) - Baseline*(t)"
+          },
+          "depegged": {
+            "type": "boolean",
+            "title": "Depegged"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "at_peg",
+              "skipped_watermark",
+              "noted_unprofitable",
+              "executed",
+              "execution_failed"
+            ],
+            "title": "Status"
+          },
+          "watermark_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watermark Price",
+            "description": "Active unprofitable price watermark (re-checks only when current_price < watermark_price)"
+          },
+          "ev_bps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ev Bps"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PegGuardDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "execution_intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionIntent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "category",
+          "anchor_asset",
+          "hedge_class",
+          "current_price",
+          "baseline_star",
+          "abnormal_spread_delta",
+          "depegged",
+          "status",
+          "detail"
+        ],
+        "title": "AssetScanOutcome",
+        "description": "Result of scanning a single pegged asset during an autonomous PegGuard tick."
+      },
+      "AuthenticatorDataParsed": {
+        "properties": {
+          "rp_id_hash_hex": {
+            "type": "string",
+            "title": "Rp Id Hash Hex"
+          },
+          "flags_byte": {
+            "type": "integer",
+            "title": "Flags Byte"
+          },
+          "user_present_up": {
+            "type": "boolean",
+            "title": "User Present Up",
+            "description": "Bit 0 (0x01): User tapped/interacted with device"
+          },
+          "user_verified_uv": {
+            "type": "boolean",
+            "title": "User Verified Uv",
+            "description": "Bit 2 (0x04): User biometrically verified via FaceID/TouchID"
+          },
+          "sign_count": {
+            "type": "integer",
+            "title": "Sign Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rp_id_hash_hex",
+          "flags_byte",
+          "user_present_up",
+          "user_verified_uv",
+          "sign_count"
+        ],
+        "title": "AuthenticatorDataParsed",
+        "description": "Parsed fields from W3C WebAuthn authenticatorData (>= 37 bytes)."
       },
       "AutonomyMode": {
         "type": "string",
@@ -909,6 +1798,138 @@
           "actions"
         ],
         "title": "BacktestStep"
+      },
+      "BiometricAccountStatusResponse": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "passkeys": {
+            "items": {
+              "$ref": "#/components/schemas/RegisteredPasskey"
+            },
+            "type": "array",
+            "title": "Passkeys"
+          },
+          "active_passkey_count": {
+            "type": "integer",
+            "title": "Active Passkey Count"
+          },
+          "recovery_guardian": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Guardian"
+          },
+          "biometric_window_active": {
+            "type": "boolean",
+            "title": "Biometric Window Active"
+          },
+          "biometric_window_valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Biometric Window Valid Until"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "passkeys",
+          "active_passkey_count",
+          "biometric_window_active"
+        ],
+        "title": "BiometricAccountStatusResponse"
+      },
+      "BiometricVerificationResult": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          },
+          "key_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Id"
+          },
+          "verification_path": {
+            "type": "string",
+            "enum": [
+              "rip7212_precompile_0x100",
+              "solidity_p256_fallback",
+              "rejected"
+            ],
+            "title": "Verification Path",
+            "default": "rip7212_precompile_0x100"
+          },
+          "low_s_canonical": {
+            "type": "boolean",
+            "title": "Low S Canonical",
+            "default": false
+          },
+          "authenticator_flags": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuthenticatorDataParsed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "biometric_window_valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Biometric Window Valid Until"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "verified"
+        ],
+        "title": "BiometricVerificationResult",
+        "description": "Result of verifying a WebAuthn P-256 biometric assertion."
       },
       "BrainReport": {
         "properties": {
@@ -1017,7 +2038,7 @@
           "producer"
         ],
         "title": "BrainReport",
-        "description": "The final, validated decision of one run — whoever produced it."
+        "description": "The final, validated decision of one run \u2014 whoever produced it."
       },
       "Candidate": {
         "properties": {
@@ -1241,6 +2262,25 @@
         ],
         "title": "ConflictCode"
       },
+      "CreateSessionRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Name",
+            "description": "Human-readable device/session name",
+            "default": "My iPhone"
+          },
+          "can_trade": {
+            "type": "boolean",
+            "title": "Can Trade",
+            "description": "Whether phone is authorized to execute trades (defaults to read-only)",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "CreateSessionRequest"
+      },
       "Decision": {
         "properties": {
           "mandate": {
@@ -1461,7 +2501,7 @@
               }
             ],
             "title": "Comment",
-            "description": "Free text, if any — stored ONLY as a learning note (like /api/review/sync); never parsed for actions, amounts or recipients, and never seen by Agent 1/2/3 or the executor."
+            "description": "Free text, if any \u2014 stored ONLY as a learning note (like /api/review/sync); never parsed for actions, amounts or recipients, and never seen by Agent 1/2/3 or the executor."
           }
         },
         "type": "object",
@@ -1617,7 +2657,7 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Amount Onchain",
-            "description": "USD × 1e8, the unit TetherGuardHook meters the radius in"
+            "description": "USD \u00d7 1e8, the unit TetherGuardHook meters the radius in"
           },
           "target_address": {
             "anyOf": [
@@ -1644,9 +2684,11 @@
               "signed",
               "submitted",
               "breakout_required",
-              "failed"
+              "failed",
+              "simulated"
             ],
             "title": "Status",
+            "description": "'simulated' = no transaction was sent (that market has no live node configured); never has a tx_hash",
             "default": "pending_signature"
           },
           "tx_hash": {
@@ -1771,6 +2813,65 @@
           "normalized"
         ],
         "title": "FirewallVerdict"
+      },
+      "FiscoParCappedRepoQuote": {
+        "properties": {
+          "q_borrowed_usdt": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Q Borrowed Usdt",
+            "description": "Borrowed USDT quantity Q_borrowed"
+          },
+          "p_usdt_market": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "P Usdt Market",
+            "description": "Current retail market price of USDT P_USDT(t)"
+          },
+          "par_cap": {
+            "type": "number",
+            "title": "Par Cap",
+            "description": "Programmatic legal primary redemption par cap ($1.000)",
+            "default": 1.0
+          },
+          "effective_unit_liability": {
+            "type": "number",
+            "title": "Effective Unit Liability",
+            "description": "min(P_USDT(t), 1.000)"
+          },
+          "effective_short_liability_usd": {
+            "type": "number",
+            "title": "Effective Short Liability Usd",
+            "description": "min(P_USDT(t), 1.000) * Q_borrowed"
+          },
+          "naive_retail_perp_liability_usd": {
+            "type": "number",
+            "title": "Naive Retail Perp Liability Usd",
+            "description": "P_USDT(t) * Q_borrowed on an un-capped retail exchange"
+          },
+          "squeeze_protection_saved_usd": {
+            "type": "number",
+            "title": "Squeeze Protection Saved Usd",
+            "description": "Artificial short-squeeze loss avoided vs naive retail perp when P_USDT(t) > 1.000"
+          },
+          "downside_depeg_gain_usd": {
+            "type": "number",
+            "title": "Downside Depeg Gain Usd",
+            "description": "Asymmetric hedge gain captured when P_USDT(t) < 1.000"
+          }
+        },
+        "type": "object",
+        "required": [
+          "q_borrowed_usdt",
+          "p_usdt_market",
+          "effective_unit_liability",
+          "effective_short_liability_usd",
+          "naive_retail_perp_liability_usd",
+          "squeeze_protection_saved_usd",
+          "downside_depeg_gain_usd"
+        ],
+        "title": "FiscoParCappedRepoQuote",
+        "description": "FISCO BCOS Institutional Par-Capped USDT Repo Settlement quote (PegGuard.pdf Page 7):\nEffective Short Liability(t) = min[P_USDT(t), 1.000] * Q_borrowed\n- Eliminates >$1.00 retail short-squeeze risk (e.g. when USDT spikes to $1.04 during SVB flight-to-safety).\n- Captures asymmetric downside de-peg gain if shorted USDT drops below $1.00."
       },
       "HTTPValidationError": {
         "properties": {
@@ -1914,6 +3015,376 @@
           "matched_terms"
         ],
         "title": "HeadlineSignal"
+      },
+      "Layer1Result": {
+        "properties": {
+          "fv_fund": {
+            "type": "number",
+            "title": "Fv Fund",
+            "description": "Economic Fundamental Fair-Value Benchmark FV_fund(t)"
+          },
+          "reserve_ratio": {
+            "type": "number",
+            "title": "Reserve Ratio",
+            "description": "min(1, LiquidReserves_t / CirculatingSupply_t)"
+          },
+          "r_cons": {
+            "type": "number",
+            "title": "R Cons",
+            "description": "Dual-Path Spot Triangulation Consensus Ratio R_cons(t)"
+          },
+          "r_synthetic": {
+            "type": "number",
+            "title": "R Synthetic",
+            "description": "Synthetic cross-rate P_pegged/USDT(t) / P_anchor/USDT(t)"
+          },
+          "mu_mkt": {
+            "type": "number",
+            "title": "Mu Mkt",
+            "description": "Multi-Horizon Market Consensus mu_mkt(t)"
+          },
+          "baseline_star": {
+            "type": "number",
+            "title": "Baseline Star",
+            "description": "Conservative Dual-Anchor Baseline*(t) = min(FV_fund, mu_mkt)"
+          },
+          "abnormal_spread_delta": {
+            "type": "number",
+            "title": "Abnormal Spread Delta",
+            "description": "Abnormal Spread delta(t) = R_cons(t) - Baseline*(t)"
+          },
+          "z_score": {
+            "type": "number",
+            "title": "Z Score",
+            "description": "Standardized dislocation Z(t) = delta(t) / sigma_30D(t)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fv_fund",
+          "reserve_ratio",
+          "r_cons",
+          "r_synthetic",
+          "mu_mkt",
+          "baseline_star",
+          "abnormal_spread_delta",
+          "z_score"
+        ],
+        "title": "Layer1Result",
+        "description": "Outputs of Layer 1 Calibration (PegGuard.pdf Page 4)."
+      },
+      "Layer2Result": {
+        "properties": {
+          "regime": {
+            "$ref": "#/components/schemas/PegRegime",
+            "description": "Active latent regime S_t in {1, 2, 3}"
+          },
+          "regime_name": {
+            "type": "string",
+            "title": "Regime Name"
+          },
+          "p_regime_1_normal": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Regime 1 Normal"
+          },
+          "p_regime_2_distress": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Regime 2 Distress"
+          },
+          "p_regime_3_collapse": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Regime 3 Collapse"
+          },
+          "p_rec": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "P Rec",
+            "description": "Probability of Peg Recovery P_rec = P(S_t=1) + P(S_t=2)"
+          },
+          "ols": {
+            "$ref": "#/components/schemas/OLSFitResult"
+          },
+          "theta_active": {
+            "type": "number",
+            "title": "Theta Active",
+            "description": "Regime-conditioned reversion speed theta(S_t) per hour"
+          },
+          "half_life_hours": {
+            "type": "number",
+            "title": "Half Life Hours",
+            "description": "t_{1/2}(S_t) = ln(2) / theta(S_t) in hours (inf if S_t=3)"
+          },
+          "expected_duration_hours": {
+            "type": "number",
+            "title": "Expected Duration Hours",
+            "description": "Expected exposure duration T_exp(S_t) in hours"
+          },
+          "death_spiral_veto": {
+            "type": "boolean",
+            "title": "Death Spiral Veto",
+            "description": "True if S_t == 3 or beta >= 1.0"
+          }
+        },
+        "type": "object",
+        "required": [
+          "regime",
+          "regime_name",
+          "p_regime_1_normal",
+          "p_regime_2_distress",
+          "p_regime_3_collapse",
+          "p_rec",
+          "ols",
+          "theta_active",
+          "half_life_hours",
+          "expected_duration_hours",
+          "death_spiral_veto"
+        ],
+        "title": "Layer2Result",
+        "description": "Outputs of Layer 2: 3-Regime Markov-Switching Duration & Fast OLS Fallback (PegGuard.pdf Page 5)."
+      },
+      "Layer3Result": {
+        "properties": {
+          "abs_spread_delta": {
+            "type": "number",
+            "title": "Abs Spread Delta",
+            "description": "|delta(t)| gross convergence spread"
+          },
+          "signed_funding_cf": {
+            "type": "number",
+            "title": "Signed Funding Cf",
+            "description": "SignedFundingCF = +F_8h * [T_exp(S_t) / 8h] (Rebate if F_8h > 0; Cost Drag if F_8h < 0)"
+          },
+          "borrow_cost": {
+            "type": "number",
+            "title": "Borrow Cost",
+            "description": "BorrowCost(T_exp) over expected holding duration"
+          },
+          "double_taker_fee": {
+            "type": "number",
+            "title": "Double Taker Fee",
+            "description": "2 * TakerFee (entry + exit legs)"
+          },
+          "panic_slippage": {
+            "type": "number",
+            "title": "Panic Slippage",
+            "description": "Slippage(Q, Depth_t, tau_redeem) under stressed order-book depth"
+          },
+          "net_gain_rec": {
+            "type": "number",
+            "title": "Net Gain Rec",
+            "description": "NetGain_rec = |delta(t)| + SignedFundingCF - BorrowCost - 2*TakerFee - Slippage"
+          },
+          "expected_default_loss": {
+            "type": "number",
+            "title": "Expected Default Loss",
+            "description": "(1 - P_rec) * LGD"
+          },
+          "recovery_adjusted_ev": {
+            "type": "number",
+            "title": "Recovery Adjusted Ev",
+            "description": "Recovery-Adjusted EV = P_rec * NetGain_rec - (1 - P_rec) * LGD"
+          },
+          "recovery_adjusted_ev_bps": {
+            "type": "number",
+            "title": "Recovery Adjusted Ev Bps",
+            "description": "Recovery-Adjusted EV in basis points"
+          },
+          "hurdle_rate_bps": {
+            "type": "number",
+            "title": "Hurdle Rate Bps",
+            "description": "HurdleRate in basis points (+15.0 bps default)"
+          },
+          "passes_ev_gate": {
+            "type": "boolean",
+            "title": "Passes Ev Gate",
+            "description": "True iff S_t != 3 (beta < 1.0) AND Recovery-Adjusted EV >= HurdleRate"
+          },
+          "rejection_reason": {
+            "type": "string",
+            "title": "Rejection Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "abs_spread_delta",
+          "signed_funding_cf",
+          "borrow_cost",
+          "double_taker_fee",
+          "panic_slippage",
+          "net_gain_rec",
+          "expected_default_loss",
+          "recovery_adjusted_ev",
+          "recovery_adjusted_ev_bps",
+          "hurdle_rate_bps",
+          "passes_ev_gate"
+        ],
+        "title": "Layer3Result",
+        "description": "Outputs of Layer 3: Recovery-Risk EV & Signed Perpetual Funding Gate (PegGuard.pdf Page 5)."
+      },
+      "Layer4Result": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "lookback_hours": {
+            "type": "number",
+            "title": "Lookback Hours",
+            "description": "Delta window Dt = t_now - t_last_check in hours (default 168h = 7d)"
+          },
+          "i_safe_veto": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "I Safe Veto",
+            "description": "Binary Hard Veto I_SafeVeto (0 if P(Insolvency) >= 0.60 or exploit)"
+          },
+          "f_finbert": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "F Finbert",
+            "description": "FinBERT Solvency & Filing Sentinel Score F_FinBERT (50% weight)"
+          },
+          "m_onchain_spot": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "M Onchain Spot",
+            "description": "On-Chain & Spot Peg Microstructure Score M_OnChain+Spot (30% weight)"
+          },
+          "g_grok": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "G Grok",
+            "description": "Grok Dual-Persona Token Score G_Grok (20% weight)"
+          },
+          "token_score_t": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Token Score T",
+            "description": "TokenScore T_t = I_SafeVeto * [0.50 * F_FinBERT + 0.30 * M_OnChain+Spot + 0.20 * G_Grok]"
+          },
+          "microstructure_breakdown": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Microstructure Breakdown"
+          },
+          "veto_reason": {
+            "type": "string",
+            "title": "Veto Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "lookback_hours",
+          "i_safe_veto",
+          "f_finbert",
+          "m_onchain_spot",
+          "g_grok",
+          "token_score_t",
+          "microstructure_breakdown"
+        ],
+        "title": "Layer4Result",
+        "description": "Outputs of Layer 4: Stateful Asset-Specific Token Check (PegGuard.pdf Page 6)."
+      },
+      "Layer5Result": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "hedge_class": {
+            "type": "string",
+            "enum": [
+              "CLASS_A_CRYPTO_PERP",
+              "CLASS_B_FISCO_PAR_REPO"
+            ],
+            "title": "Hedge Class"
+          },
+          "long_leg_venue": {
+            "type": "string",
+            "title": "Long Leg Venue"
+          },
+          "long_leg_instrument": {
+            "type": "string",
+            "title": "Long Leg Instrument"
+          },
+          "short_leg_venue": {
+            "type": "string",
+            "title": "Short Leg Venue"
+          },
+          "short_leg_instrument": {
+            "type": "string",
+            "title": "Short Leg Instrument"
+          },
+          "convex_z_multiplier": {
+            "type": "number",
+            "title": "Convex Z Multiplier",
+            "description": "1 + alpha * max(0, |Z_i| - Threshold)^2"
+          },
+          "contagion_penalty_sum": {
+            "type": "number",
+            "title": "Contagion Penalty Sum",
+            "description": "sum_{j != i} beta_{ij} * DistressProb_j"
+          },
+          "contagion_brake_factor": {
+            "type": "number",
+            "title": "Contagion Brake Factor",
+            "description": "max(0, 1 - sum_{j != i} beta_{ij} * DistressProb_j)"
+          },
+          "raw_order_size_usd": {
+            "type": "number",
+            "title": "Raw Order Size Usd",
+            "description": "BaseSize * [1 + alpha * (|Z_i| - Threshold)^2] * T_{i,t} * max(0, 1 - sum beta_ij * DistressProb_j)"
+          },
+          "final_order_size_usd": {
+            "type": "number",
+            "title": "Final Order Size Usd",
+            "description": "Final order size after mandate/tether cap"
+          },
+          "fisco_repo_quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiscoParCappedRepoQuote"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Populated for Class B Fiat-Pegged Stablecoins hedged via FISCO BCOS Par-Capped USDT Repo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "hedge_class",
+          "long_leg_venue",
+          "long_leg_instrument",
+          "short_leg_venue",
+          "short_leg_instrument",
+          "convex_z_multiplier",
+          "contagion_penalty_sum",
+          "contagion_brake_factor",
+          "raw_order_size_usd",
+          "final_order_size_usd"
+        ],
+        "title": "Layer5Result",
+        "description": "Outputs of Layer 5: Asset-Specific Hedging & Contagion Control (PegGuard.pdf Page 7)."
       },
       "LeverAction": {
         "properties": {
@@ -2105,6 +3576,54 @@
         "title": "Mandate",
         "description": "A user's request, parsed into typed form."
       },
+      "OLSFitResult": {
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "title": "Alpha"
+          },
+          "kappa": {
+            "type": "number",
+            "title": "Kappa"
+          },
+          "beta": {
+            "type": "number",
+            "title": "Beta",
+            "description": "Autoregressive persistence beta = 1 + kappa"
+          },
+          "theta_ols": {
+            "type": "number",
+            "title": "Theta Ols",
+            "description": "Mean-reversion speed theta_OLS = -ln(1 + kappa) / dt (per hour)"
+          },
+          "theta_se": {
+            "type": "number",
+            "title": "Theta Se",
+            "description": "Delta-method standard error of theta_OLS"
+          },
+          "residual_sigma": {
+            "type": "number",
+            "title": "Residual Sigma"
+          },
+          "death_spiral_canary": {
+            "type": "boolean",
+            "title": "Death Spiral Canary",
+            "description": "True if beta = 1 + kappa >= 1.0 (non-stationary divergence)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alpha",
+          "kappa",
+          "beta",
+          "theta_ols",
+          "theta_se",
+          "residual_sigma",
+          "death_spiral_canary"
+        ],
+        "title": "OLSFitResult",
+        "description": "Closed-Form AR(1) OLS Engine result: Delta_delta_t = alpha + kappa * delta_{t-1} + eps_t."
+      },
       "OnboardRequest": {
         "properties": {
           "account": {
@@ -2230,7 +3749,7 @@
           "amount_usd"
         ],
         "title": "OptionRequest",
-        "description": "One predefined, pre-approved action — never free text. `option_id` is the UI's own label, echoed back\nso the frontend can match a result row to the card it rendered, and is never interpreted as an instruction."
+        "description": "One predefined, pre-approved action \u2014 never free text. `option_id` is the UI's own label, echoed back\nso the frontend can match a result row to the card it rendered, and is never interpreted as an instruction."
       },
       "OptionResult": {
         "properties": {
@@ -2362,6 +3881,181 @@
         ],
         "title": "ParseRequest"
       },
+      "PegGuardAssetSpec": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "1_FIAT_AND_DECENTRALIZED_STABLECOINS",
+              "2_LIQUID_STAKING_AND_RESTAKING_LST_LRT",
+              "3_WRAPPED_BITCOIN_DERIVATIVES",
+              "4_TOKENIZED_RWAS_GOLD_AND_TREASURIES"
+            ],
+            "title": "Category"
+          },
+          "anchor_asset": {
+            "type": "string",
+            "title": "Anchor Asset",
+            "description": "Real / Anchor asset: USD, EUR, ETH, BTC, or XAU"
+          },
+          "hedge_class": {
+            "type": "string",
+            "enum": [
+              "CLASS_A_CRYPTO_PERP",
+              "CLASS_B_FISCO_PAR_REPO"
+            ],
+            "title": "Hedge Class"
+          },
+          "p_par": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "P Par",
+            "description": "Par or exchange-rate reference in anchor units",
+            "default": 1.0
+          },
+          "y_asset": {
+            "type": "number",
+            "title": "Y Asset",
+            "description": "Annualized staking/collateral/treasury yield y_asset",
+            "default": 0.0
+          },
+          "r_fee": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "R Fee",
+            "description": "Primary redemption fee r_fee",
+            "default": 0.001
+          },
+          "tau_redeem_days": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Tau Redeem Days",
+            "description": "Primary settlement / withdrawal queue delay in days",
+            "default": 1.0
+          },
+          "peg_mechanism": {
+            "type": "string",
+            "title": "Peg Mechanism"
+          },
+          "ethereum_l1_venues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ethereum L1 Venues"
+          },
+          "arbitrum_l2_venues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Arbitrum L2 Venues"
+          },
+          "fisco_bcos_role": {
+            "type": "string",
+            "title": "Fisco Bcos Role"
+          },
+          "primary_long_venue": {
+            "type": "string",
+            "title": "Primary Long Venue"
+          },
+          "primary_short_venue": {
+            "type": "string",
+            "title": "Primary Short Venue"
+          },
+          "primary_short_instrument": {
+            "type": "string",
+            "title": "Primary Short Instrument"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "category",
+          "anchor_asset",
+          "hedge_class",
+          "peg_mechanism",
+          "ethereum_l1_venues",
+          "arbitrum_l2_venues",
+          "fisco_bcos_role",
+          "primary_long_venue",
+          "primary_short_venue",
+          "primary_short_instrument"
+        ],
+        "title": "PegGuardAssetSpec",
+        "description": "Canonical specification for each asset in the 4-Category PegGuard Universe\nspanning Ethereum L1, Arbitrum One L2, and FISCO BCOS Consortium Settlement."
+      },
+      "PegGuardDecision": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "authorized": {
+            "type": "boolean",
+            "title": "Authorized",
+            "description": "True iff all 5 PegGuard gates authorize two-leg arbitrage execution"
+          },
+          "rejection_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rejection Reasons"
+          },
+          "layer1": {
+            "$ref": "#/components/schemas/Layer1Result"
+          },
+          "layer2": {
+            "$ref": "#/components/schemas/Layer2Result"
+          },
+          "layer3": {
+            "$ref": "#/components/schemas/Layer3Result"
+          },
+          "layer4": {
+            "$ref": "#/components/schemas/Layer4Result"
+          },
+          "layer5": {
+            "$ref": "#/components/schemas/Layer5Result"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "authorized",
+          "layer1",
+          "layer2",
+          "layer3",
+          "layer4",
+          "layer5",
+          "summary"
+        ],
+        "title": "PegGuardDecision",
+        "description": "Complete 5-Layer PegGuard evaluation output."
+      },
+      "PegRegime": {
+        "type": "integer",
+        "enum": [
+          1,
+          2,
+          3
+        ],
+        "title": "PegRegime",
+        "description": "Latent states S_t in {1, 2, 3} (PegGuard.pdf Page 5)."
+      },
       "Personalization": {
         "properties": {
           "tier": {
@@ -2440,7 +4134,7 @@
           "autonomy_preview"
         ],
         "title": "Personalization",
-        "description": "What the BrainProfile changed or predicts at draft time — all shown to the user before they confirm."
+        "description": "What the BrainProfile changed or predicts at draft time \u2014 all shown to the user before they confirm."
       },
       "ProfileSummary": {
         "properties": {
@@ -2814,6 +4508,51 @@
         ],
         "title": "ReasonCode"
       },
+      "RecoverPasskeyRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "caller_guardian": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 3,
+            "title": "Caller Guardian"
+          },
+          "new_key_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "New Key Id",
+            "default": "recovered-device"
+          },
+          "device_label": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Device Label",
+            "default": "Recovered Device Passkey"
+          },
+          "new_qx": {
+            "type": "string",
+            "title": "New Qx",
+            "description": "Hex-encoded 32-byte affine X coordinate on secp256r1"
+          },
+          "new_qy": {
+            "type": "string",
+            "title": "New Qy",
+            "description": "Hex-encoded 32-byte affine Y coordinate on secp256r1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "caller_guardian",
+          "new_qx",
+          "new_qy"
+        ],
+        "title": "RecoverPasskeyRequest"
+      },
       "RegimeProbs": {
         "properties": {
           "p_normal": {
@@ -2953,6 +4692,90 @@
         ],
         "title": "RegimesResponse"
       },
+      "RegisterPasskeyRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "Smart account identifier",
+            "default": "demo"
+          },
+          "key_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Key Id",
+            "description": "Unique device passkey identifier",
+            "default": "primary"
+          },
+          "device_label": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Device Label",
+            "description": "Device label (e.g. iPhone 16 Pro / MacBook)",
+            "default": "Primary Passkey"
+          },
+          "qx": {
+            "type": "string",
+            "title": "Qx",
+            "description": "Hex-encoded 32-byte affine X coordinate on secp256r1"
+          },
+          "qy": {
+            "type": "string",
+            "title": "Qy",
+            "description": "Hex-encoded 32-byte affine Y coordinate on secp256r1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "qx",
+          "qy"
+        ],
+        "title": "RegisterPasskeyRequest"
+      },
+      "RegisteredPasskey": {
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "title": "Key Id",
+            "description": "Unique device passkey identifier (e.g. 'iphone-secure-enclave')"
+          },
+          "device_label": {
+            "type": "string",
+            "title": "Device Label",
+            "description": "Human-readable device label",
+            "default": "Primary Passkey"
+          },
+          "qx": {
+            "type": "string",
+            "title": "Qx",
+            "description": "Hex-encoded 32-byte affine X coordinate on secp256r1"
+          },
+          "qy": {
+            "type": "string",
+            "title": "Qy",
+            "description": "Hex-encoded 32-byte affine Y coordinate on secp256r1"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary",
+            "default": true
+          },
+          "registered_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Registered At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id",
+          "qx",
+          "qy"
+        ],
+        "title": "RegisteredPasskey",
+        "description": "On-chain / off-chain representation of a hardware-isolated WebAuthn P-256 Passkey."
+      },
       "Response": {
         "type": "string",
         "enum": [
@@ -2961,6 +4784,26 @@
           "EXIT"
         ],
         "title": "Response"
+      },
+      "RevokePasskeyRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "key_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Key Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id"
+        ],
+        "title": "RevokePasskeyRequest"
       },
       "RiskTier": {
         "type": "integer",
@@ -2971,6 +4814,126 @@
         ],
         "title": "RiskTier",
         "description": "Matches TetherGuardHook RISK_TIER_* constants."
+      },
+      "ScanArbitrageRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "order_size_usd": {
+            "type": "number",
+            "maximum": 1000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Order Size Usd",
+            "default": 250.0
+          },
+          "price_overrides": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Overrides",
+            "description": "Optional map of symbol -> current ratio R_direct(t) to inspect"
+          },
+          "symbols": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbols",
+            "description": "Optional subset of symbols to scan (defaults to all 24 assets in PEGGUARD_ASSET_CATALOG)"
+          }
+        },
+        "type": "object",
+        "title": "ScanArbitrageRequest"
+      },
+      "ScanTickReport": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "scanned"
+            ],
+            "title": "Status"
+          },
+          "scanned_count": {
+            "type": "integer",
+            "title": "Scanned Count",
+            "default": 0
+          },
+          "depegged_count": {
+            "type": "integer",
+            "title": "Depegged Count",
+            "default": 0
+          },
+          "skipped_by_watermark_count": {
+            "type": "integer",
+            "title": "Skipped By Watermark Count",
+            "default": 0
+          },
+          "noted_unprofitable_count": {
+            "type": "integer",
+            "title": "Noted Unprofitable Count",
+            "default": 0
+          },
+          "executed_count": {
+            "type": "integer",
+            "title": "Executed Count",
+            "default": 0
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/AssetScanOutcome"
+            },
+            "type": "array",
+            "title": "Outcomes"
+          },
+          "active_watermarks": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/UnprofitableWatermark"
+            },
+            "type": "object",
+            "title": "Active Watermarks"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "enabled",
+          "status"
+        ],
+        "title": "ScanTickReport",
+        "description": "Summary of one autonomous PegGuard scan pass across the 4-category asset universe."
       },
       "ScoreBreakdown": {
         "properties": {
@@ -3025,7 +4988,7 @@
               }
             ],
             "title": "Sharpe",
-            "description": "(E[R] − Shibor) / sd(R) over one year"
+            "description": "(E[R] \u2212 Shibor) / sd(R) over one year"
           },
           "cvar_95": {
             "anyOf": [
@@ -3052,7 +5015,28 @@
           "total"
         ],
         "title": "ScoreBreakdown",
-        "description": "Every term of score = excess − (1+λ)·PD·LGD − c_in − c_out_stress + w_a·a, fractions per year."
+        "description": "Every term of score = excess \u2212 (1+\u03bb)\u00b7PD\u00b7LGD \u2212 c_in \u2212 c_out_stress + w_a\u00b7a, fractions per year."
+      },
+      "SetGuardianRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "guardian": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 3,
+            "title": "Guardian",
+            "description": "Emergency recovery guardian address"
+          }
+        },
+        "type": "object",
+        "required": [
+          "guardian"
+        ],
+        "title": "SetGuardianRequest"
       },
       "Signal": {
         "type": "string",
@@ -3068,7 +5052,7 @@
           "ignored"
         ],
         "title": "Signal",
-        "description": "A review signal: an on-chain Morning Review event or an explicit UI choice (BRAIN_DESIGN §3.2)."
+        "description": "A review signal: an on-chain Morning Review event or an explicit UI choice (BRAIN_DESIGN \u00a73.2)."
       },
       "StrategyResult": {
         "properties": {
@@ -3212,6 +5196,25 @@
         ],
         "title": "Threat"
       },
+      "ToggleArbitrageRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "True to enable continuous PegGuard de-peg arbitrage; False to disable at any time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "ToggleArbitrageRequest"
+      },
       "TriggerMonitorRequest": {
         "properties": {
           "accounts": {
@@ -3259,6 +5262,55 @@
           "triggered"
         ],
         "title": "TriggerMonitorResponse"
+      },
+      "UnprofitableWatermark": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "unprofitable_price": {
+            "type": "number",
+            "title": "Unprofitable Price",
+            "description": "Consensus ratio R_cons(t) that was evaluated and found unprofitable"
+          },
+          "baseline_star": {
+            "type": "number",
+            "title": "Baseline Star",
+            "description": "Dual-Anchor Baseline*(t) at time of evaluation"
+          },
+          "abnormal_spread_delta": {
+            "type": "number",
+            "title": "Abnormal Spread Delta",
+            "description": "Abnormal spread delta(t) = R_cons(t) - Baseline*(t)"
+          },
+          "ev_bps": {
+            "type": "number",
+            "title": "Ev Bps",
+            "description": "Recovery-Adjusted EV in basis points at unprofitable_price"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Rejection summary from the 5-layer PegGuard engine"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "unprofitable_price",
+          "baseline_star",
+          "abnormal_spread_delta",
+          "ev_bps",
+          "reason"
+        ],
+        "title": "UnprofitableWatermark",
+        "description": "Stateful memory of the last de-peg price at which a 5-layer PegGuard check was unprofitable.\nPrevents re-evaluating the same unprofitable trade every second until the price drops strictly lower."
       },
       "ValidationError": {
         "properties": {
@@ -3370,7 +5422,7 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Approval Posterior",
-            "description": "Beta posterior mean α/(α+β) of your past approvals"
+            "description": "Beta posterior mean \u03b1/(\u03b1+\u03b2) of your past approvals"
           },
           "observations": {
             "type": "integer",
@@ -3386,6 +5438,72 @@
           "observations"
         ],
         "title": "VenuePreview"
+      },
+      "VerifyWebAuthnRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "authenticator_data_hex": {
+            "type": "string",
+            "title": "Authenticator Data Hex",
+            "description": "Hex-encoded WebAuthn authenticatorData (>= 37 bytes)"
+          },
+          "client_data_hash_hex": {
+            "type": "string",
+            "title": "Client Data Hash Hex",
+            "description": "Hex-encoded 32-byte SHA-256 clientDataJSON / challenge hash"
+          },
+          "r": {
+            "type": "string",
+            "title": "R",
+            "description": "Hex or decimal P-256 signature R component"
+          },
+          "s": {
+            "type": "string",
+            "title": "S",
+            "description": "Hex or decimal P-256 signature S component (must satisfy s <= N/2)"
+          },
+          "qx": {
+            "type": "string",
+            "title": "Qx",
+            "description": "Hex or decimal P-256 public key X coordinate"
+          },
+          "qy": {
+            "type": "string",
+            "title": "Qy",
+            "description": "Hex or decimal P-256 public key Y coordinate"
+          },
+          "require_uv": {
+            "type": "boolean",
+            "title": "Require Uv",
+            "description": "Enforce Bit 2 (UV = 0x04) biometric FaceID/TouchID verification",
+            "default": true
+          },
+          "chain_target": {
+            "type": "string",
+            "enum": [
+              "arbitrum_l2",
+              "ethereum_l1",
+              "fisco_bcos"
+            ],
+            "title": "Chain Target",
+            "description": "Target chain (Arbitrum L2 uses RIP-7212 0x100 precompile; Ethereum L1 & FISCO BCOS use Solidity fallback)",
+            "default": "arbitrum_l2"
+          }
+        },
+        "type": "object",
+        "required": [
+          "authenticator_data_hex",
+          "client_data_hash_hex",
+          "r",
+          "s",
+          "qx",
+          "qy"
+        ],
+        "title": "VerifyWebAuthnRequest"
       }
     }
   }
