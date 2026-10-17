@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -326,6 +327,13 @@ class PegGuardArbitrageExecutor:
     ) -> ExecutionIntent:
         from tecc_brain.pegguard import default_pegguard_input_for_symbol
 
+        if not math.isfinite(intent.amount_usd) or intent.amount_usd <= 0:
+            return intent.model_copy(update={
+                "status": "failed",
+                "market": "arbitrage",
+                "detail": f"Invalid arbitrage order amount: {intent.amount_usd}",
+            })
+
         if self.mandate and usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
             return intent.model_copy(update={
                 "status": "failed",
@@ -435,7 +443,11 @@ class CrossChainTetherTracker:
     def check_can_transact(
         self, account: str, amount_usd: float, limit_usd: float | None = None, epoch: int | None = None
     ) -> tuple[bool, str]:
+        if not math.isfinite(amount_usd) or amount_usd <= 0:
+            return (False, f"Invalid transaction amount: {amount_usd}")
         limit = limit_usd if limit_usd is not None else self.default_daily_limit_usd
+        if not math.isfinite(limit) or limit <= 0:
+            return (False, f"Invalid daily tether limit: {limit}")
         spent = self.get_spent(account, epoch)
         if spent + amount_usd > limit + 1e-6:
             remaining = max(0.0, limit - spent)
@@ -448,6 +460,8 @@ class CrossChainTetherTracker:
     def record_spend(
         self, account: str, market: str, amount_usd: float, epoch: int | None = None
     ) -> float:
+        if not math.isfinite(amount_usd) or amount_usd <= 0:
+            raise ValueError(f"Spend amount must be finite and positive, got {amount_usd}")
         ep = epoch if epoch is not None else self._get_epoch()
         if account not in self._epoch_spends:
             self._epoch_spends[account] = {}

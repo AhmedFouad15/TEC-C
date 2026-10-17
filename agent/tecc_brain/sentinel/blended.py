@@ -25,6 +25,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from tecc_brain.intent.firewall import scan
 from tecc_brain.models import MarketSnapshot, NewsSignal
 from tecc_brain.reference import Reference
 from tecc_brain.sentinel import (
@@ -164,7 +165,9 @@ class NewsRiskSentinel:
         # =====================================================================
         recent_by_symbol: dict[str, list[str]] = {}
         for n in snapshot.news:
-            recent_by_symbol.setdefault(n.entity, []).append(n.headline)
+            verdict = scan(n.headline)
+            if not any(t.value != "DRAIN" for t in verdict.threats):
+                recent_by_symbol.setdefault(n.entity, []).append(verdict.normalized)
 
         assets: dict[str, AssetSentiment] = {}
         for symbol in snapshot.pegs:
@@ -175,20 +178,23 @@ class NewsRiskSentinel:
             for n in snapshot.news:
                 if n.entity != symbol:
                     continue
-                sig = finbert.score(n.headline, timestamp=snapshot.as_of)
+                verdict = scan(n.headline)
+                if any(t.value != "DRAIN" for t in verdict.threats):
+                    continue
+                sig = finbert.score(verdict.normalized, timestamp=snapshot.as_of)
                 if sig:
                     if n.p_negative > sig.p_negative:
                         sig = sig.model_copy(update={"p_negative": n.p_negative})
                     finbert_signals.append(sig)
                 else:
-                    lower = n.headline.lower()
+                    lower = verdict.normalized.lower()
                     is_trig = any(t in lower for t in INSOLVENCY_TRIGGERS)
                     finbert_signals.append(
                         HeadlineSignal(
                             symbol=symbol,
                             entity=symbol,
                             p_negative=n.p_negative,
-                            headline=n.headline,
+                            headline=verdict.normalized,
                             matched_terms=[],
                             source=n.source,
                             is_insolvency_trigger=bool(is_trig and n.p_negative >= 0.70),
