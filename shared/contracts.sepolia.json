@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "project": "Tec-C (Tethered Expense Corporate Card)",
+    "competition": "Shenzhen International FinTech Competition (FinTechathon 2026)",
+    "topic": "Topic F: Agent Wallet",
+    "co_hosts": "Tsinghua University PBCSF & WeBank",
+    "version": "1.0.0",
+    "network": "Ethereum Sepolia",
+    "chainId": 11155111,
+    "note": "Addresses below are placeholders filled in by the smart-contract engineer after `forge script Deploy --broadcast --rpc-url $SEPOLIA_RPC_URL`. ABIs/bytecode are NOT duplicated here: tecc_brain.onchain.network reads ABIs from shared/contracts.json (network-independent) and only takes chainId/addresses from this file. Keep both files' contract names in sync. USDC and ETHUSDFeed below are filled with the commonly-cited public Circle Sepolia USDC and Chainlink Sepolia ETH/USD feed addresses as a starting point ONLY — VERIFY BOTH ON SEPOLIA ETHERSCAN before relying on them; do not route real funds against an unverified address."
+  },
+  "defaultParameters": {
+    "tetherRadiusDefaultWei": "500000000000000000",
+    "maxSessionGasBudgetWei": "5000000000000000",
+    "riskTiers": {
+      "CONSERVATIVE": 1,
+      "BALANCED": 2,
+      "AGGRESSIVE": 3
+    }
+  },
+  "deployedAddresses": {
+    "EntryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+    "TetherGuardHook": "0x0000000000000000000000000000000000dEaD",
+    "SessionKeyValidator": "0x0000000000000000000000000000000000dEaD",
+    "TecPaymaster": "0x0000000000000000000000000000000000dEaD",
+    "TecAccount": "0x0000000000000000000000000000000000dEaD",
+    "USDC": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    "ETHUSDFeed": "0x694AA1769357215DE4FAC081bf1f309aDC325306",
+    "USDCUSDFeed": "0x0000000000000000000000000000000000dEaD",
+    "LidoStaking": "0x0000000000000000000000000000000000dEaD",
+    "CurveLP": "0x0000000000000000000000000000000000dEaD"
+  },
+  "venues": {
+    "note": "venue id (from agent/tecc_brain/data/venues.json) -> deployed target address on Sepolia; filled by the smart-contract engineer."
+  },
+  "eip712": {
+    "domain": {
+      "name": "Tec-C Autonomous Agent Mandate",
+      "version": "1",
+      "chainId": 11155111,
+      "verifyingContract": "0x0000000000000000000000000000000000dEaD"
+    }
+  }
+}
