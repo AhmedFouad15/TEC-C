@@ -77,6 +77,38 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Mapping from account => session key address => authorization status
     mapping(address => mapping(address => bool)) public authorizedSessionKeys;
 
+    // --- Cross-Chain Tether State Synchronization (Multi-Chain Velocity Metering) ---
+
+    /// @notice Cross-chain remote spend per account => epoch => cumulative remote spend (in 8-decimal USD)
+    mapping(address => mapping(uint256 => uint256)) public crossChainSpent;
+
+    /// @notice Breakdown by source chain: account => sourceChainId => epoch => spend (in 8-decimal USD)
+    mapping(address => mapping(uint256 => mapping(uint256 => uint256))) public chainSpentByEpoch;
+
+    /// @notice Authorized cross-chain sync relayers or bridge adapters
+    mapping(address => bool) public authorizedCrossChainRelayers;
+
+    /// @notice Mapping to track used cross-chain sync nonces to prevent double-spending / replay attacks
+    mapping(address => mapping(uint256 => bool)) public crossChainNonces;
+
+    /**
+     * @notice Cryptographic spend proof for cross-chain velocity synchronization.
+     * @param account The smart account whose cross-chain spend is being synchronized.
+     * @param sourceChainId The source chain ID where the spending occurred (1, 42161, 2026).
+     * @param amountUSD The USD value spent on the remote chain in 8 decimals.
+     * @param epoch Daily epoch index (block.timestamp / 1 days).
+     * @param nonce Monotonically increasing nonce for replay protection.
+     * @param deadline Expiration timestamp for the signature.
+     */
+    struct CrossChainSpendProof {
+        address account;
+        uint256 sourceChainId;
+        uint256 amountUSD;
+        uint256 epoch;
+        uint256 nonce;
+        uint256 deadline;
+    }
+
     // --- Asynchronous Morning Review System ---
 
     /**
@@ -232,6 +264,29 @@ contract TetherGuardHook is IERC7579Hook {
      * @param target The target contract address.
      */
     event TetherBroken(address indexed account, address indexed caller, uint256 amount, address indexed target);
+
+    /**
+     * @notice Emitted when cross-chain spending is synchronized from a remote chain.
+     * @param account The smart account address.
+     * @param sourceChainId The chain ID where the spending occurred.
+     * @param amount The spend amount in 8-decimal USD.
+     * @param newTotalCrossChainSpent The updated cumulative cross-chain spend for this epoch.
+     * @param epoch The active 24-hour epoch index.
+     */
+    event CrossChainSpendSynced(
+        address indexed account,
+        uint256 indexed sourceChainId,
+        uint256 amount,
+        uint256 newTotalCrossChainSpent,
+        uint256 epoch
+    );
+
+    /**
+     * @notice Emitted when a cross-chain relayer/bridge address authorization is updated.
+     * @param relayer The relayer address.
+     * @param status True if authorized, false if revoked.
+     */
+    event CrossChainRelayerConfigured(address indexed relayer, bool status);
 
     /**
      * @notice Emitted when a target protocol is added to or removed from an account's whitelist.
@@ -1000,6 +1055,14 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
+     * @notice Helper to compute remaining radius for an account in the given epoch.
+     */
+    function _getAccountRemaining(address account, AccountPolicy storage p, uint256 epoch) internal view returns (uint256) {
+        uint256 total = p.dailySpent + crossChainSpent[account][epoch];
+        return p.tetherRadius > total ? p.tetherRadius - total : 0;
+    }
+
+    /**
      * @notice ERC-7579 Pre-execution Hook verification.
      * @dev Enforces The Tether Radius, target whitelist, risk tiers, and the 5-minute Biometric Verification / Sign Approval protocol.
      * @param msgSender The address of the caller initiating execution on the smart account.
@@ -1030,7 +1093,7 @@ contract TetherGuardHook is IERC7579Hook {
             p.dailySpent = 0;
         }
 
-        uint256 remainingRadius = p.tetherRadius > p.dailySpent ? p.tetherRadius - p.dailySpent : 0;
+        uint256 remainingRadius = _getAccountRemaining(account, p, currentEpoch);
 
         // Calculate USD Normalized effective amount (ERC-20 and/or Native ETH via Chainlink)
         (uint256 effectiveAmount,) = calculateCallUSDValue(account, target, value, msgData);
@@ -1040,19 +1103,14 @@ contract TetherGuardHook is IERC7579Hook {
         //  (a) spending exceeds remaining daily tether radius, OR
         //  (b) target is not whitelisted and account is not in Tier 3 (Unrestricted), OR
         //  (c) target risk tier exceeds account's risk tier setting.
-        bool isBreakout = (effectiveAmount > remainingRadius);
-        if (!isBreakout && p.riskTier != RISK_TIER_UNRESTRICTED) {
-            if (!whitelistedTargets[account][target] || targetRiskTiers[account][target] > p.riskTier) {
-                isBreakout = true;
-            }
-        }
+        bool isBreakout = (effectiveAmount > remainingRadius) ||
+            (p.riskTier != RISK_TIER_UNRESTRICTED && (!whitelistedTargets[account][target] || targetRiskTiers[account][target] > p.riskTier));
 
         // 2. Caller is Root Owner (Passkey / FaceID holder):
         if (msgSender == p.rootOwner) {
             lastUserActivity[account] = block.timestamp;
             if (isBreakout) {
                 // Breaking the Tether: Active biometric verification required (5-minute window)
-                // Even the logged-in root owner MUST have an active biometric verification window (within last 5 minutes).
                 if (block.timestamp > biometricVerifiedUntil[account]) {
                     revert BiometricVerificationRequired();
                 }
@@ -1061,17 +1119,19 @@ contract TetherGuardHook is IERC7579Hook {
             } else {
                 // Safe execution within tether radius
                 p.dailySpent += effectiveAmount;
-                emit TetherRadiusConsumed(account, effectiveAmount, remainingRadius - effectiveAmount, currentEpoch);
+                emit TetherRadiusConsumed(account, effectiveAmount, _getAccountRemaining(account, p, currentEpoch), currentEpoch);
                 return abi.encode(true, account, effectiveAmount, target);
             }
         }
 
         // 3. Caller is AI Agent Session Key:
         // Enforce Inactive AI Heartbeat Watchdog:
-        uint256 hbTimeout =
-            customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
-        if (lastAIHeartbeat[account] > 0 && block.timestamp > lastAIHeartbeat[account] + hbTimeout) {
-            revert AIHeartbeatStale(lastAIHeartbeat[account], block.timestamp);
+        {
+            uint256 hb = customAIHeartbeatTimeout[account];
+            if (hb == 0) hb = DEFAULT_AI_HEARTBEAT_TIMEOUT;
+            if (lastAIHeartbeat[account] > 0 && block.timestamp > lastAIHeartbeat[account] + hb) {
+                revert AIHeartbeatStale(lastAIHeartbeat[account], block.timestamp);
+            }
         }
         lastAIHeartbeat[account] = block.timestamp;
 
@@ -1083,7 +1143,6 @@ contract TetherGuardHook is IERC7579Hook {
         // Check if user provided an explicit Sign Approval for a breakout execution
         if (signApprovals[account][execHash]) {
             // Brain breakout with user sign approval:
-            // VULN-05: Must have an active 5-minute biometric verification window and non-expired sign approval
             if (
                 block.timestamp > signApprovalExpiresAt[account][execHash]
                     || block.timestamp > biometricVerifiedUntil[account]
@@ -1114,13 +1173,13 @@ contract TetherGuardHook is IERC7579Hook {
             }
         }
 
-        // Enforce The Tether Radius (Daily Velocity Limit)
+        // Enforce The Tether Radius (Daily Velocity Limit across all chains)
         if (effectiveAmount > remainingRadius) {
             revert TetherRadiusExceeded(effectiveAmount, remainingRadius);
         }
 
         p.dailySpent += effectiveAmount;
-        emit TetherRadiusConsumed(account, effectiveAmount, remainingRadius - effectiveAmount, currentEpoch);
+        emit TetherRadiusConsumed(account, effectiveAmount, _getAccountRemaining(account, p, currentEpoch), currentEpoch);
 
         return abi.encode(false, account, effectiveAmount, target);
     }
@@ -1318,7 +1377,134 @@ contract TetherGuardHook is IERC7579Hook {
         if (p.currentEpoch != currentEpoch) {
             return p.tetherRadius;
         }
-        return p.tetherRadius > p.dailySpent ? p.tetherRadius - p.dailySpent : 0;
+        uint256 total = p.dailySpent + crossChainSpent[account][currentEpoch];
+        return p.tetherRadius > total ? p.tetherRadius - total : 0;
+    }
+
+    // =========================================================================
+    // --- Cross-Chain Tether State Synchronization (Multi-Chain Velocity) ---
+    // =========================================================================
+
+    /**
+     * @notice Authorizes or revokes a cross-chain relayer/bridge contract.
+     * @param relayer The address of the relayer or bridge.
+     * @param status True to authorize, false to revoke.
+     */
+    function setCrossChainRelayer(address relayer, bool status) external {
+        require(msg.sender == deployer, "ONLY_DEPLOYER");
+        authorizedCrossChainRelayers[relayer] = status;
+        emit CrossChainRelayerConfigured(relayer, status);
+    }
+
+    /**
+     * @notice Synchronizes spend from another chain into this hook's active epoch.
+     * @dev Enforces the Cross-Chain Tether Radius so spending on Chain A immediately reduces available quota on Chain B and C.
+     *      Callable by:
+     *      - The account itself (via cross-chain message / CCIP / LayerZero call)
+     *      - The account's root owner (biometric FaceID passkey holder)
+     *      - An authorized AI session key
+     *      - An authorized cross-chain relayer
+     * @param account The smart account whose cross-chain spend is being synchronized.
+     * @param sourceChainId The chain ID where the spending occurred (e.g. 1 for Ethereum, 42161 for Arbitrum, 2026 for FISCO BCOS).
+     * @param amountUSD The USD value spent on the remote chain (normalized in 8 decimals).
+     * @param epoch The epoch index (block.timestamp / 1 days).
+     */
+    function syncCrossChainSpend(
+        address account,
+        uint256 sourceChainId,
+        uint256 amountUSD,
+        uint256 epoch
+    ) external {
+        AccountPolicy storage p = policies[account];
+        require(p.rootOwner != address(0), "ACCOUNT_NOT_INITIALIZED");
+        require(
+            msg.sender == account ||
+            msg.sender == p.rootOwner ||
+            authorizedSessionKeys[account][msg.sender] ||
+            authorizedCrossChainRelayers[msg.sender],
+            "UNAUTHORIZED_CROSS_CHAIN_SYNC"
+        );
+        require(amountUSD > 0, "INVALID_AMOUNT");
+
+        chainSpentByEpoch[account][sourceChainId][epoch] += amountUSD;
+        crossChainSpent[account][epoch] += amountUSD;
+
+        emit CrossChainSpendSynced(
+            account,
+            sourceChainId,
+            amountUSD,
+            crossChainSpent[account][epoch],
+            epoch
+        );
+    }
+
+    /**
+     * @notice Synchronizes cross-chain spend using an ECDSA signature from the root owner or session key.
+     * @dev Allows trustless, decentralized relaying of cross-chain spend proofs across EVM and consortium chains.
+     * @param proof The cross-chain spend proof struct containing account, sourceChainId, amountUSD, epoch, nonce, and deadline.
+     * @param signature Cryptographic ECDSA signature from rootOwner or authorized session key.
+     */
+    function syncCrossChainSpendWithSignature(
+        CrossChainSpendProof calldata proof,
+        bytes calldata signature
+    ) external {
+        AccountPolicy storage p = policies[proof.account];
+        require(p.rootOwner != address(0), "ACCOUNT_NOT_INITIALIZED");
+        require(block.timestamp <= proof.deadline, "SIGNATURE_EXPIRED");
+        require(!crossChainNonces[proof.account][proof.nonce], "NONCE_ALREADY_USED");
+        require(proof.amountUSD > 0, "INVALID_AMOUNT");
+
+        crossChainNonces[proof.account][proof.nonce] = true;
+
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                proof.account,
+                proof.sourceChainId,
+                proof.amountUSD,
+                proof.epoch,
+                proof.nonce,
+                proof.deadline,
+                block.chainid,
+                address(this)
+            )
+        );
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        address signer = _recoverSigner(ethSignedMessageHash, signature);
+        require(
+            signer == p.rootOwner || authorizedSessionKeys[proof.account][signer],
+            "INVALID_CROSS_CHAIN_SIGNER"
+        );
+
+        chainSpentByEpoch[proof.account][proof.sourceChainId][proof.epoch] += proof.amountUSD;
+        crossChainSpent[proof.account][proof.epoch] += proof.amountUSD;
+
+        emit CrossChainSpendSynced(
+            proof.account,
+            proof.sourceChainId,
+            proof.amountUSD,
+            crossChainSpent[proof.account][proof.epoch],
+            proof.epoch
+        );
+    }
+
+    /**
+     * @notice Computes total cross-chain spend across local and all remote chains in the current epoch.
+     * @param account The smart account.
+     * @return totalSpent The aggregate spend across all chains in 8-decimal USD.
+     * @return remainingRadius The remaining spend capacity before the tether radius is exhausted.
+     */
+    function getCrossChainSpendingState(address account)
+        external
+        view
+        returns (uint256 totalSpent, uint256 remainingRadius)
+    {
+        AccountPolicy storage p = policies[account];
+        uint256 currentEpoch = block.timestamp / 1 days;
+        if (p.currentEpoch != currentEpoch) {
+            return (0, p.tetherRadius);
+        }
+        totalSpent = p.dailySpent + crossChainSpent[account][currentEpoch];
+        remainingRadius = p.tetherRadius > totalSpent ? p.tetherRadius - totalSpent : 0;
     }
 
     // =========================================================================

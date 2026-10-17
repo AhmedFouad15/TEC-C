@@ -88,7 +88,7 @@ def test_market_router_dispatch():
     arb = ArbitrumCommoditiesExecutor()
     peg = PegGuardArbitrageExecutor()
     
-    router = MarketRouter(chinese_market=fisco, commodities=arb, arbitrage=peg)
+    router = MarketRouter(chinese_market=fisco, commodities=arb, arbitrage=peg, daily_limit_usd=1000.0)
     
     # 1. Chinese Market
     intent_cn = sample_intent(market="chinese_market")

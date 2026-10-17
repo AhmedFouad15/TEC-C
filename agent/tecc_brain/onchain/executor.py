@@ -276,10 +276,80 @@ class PegGuardArbitrageExecutor:
         })
 
 
+class CrossChainTetherTracker:
+    """Tracks cross-chain spending velocity across Ethereum, Arbitrum One, and FISCO BCOS.
+
+    Enforces the global multi-chain invariant:
+    If the Brain spends $500 on Ethereum and the daily limit is $500,
+    the account is locked and cannot transact on ANY of the 3 chains.
+    """
+
+    def __init__(self, daily_limit_usd: float = 500.0) -> None:
+        self.default_daily_limit_usd = daily_limit_usd
+        # account -> epoch -> cumulative_spent_usd
+        self._epoch_spends: dict[str, dict[int, float]] = {}
+        # account -> epoch -> market -> spent_usd
+        self._market_spends: dict[str, dict[int, dict[str, float]]] = {}
+
+    def _get_epoch(self, ts: float | None = None) -> int:
+        timestamp = ts if ts is not None else datetime.now(timezone.utc).timestamp()
+        return int(timestamp // 86400)
+
+    def get_spent(self, account: str, epoch: int | None = None) -> float:
+        ep = epoch if epoch is not None else self._get_epoch()
+        return self._epoch_spends.get(account, {}).get(ep, 0.0)
+
+    def get_remaining(self, account: str, limit_usd: float | None = None, epoch: int | None = None) -> float:
+        limit = limit_usd if limit_usd is not None else self.default_daily_limit_usd
+        spent = self.get_spent(account, epoch)
+        return max(0.0, limit - spent)
+
+    def check_can_transact(
+        self, account: str, amount_usd: float, limit_usd: float | None = None, epoch: int | None = None
+    ) -> tuple[bool, str]:
+        limit = limit_usd if limit_usd is not None else self.default_daily_limit_usd
+        spent = self.get_spent(account, epoch)
+        if spent + amount_usd > limit + 1e-6:
+            remaining = max(0.0, limit - spent)
+            return (
+                False,
+                f"Cross-chain tether limit exceeded: spending ${amount_usd:,.2f} exceeds remaining allowance ${remaining:,.2f} (spent ${spent:,.2f} / ${limit:,.2f} across all chains)",
+            )
+        return (True, "")
+
+    def record_spend(
+        self, account: str, market: str, amount_usd: float, epoch: int | None = None
+    ) -> float:
+        ep = epoch if epoch is not None else self._get_epoch()
+        if account not in self._epoch_spends:
+            self._epoch_spends[account] = {}
+            self._market_spends[account] = {}
+        if ep not in self._epoch_spends[account]:
+            self._epoch_spends[account][ep] = 0.0
+            self._market_spends[account][ep] = {}
+
+        self._epoch_spends[account][ep] += amount_usd
+        current_m = self._market_spends[account][ep].get(market, 0.0)
+        self._market_spends[account][ep][market] = current_m + amount_usd
+        return self._epoch_spends[account][ep]
+
+    def reset_epoch(self, account: str | None = None, epoch: int | None = None) -> None:
+        if account is None:
+            self._epoch_spends.clear()
+            self._market_spends.clear()
+        else:
+            ep = epoch if epoch is not None else self._get_epoch()
+            if account in self._epoch_spends and ep in self._epoch_spends[account]:
+                del self._epoch_spends[account][ep]
+            if account in self._market_spends and ep in self._market_spends[account]:
+                del self._market_spends[account][ep]
+
+
 class MarketRouter:
     """Multi-Market Executor Router (Google Doc spec: Crypto, Chinese Market, Commodities, Arbitrage).
 
-    Dispatches to the custom market executor based on `intent.market` or explicit market parameter.
+    Dispatches to the custom market executor based on `intent.market` or explicit market parameter,
+    while enforcing the Cross-Chain Tether Radius across all chains/markets.
     """
 
     def __init__(
@@ -288,11 +358,15 @@ class MarketRouter:
         chinese_market: FiscoBcosExecutor | None = None,
         commodities: ArbitrumCommoditiesExecutor | None = None,
         arbitrage: PegGuardArbitrageExecutor | None = None,
+        tether_tracker: CrossChainTetherTracker | None = None,
+        daily_limit_usd: float = 500.0,
     ) -> None:
         self.crypto = crypto
         self.chinese_market = chinese_market or FiscoBcosExecutor()
         self.commodities = commodities or ArbitrumCommoditiesExecutor()
         self.arbitrage = arbitrage or PegGuardArbitrageExecutor()
+        self.tether_tracker = tether_tracker or CrossChainTetherTracker(daily_limit_usd=daily_limit_usd)
+        self.daily_limit_usd = daily_limit_usd
 
     def get_executor(self, market: str):
         norm = market.strip().lower().replace(" ", "_").replace("-", "_")
@@ -312,13 +386,29 @@ class MarketRouter:
 
     def submit(self, intent: ExecutionIntent, account: str, market: str | None = None) -> ExecutionIntent:
         m = market or intent.market
+
+        # Cross-Chain Tether Radius Check (Aggregated across Ethereum, Arbitrum, FISCO BCOS)
+        allowed, reason = self.tether_tracker.check_can_transact(account, intent.amount_usd, self.daily_limit_usd)
+        if not allowed:
+            return intent.model_copy(update={
+                "status": "failed",
+                "detail": reason,
+            })
+
         executor = self.get_executor(m)
-        return executor.submit(intent, account)
+        result = executor.submit(intent, account)
+
+        # If successfully submitted, record spend against cross-chain aggregate quota
+        if result.status == "submitted":
+            self.tether_tracker.record_spend(account, m, intent.amount_usd)
+
+        return result
 
 
 __all__ = [
     "ArbitrumCommoditiesExecutor",
     "ChainExecutor",
+    "CrossChainTetherTracker",
     "CryptoExecutor",
     "FiscoBcosExecutor",
     "LedgerRecord",
