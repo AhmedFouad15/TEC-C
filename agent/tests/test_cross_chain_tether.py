@@ -172,3 +172,93 @@ def test_cross_chain_account_isolation():
     assert tracker.get_remaining(bob) == 500.0
     can_tx_bob, _ = tracker.check_can_transact(bob, 500.0)
     assert can_tx_bob is True
+
+
+def test_live_anvil_cross_chain_sync_locks_onchain_hook_and_router(anvil_url, tmp_path):
+    """End-to-end live Anvil test:
+    1. Deploy real Vault on Anvil ($500 radius).
+    2. Spend $300 on Ethereum via MarketRouter -> real on-chain execution.
+    3. Spend $200 on Arbitrum via MarketRouter & sync $200 to on-chain TetherGuardHook.
+    4. Verify both off-chain MarketRouter AND on-chain Solidity TetherGuardHook lock at $0 remaining.
+    """
+    from eth_account import Account
+    from tecc_brain.onchain.artifacts import Contract
+    from tecc_brain.onchain.deploy import deploy_local
+    from tecc_brain.onchain.executor import ChainExecutor, RecordLedger
+    from tecc_brain.onchain.mandate import UserMandate, policy_hash
+    from tecc_brain.onchain.rpc import Rpc
+    from tecc_brain.onchain.session import provision_session_key
+
+    rpc = Rpc(anvil_url)
+    snap = rpc.call("evm_snapshot", [])
+    try:
+        dep = deploy_local(rpc, eth_usd=2500.0)
+        key = Account.create()
+        now = rpc.block_timestamp()
+        mandate = UserMandate(
+            account=dep.account,
+            session_key=key.address,
+            max_amount_usd=1000.0,
+            valid_after=now - 60,
+            valid_until=now + 86_400,
+            risk_tier=2,
+            policy=policy_hash(sorted(dep.venues)),
+        )
+        provision_session_key(rpc, dep, mandate)
+
+        ledger = RecordLedger(tmp_path / "records.json")
+        eth_exec = ChainExecutor(rpc, dep, key.key, mandate, ledger)
+        arb_exec = ArbitrumCommoditiesExecutor(mandate=mandate)
+        fisco_exec = FiscoBcosExecutor(mandate=mandate)
+        tracker = CrossChainTetherTracker(daily_limit_usd=500.0)
+
+        router = MarketRouter(
+            crypto=eth_exec,
+            commodities=arb_exec,
+            chinese_market=fisco_exec,
+            tether_tracker=tracker,
+            daily_limit_usd=500.0,
+        )
+
+        # 1. Execute $300 USDC deposit into Aave on Ethereum (real on-chain tx)
+        res_eth = router.submit(
+            sample_intent(venue_id="aave_v3_usdc", usd=300.0, market="crypto"),
+            dep.account,
+        )
+        assert res_eth.status == "submitted", res_eth.detail
+        assert tracker.get_remaining(dep.account) == 200.0
+
+        hook = Contract.load("TetherGuardHook", dep.hook)
+        assert hook.call(rpc, "getRemainingRadius", dep.account)[0] == 200 * 10**8
+
+        # 2. Execute $200 commodity order on Arbitrum One
+        res_arb = router.submit(
+            sample_intent(venue_id="paxg_hold", usd=200.0, market="commodities"),
+            dep.account,
+        )
+        assert res_arb.status == "submitted", res_arb.detail
+        assert tracker.get_remaining(dep.account) == 0.0
+
+        # Sync the $200 Arbitrum spend onto the Ethereum TetherGuardHook contract
+        epoch = rpc.block_timestamp() // 86400
+        hook.transact(rpc, "syncCrossChainSpend", dep.account, 42161, 200 * 10**8, epoch, sender=dep.root_owner)
+
+        # Verify on-chain cross-chain state is now $500 spent, $0 remaining
+        total_spent, remaining = hook.call(rpc, "getCrossChainSpendingState", dep.account)
+        assert total_spent == 500 * 10**8
+        assert remaining == 0
+        assert hook.call(rpc, "getRemainingRadius", dep.account)[0] == 0
+
+        # 3. Verify MarketRouter rejects FISCO BCOS, Arbitrum, and Ethereum
+        for mkt, venue in (("chinese_market", "shibor_mmf"), ("commodities", "paxg_hold"), ("crypto", "aave_v3_usdc")):
+            blocked = router.submit(sample_intent(venue_id=venue, usd=10.0, market=mkt), dep.account)
+            assert blocked.status == "failed"
+            assert "Cross-chain tether limit exceeded" in blocked.detail
+
+        # 4. Verify even a direct call to ChainExecutor (bypassing router) is refused ON-CHAIN by TetherGuardHook!
+        direct_res = eth_exec.submit(sample_intent(venue_id="aave_v3_usdc", usd=10.0, market="crypto"), dep.account)
+        assert direct_res.status == "failed"
+        assert "TetherRadiusExceeded" in direct_res.detail
+    finally:
+        rpc.call("evm_revert", [snap])
+
