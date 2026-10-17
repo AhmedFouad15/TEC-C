@@ -1,51 +1,78 @@
-"""Agent 1 — News & NLP Risk Sentinel: 50% CMC Fear & Greed (market-wide) + 50% Grok/FinBERT asset sentiment,
-feeding the EXISTING 3-regime classifier in risk/regime.py rather than duplicating it.
+"""Agent 1 — Upgraded News & NLP Risk Sentinel.
 
-Why feed sentiment_negative instead of adding a parallel classifier: risk/regime.py's logit model already
-combines sentiment with price gap, redemption status, reserve quality and contagion, validated against real
-episodes (USDC-SVB, stETH-Celsius, UST). A second, independent classifier would let this agent override that
-work instead of informing it — exactly the sentiment-only-veto failure mode BRAIN_DESIGN §2.1 warns against.
-So this module computes one number per asset (p_negative, 0..1) from the blend and raises (never lowers)
-PegState.sentiment_negative with it, the same mechanism `sentinel/__init__.py::apply_signal` already uses for
-headline-driven updates — the regime model does the rest.
+Fixes the naive "vice-versa" trap via two specialized pipelines:
+1. Pipeline 1: Upgraded Market Statement (Macro Regime Score M in [0, 1]):
+   - CMC Fear & Greed with Sigmoid Tail Amplification + Velocity Boost (35%)
+   - Grok Structured X-Pulse Capitulation vs Euphoria (35%)
+   - CoinGlass Macro Flush Confirmation: 24h Long Liq Ratio + BTC Funding (30%)
+   Formula: M = 0.35 * CMC + 0.35 * Grok_Macro + 0.30 * CoinGlass_Macro
 
-The three regime labels in the task spec map 1:1 onto the existing `Regime` literal:
-    NORMAL_MARKET                 <- "normal"
-    TEMPORARY_LIQUIDITY_DISTRESS  <- "distress"
-    FUNDAMENTAL_PEG_FAILURE       <- "failure"
+2. Pipeline 2: Upgraded Token Check (FinBERT + Grok + CoinGlass):
+   - GATE 0: Hard Circuit Breaker (Adverse Selection Veto Gate I_Safe in {0, 1})
+     If structural exploit/insolvency/de-peg detected with P(negative) > 0.85 -> I_Safe = 0 -> S_Token = 0.0 (Immediate Sell)
+   - If I_Safe = 1 (Fundamentals Safe):
+     S_Token = I_Safe * (0.45 * C_CoinGlass + 0.30 * F_FinBERT + 0.25 * G_Grok)
+     Where:
+     - Pillar A: CoinGlass Token Microstructure (OI vs Price, Funding Squeeze, Whale vs Retail, Spot vs Perp CVD) (45%)
+     - Pillar B: Stateful FinBERT with Exponential Time-Decay (w_i = exp(-lambda * delta_t_hours)) (30%)
+     - Pillar C: Grok Dual-Persona Token Check (Retail Contrarian + Security Tracker) (25%)
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from tecc_brain.models import MarketSnapshot, NewsSignal
 from tecc_brain.reference import Reference
+from tecc_brain.sentinel import (
+    INSOLVENCY_TRIGGERS,
+    HeadlineSignal,
+    compute_time_decayed_finbert_score,
+)
 from tecc_brain.sentinel.cmc_feargreed import CmcFearGreedClient, FearGreedReading
-from tecc_brain.sentinel.grok import GrokSentinel
+from tecc_brain.sentinel.coinglass import CoinGlassClient, CoinGlassMacroMetrics, CoinGlassTokenReport
+from tecc_brain.sentinel.grok import GrokMacroRubric, GrokSentinel, GrokTokenRubric
 
-FEAR_GREED_WEIGHT = 0.5
-ASSET_SENTIMENT_WEIGHT = 0.5
+# Pipeline 1 Weights
+CMC_MACRO_WEIGHT = 0.35
+GROK_MACRO_WEIGHT = 0.35
+COINGLASS_MACRO_WEIGHT = 0.30
+
+# Pipeline 2 Weights
+COINGLASS_TOKEN_WEIGHT = 0.45
+FINBERT_TOKEN_WEIGHT = 0.30
+GROK_TOKEN_WEIGHT = 0.25
+
 RegimeLabel = Literal["NORMAL_MARKET", "TEMPORARY_LIQUIDITY_DISTRESS", "FUNDAMENTAL_PEG_FAILURE"]
 REGIME_LABEL_MAP: dict[str, RegimeLabel] = {
-    "normal": "NORMAL_MARKET", "distress": "TEMPORARY_LIQUIDITY_DISTRESS", "failure": "FUNDAMENTAL_PEG_FAILURE",
+    "normal": "NORMAL_MARKET",
+    "distress": "TEMPORARY_LIQUIDITY_DISTRESS",
+    "failure": "FUNDAMENTAL_PEG_FAILURE",
 }
 
 
 class MarketStatementReport(BaseModel):
-    cmc_score: float = Field(ge=0, le=1, description="Contrarian CMC Fear & Greed score (0 sell .. 1 buy)")
-    grok_score: float = Field(ge=0, le=1, description="Contrarian Grok crowd statement score (0 sell .. 1 buy)")
-    market_buy_sell_score: float = Field(ge=0, le=1, description="50/50 blend of CMC and Grok market statements")
+    cmc_score: float = Field(ge=0, le=1, description="Contrarian CMC F&G with Sigmoid tail amplification (35%)")
+    grok_score: float = Field(ge=0, le=1, description="Grok structured X-pulse capitulation vs euphoria (35%)")
+    coinglass_score: float = Field(ge=0, le=1, default=0.5, description="CoinGlass 24h global liquidation & funding flush (30%)")
+    market_buy_sell_score: float = Field(ge=0, le=1, description="Macro Regime Score M in [0, 1]")
+    cmc_delta: int = Field(default=0, description="24h CMC Fear & Greed change")
+    grok_rubric: dict[str, int] = Field(default_factory=dict)
+    coinglass_flush: dict[str, float] = Field(default_factory=dict)
 
 
 class TokenCheckReport(BaseModel):
     symbol: str
-    grok_score: float = Field(ge=0, le=1, description="Grok asset-specific sentiment score (0 sell .. 1 buy)")
-    finbert_score: float = Field(ge=0, le=1, description="FinBERT 7-day headline inference score (0 sell .. 1 buy)")
-    token_buy_sell_score: float = Field(ge=0, le=1, description="50/50 blend of Grok and FinBERT token check")
+    gate_safe: int = Field(ge=0, le=1, default=1, description="Adverse Selection Veto Gate I_Safe (1 = Safe, 0 = Vetoed)")
+    coinglass_score: float = Field(ge=0, le=1, default=0.5, description="CoinGlass token microstructure score C_CoinGlass (45%)")
+    finbert_score: float = Field(ge=0, le=1, default=0.5, description="Stateful time-decayed FinBERT score F_FinBERT (30%)")
+    grok_score: float = Field(ge=0, le=1, default=0.5, description="Grok dual-persona token score G_Grok (25%)")
+    token_buy_sell_score: float = Field(ge=0, le=1, description="Final Token Score S_Token in [0, 1]")
+    veto_reason: str = Field(default="", description="Reason for veto if I_Safe == 0")
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssetSentiment(BaseModel):
@@ -59,25 +86,30 @@ class BlendedSentinelReport(BaseModel):
     fear_greed: FearGreedReading
     market_statement: MarketStatementReport
     assets: dict[str, AssetSentiment]
-    overall_buy_sell_score: float = Field(ge=0, le=1, description="50/50 market statement score")
+    overall_buy_sell_score: float = Field(ge=0, le=1, description="Macro Regime Score M in [0, 1]")
 
 
 def blend(fear_greed_score: float, asset_p_negative: float) -> float:
-    """(0..1 buy/sell) for one asset: 50% market-wide score + 50% (1 − asset-specific P(negative))."""
+    """Convenience helper for baseline 50/50 blend."""
     asset_buy_sell = 1.0 - asset_p_negative
-    return FEAR_GREED_WEIGHT * fear_greed_score + ASSET_SENTIMENT_WEIGHT * asset_buy_sell
+    return 0.5 * fear_greed_score + 0.5 * asset_buy_sell
 
 
 class NewsRiskSentinel:
-    """Agent 1. Call `.assess(snapshot, ref)` each cycle (propose, or the hourly monitor); pass
-    `make_news_hook(sentinel, ref)` into `BrainDeps(news_hook=...)` so the blend reaches the regime
-    classifier exactly like a headline would.
+    """Agent 1 — Upgraded News & NLP Risk Sentinel.
+
+    Executes Pipeline 1 (Macro Regime Score M) and Pipeline 2 (Token Check with GATE 0 Veto).
     """
 
     def __init__(
-        self, fear_greed: CmcFearGreedClient | None = None, grok: GrokSentinel | None = None, ref: Reference | None = None
+        self,
+        fear_greed: CmcFearGreedClient | None = None,
+        grok: GrokSentinel | None = None,
+        coinglass: CoinGlassClient | None = None,
+        ref: Reference | None = None,
     ) -> None:
         self.fear_greed = fear_greed or CmcFearGreedClient()
+        self.coinglass = coinglass or CoinGlassClient()
         self._grok = grok
         self._ref = ref
 
@@ -91,17 +123,45 @@ class NewsRiskSentinel:
         grok = self._grok_for(ref)
         finbert = grok.fallback
 
-        # Formula 1: Market Statement (50% CMC Fear & Greed + 50% Grok Macro Sentiment)
-        cmc_score = fg.buy_sell_score
-        grok_market_score = grok.market_sentiment()
-        market_score = 0.5 * cmc_score + 0.5 * grok_market_score
-        market_report = MarketStatementReport(
-            cmc_score=round(cmc_score, 3),
-            grok_score=round(grok_market_score, 3),
-            market_buy_sell_score=round(market_score, 3),
+        # =====================================================================
+        # Pipeline 1: Upgraded Market Statement (Macro Regime Score M in [0, 1])
+        # 1. CMC Fear & Greed with Sigmoid Tail Amplification (35%)
+        # 2. Grok X-Pulse Structured Capitulation vs Euphoria (35%)
+        # 3. CoinGlass Macro Flush Confirmation (30%)
+        # =====================================================================
+        cmc_score = fg.amplified_buy_sell_score
+        grok_macro_rubric = grok.macro_rubric()
+        grok_macro_score = grok_macro_rubric.macro_score
+        cg_macro_metrics = self.coinglass.macro_flush()
+        cg_macro_score = cg_macro_metrics.macro_score
+
+        market_score = round(
+            CMC_MACRO_WEIGHT * cmc_score
+            + GROK_MACRO_WEIGHT * grok_macro_score
+            + COINGLASS_MACRO_WEIGHT * cg_macro_score,
+            3,
         )
 
-        # Formula 2: Token Check per asset (50% Grok Asset + 50% FinBERT Asset)
+        market_report = MarketStatementReport(
+            cmc_score=round(cmc_score, 3),
+            grok_score=round(grok_macro_score, 3),
+            coinglass_score=round(cg_macro_score, 3),
+            market_buy_sell_score=market_score,
+            cmc_delta=fg.delta_24h,
+            grok_rubric={
+                "retail_capitulation_index": grok_macro_rubric.retail_capitulation_index,
+                "retail_euphoria_index": grok_macro_rubric.retail_euphoria_index,
+            },
+            coinglass_flush={
+                "long_liq_ratio_24h": cg_macro_metrics.long_liq_ratio_24h,
+                "short_liq_ratio_24h": cg_macro_metrics.short_liq_ratio_24h,
+                "btc_funding_rate": cg_macro_metrics.btc_funding_rate,
+            },
+        )
+
+        # =====================================================================
+        # Pipeline 2: Upgraded Token Check (GATE 0 + 3 Pillars)
+        # =====================================================================
         recent_by_symbol: dict[str, list[str]] = {}
         for n in snapshot.news:
             recent_by_symbol.setdefault(n.entity, []).append(n.headline)
@@ -109,36 +169,95 @@ class NewsRiskSentinel:
         assets: dict[str, AssetSentiment] = {}
         for symbol in snapshot.pegs:
             headlines = recent_by_symbol.get(symbol, [])
-            # Grok asset reading
-            grok_p_neg = grok.asset_sentiment(symbol, headlines)
-            grok_asset_score = 1.0 - grok_p_neg
 
-            # FinBERT asset reading over headlines
-            finbert_p_negs = []
-            for h in headlines:
-                sig = finbert.score(h)
+            # Pillar B: Stateful FinBERT Sentinel with Exponential Time-Decay + Veto Gate
+            finbert_signals: list[HeadlineSignal] = []
+            for n in snapshot.news:
+                if n.entity != symbol:
+                    continue
+                sig = finbert.score(n.headline, timestamp=snapshot.as_of)
                 if sig:
-                    finbert_p_negs.append(sig.p_negative)
-            finbert_p_neg = max(finbert_p_negs) if finbert_p_negs else 0.05
-            finbert_asset_score = 1.0 - finbert_p_neg
+                    if n.p_negative > sig.p_negative:
+                        sig = sig.model_copy(update={"p_negative": n.p_negative})
+                    finbert_signals.append(sig)
+                else:
+                    lower = n.headline.lower()
+                    is_trig = any(t in lower for t in INSOLVENCY_TRIGGERS)
+                    finbert_signals.append(
+                        HeadlineSignal(
+                            symbol=symbol,
+                            entity=symbol,
+                            p_negative=n.p_negative,
+                            headline=n.headline,
+                            matched_terms=[],
+                            source=n.source,
+                            is_insolvency_trigger=bool(is_trig and n.p_negative >= 0.70),
+                            timestamp=snapshot.as_of,
+                        )
+                    )
 
-            # 50/50 Token Check formula
-            token_score = 0.5 * grok_asset_score + 0.5 * finbert_asset_score
-            token_report = TokenCheckReport(
-                symbol=symbol,
-                grok_score=round(grok_asset_score, 3),
-                finbert_score=round(finbert_asset_score, 3),
-                token_buy_sell_score=round(token_score, 3),
+            finbert_score, finbert_veto, finbert_veto_reason = compute_time_decayed_finbert_score(
+                finbert_signals, now=snapshot.as_of
             )
 
-            # Combined overall buy/sell score (market statement + token check)
-            combined_score = 0.5 * market_score + 0.5 * token_score
-            p_negative = round(1.0 - token_score, 3)
+            # Pillar C: Grok API Dual-Persona Token Check
+            grok_token = grok.token_rubric(symbol, headlines)
+            grok_score = grok_token.token_score
+            grok_veto = grok_token.security_alert_detected
+            grok_veto_reason = grok_token.security_details
+
+            # Pillar A: CoinGlass Token Derivatives Microstructure
+            cg_token = self.coinglass.token_microstructure(symbol)
+            cg_score = cg_token.composite_score
+
+            # GATE 0: Hard Circuit Breaker (Adverse Selection Veto Gate)
+            if finbert_veto:
+                gate_safe = 0
+                veto_reason = finbert_veto_reason
+            elif grok_veto:
+                gate_safe = 0
+                veto_reason = f"Grok Security Alert Veto: {grok_veto_reason}"
+            else:
+                gate_safe = 1
+                veto_reason = ""
+
+            # S_Token = I_Safe * (0.45 * C_CoinGlass + 0.30 * F_FinBERT + 0.25 * G_Grok)
+            if gate_safe == 0:
+                token_score = 0.0
+                combined_score = 0.0
+                p_negative = 1.0  # Maximum negative sentiment trips circuit breaker
+            else:
+                raw_token_score = (
+                    COINGLASS_TOKEN_WEIGHT * cg_score
+                    + FINBERT_TOKEN_WEIGHT * finbert_score
+                    + GROK_TOKEN_WEIGHT * grok_score
+                )
+                token_score = round(raw_token_score, 3)
+                combined_score = round(0.50 * market_score + 0.50 * token_score, 3)
+                p_negative = round(1.0 - token_score, 3)
+
+            token_report = TokenCheckReport(
+                symbol=symbol,
+                gate_safe=gate_safe,
+                coinglass_score=cg_score,
+                finbert_score=finbert_score,
+                grok_score=grok_score,
+                token_buy_sell_score=token_score,
+                veto_reason=veto_reason,
+                details={
+                    "coinglass_metrics": cg_token.details,
+                    "grok_details": {
+                        "retail_panic": grok_token.retail_panic_index,
+                        "retail_fomo": grok_token.retail_fomo_index,
+                        "security_alert": grok_token.security_alert_detected,
+                    },
+                },
+            )
 
             assets[symbol] = AssetSentiment(
                 symbol=symbol,
                 p_negative=p_negative,
-                buy_sell_score=round(combined_score, 3),
+                buy_sell_score=combined_score,
                 token_check=token_report,
             )
 
@@ -146,7 +265,7 @@ class NewsRiskSentinel:
             fear_greed=fg,
             market_statement=market_report,
             assets=assets,
-            overall_buy_sell_score=round(market_score, 3),
+            overall_buy_sell_score=market_score,
         )
 
     def _apply(self, snapshot: MarketSnapshot, ref: Reference) -> MarketSnapshot:
@@ -161,13 +280,30 @@ class NewsRiskSentinel:
             if peg is None:
                 continue
             pegs[symbol] = peg.model_copy(update={"sentiment_negative": max(peg.sentiment_negative, a.p_negative)})
-            news.append(NewsSignal(
-                entity=symbol, p_negative=a.p_negative,
-                headline=f"Blended sentinel: Market Statement {report.overall_buy_sell_score:.2f} (50% CMC F&G + 50% Grok Macro) "
-                         f"+ Token Check {a.token_check.token_buy_sell_score if a.token_check else 0.5:.2f} (50% Grok + 50% FinBERT) "
-                         f"→ buy/sell {a.buy_sell_score:.2f}.",
-                source="blended (Two 50/50 Formulas: Market & Token Check)",
-            ))
+
+            tc = a.token_check
+            if tc and tc.gate_safe == 0:
+                news.append(
+                    NewsSignal(
+                        entity=symbol,
+                        p_negative=a.p_negative,
+                        headline=f"🚨 VETO CIRCUIT BREAKER on {symbol}: {tc.veto_reason}. Forced Token Score 0.00.",
+                        source="GATE 0 Hard Circuit Breaker (FinBERT/Grok Veto)",
+                    )
+                )
+            else:
+                news.append(
+                    NewsSignal(
+                        entity=symbol,
+                        p_negative=a.p_negative,
+                        headline=(
+                            f"Upgraded Sentinel: Macro {report.overall_buy_sell_score:.2f} (35% CMC + 35% Grok + 30% CoinGlass) | "
+                            f"Token {tc.token_buy_sell_score if tc else 0.5:.2f} (45% CoinGlass + 30% FinBERT + 25% Grok) "
+                            f"→ buy/sell {a.buy_sell_score:.2f}."
+                        ),
+                        source="Upgraded Market Statement & Token Check (FinBERT + Grok + CoinGlass)",
+                    )
+                )
         return snapshot.model_copy(update={"pegs": pegs, "news": news})
 
 
@@ -179,10 +315,14 @@ def make_news_hook(sentinel: NewsRiskSentinel, ref: Reference) -> Callable[[Mark
 
 
 __all__ = [
-    "ASSET_SENTIMENT_WEIGHT",
+    "CMC_MACRO_WEIGHT",
+    "COINGLASS_MACRO_WEIGHT",
+    "COINGLASS_TOKEN_WEIGHT",
+    "FINBERT_TOKEN_WEIGHT",
+    "GROK_MACRO_WEIGHT",
+    "GROK_TOKEN_WEIGHT",
     "AssetSentiment",
     "BlendedSentinelReport",
-    "FEAR_GREED_WEIGHT",
     "MarketStatementReport",
     "NewsRiskSentinel",
     "REGIME_LABEL_MAP",

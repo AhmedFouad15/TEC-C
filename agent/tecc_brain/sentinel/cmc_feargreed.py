@@ -22,6 +22,8 @@ class FearGreedReading(BaseModel):
     classification: str
     as_of: datetime
     source: str = "cmc_fear_greed"
+    prev_value: int | None = Field(default=None, description="Previous 24h reading for velocity calculation")
+    delta_24h: int = Field(default=0, description="Change vs yesterday: value - prev_value")
 
     @property
     def buy_sell_score(self) -> float:
@@ -31,6 +33,34 @@ class FearGreedReading(BaseModel):
         neutral (value = 50) => 0.5
         """
         return (100.0 - float(self.value)) / 100.0
+
+    @property
+    def amplified_buy_sell_score(self) -> float:
+        """Contrarian score with Sigmoid Tail Amplification and Velocity Boost.
+
+        - 40..60 is noise -> compressed towards 0.50.
+        - Extremes (<20 Extreme Fear or >80 Extreme Greed) amplified towards 1.0 or 0.0.
+        - Velocity Boost (ΔFG): If Fear was extreme and turns up (e.g. 12 -> 16, panic exhausting),
+          adds +0.10 reversal boost.
+        """
+        f_inv = (100.0 - float(self.value)) / 100.0
+
+        # Sigmoid Tail Amplification: suppress noise around 40-60, amplify extremes
+        if 40 <= self.value <= 60:
+            score = 0.50 + (f_inv - 0.50) * 0.40
+        elif self.value < 20:
+            score = min(1.0, f_inv + 0.08)
+        elif self.value > 80:
+            score = max(0.0, f_inv - 0.08)
+        else:
+            score = f_inv
+
+        # Velocity Boost (ΔFG): if fear was extreme and turns up (panic exhausting)
+        effective_delta = self.delta_24h if self.delta_24h != 0 else ((self.value - self.prev_value) if self.prev_value is not None else 0)
+        if self.value <= 30 and effective_delta > 0:
+            score = min(1.0, score + 0.10)
+
+        return round(max(0.0, min(1.0, score)), 3)
 
 
 def _neutral(source: str = "cmc_fear_greed (fallback: unavailable)") -> FearGreedReading:

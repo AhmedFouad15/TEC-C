@@ -47,9 +47,66 @@ MARKET_SYSTEM_PROMPT = (
     "Respond with ONLY a single-line JSON object of the exact shape {\"rating\": <int 0..100>} — no prose, no markdown fences."
 )
 
+MACRO_X_SYSTEM_PROMPT = (
+    "You are a macroeconomic sentiment evaluator analyzing live X (Twitter) financial discourse. "
+    "Evaluate crowd sentiment across two specific dimensions on a 0 to 100 scale:\n"
+    "1. retail_capitulation_index (0-100): Frequency of phrases like 'crypto is dead', 'liquidated', 'selling everything'.\n"
+    "2. retail_euphoria_index (0-100): Frequency of screenshot PnL flexing, meme mania, 'supercycle'.\n"
+    "Respond with ONLY a single-line JSON object of the exact shape: "
+    "{\"retail_capitulation_index\": <int 0..100>, \"retail_euphoria_index\": <int 0..100>} — no prose, no markdown fences."
+)
+
+TOKEN_X_SYSTEM_PROMPT = (
+    "You are a dual-persona token risk evaluator analyzing live X (Twitter) discourse for a specific cryptocurrency asset. "
+    "Analyze two distinct X populations:\n"
+    "1. Retail Crowd Sentiment: Are normal retail accounts panic-selling (panic index 0-100) or FOMO-buying (fomo index 0-100)?\n"
+    "2. Security & Whale Trackers (Lookonchain, PeckShield, ZachXBT, SpotOnChain): Check for reports of team wallets dumping, "
+    "insolvency, contract exploits, de-pegging, or suspicious approvals.\n"
+    "Respond with ONLY a single-line JSON object of the exact shape: "
+    "{\"retail_panic_index\": <int 0..100>, \"retail_fomo_index\": <int 0..100>, \"security_alert_detected\": <bool>, \"security_details\": \"<string>\"} — no prose, no markdown fences."
+)
+
 
 class GrokMarketSentiment(BaseModel):
     rating: int = Field(ge=0, le=100)
+
+
+class GrokMacroRubric(BaseModel):
+    retail_capitulation_index: int = Field(ge=0, le=100, default=50)
+    retail_euphoria_index: int = Field(ge=0, le=100, default=50)
+
+    @property
+    def macro_score(self) -> float:
+        """Contrarian Formula per project spec:
+        clip(0.5 + (Capitulation - Euphoria) / 200, 0.0, 1.0)
+        """
+        diff = float(self.retail_capitulation_index - self.retail_euphoria_index)
+        return round(max(0.0, min(1.0, 0.5 + (diff / 200.0))), 3)
+
+
+class GrokTokenRubric(BaseModel):
+    symbol: str
+    retail_panic_index: int = Field(ge=0, le=100, default=50)
+    retail_fomo_index: int = Field(ge=0, le=100, default=50)
+    security_alert_detected: bool = Field(default=False)
+    security_details: str = Field(default="")
+
+    @property
+    def retail_contrarian_score(self) -> float:
+        """Retail panic -> Bullish (1.0), FOMO -> Bearish (0.0):
+        clip(0.5 + (Panic - FOMO) / 200, 0.0, 1.0)
+        """
+        diff = float(self.retail_panic_index - self.retail_fomo_index)
+        return round(max(0.0, min(1.0, 0.5 + (diff / 200.0))), 3)
+
+    @property
+    def token_score(self) -> float:
+        """If security alert (team dump, exploit, de-peg) detected -> slash to 0.0.
+        Otherwise driven by retail contrarian sentiment.
+        """
+        if self.security_alert_detected:
+            return 0.0
+        return self.retail_contrarian_score
 
 
 class GrokSentiment(BaseModel):
@@ -127,15 +184,10 @@ class GrokSentinel:
 
         return BASE_NEGATIVE
 
-    def market_sentiment(self) -> float:
-        """Evaluates people's overall market statement via Grok API (rating out of 100).
-        Applies contrarian ('vice versa') logic per project spec:
-        - If everyone is depressed (rating -> 0), motivated to buy (buy_sell_score -> 1.0)
-        - If super greed (rating -> 100), motivated to sell (buy_sell_score -> 0.0)
-        - Neutral (rating 50) -> 0.5
-        """
+    def macro_rubric(self) -> GrokMacroRubric:
+        """Fetches structured X-sentiment decomposition: retail_capitulation_index vs retail_euphoria_index."""
         if not self.api_key:
-            return 0.50
+            return GrokMacroRubric(retail_capitulation_index=50, retail_euphoria_index=50)
         try:
             resp = httpx.post(
                 GROK_API_URL,
@@ -143,20 +195,95 @@ class GrokSentinel:
                 json={
                     "model": GROK_MODEL,
                     "messages": [
-                        {"role": "system", "content": MARKET_SYSTEM_PROMPT},
-                        {"role": "user", "content": "What is the current crowd sentiment and statement on the crypto market?"},
+                        {"role": "system", "content": MACRO_X_SYSTEM_PROMPT},
+                        {"role": "user", "content": "Analyze current retail X pulse for capitulation vs euphoria."},
                     ],
                     "temperature": 0.0,
-                    "max_tokens": 50,
+                    "max_tokens": 60,
                 },
                 timeout=self.timeout_s,
             )
             resp.raise_for_status()
             raw = resp.json()["choices"][0]["message"]["content"].strip()
-            parsed = GrokMarketSentiment.model_validate_json(raw)
-            return max(0.0, min(1.0, (100.0 - float(parsed.rating)) / 100.0))
+            return GrokMacroRubric.model_validate_json(raw)
         except (httpx.HTTPError, KeyError, IndexError, ValidationError, ValueError):
-            return 0.50
+            return GrokMacroRubric(retail_capitulation_index=50, retail_euphoria_index=50)
+
+    def market_sentiment(self) -> float:
+        """Evaluates people's overall market statement via Grok API (macro score in 0..1)."""
+        return self.macro_rubric().macro_score
+
+    def token_rubric(self, symbol: str, context_headlines: list[str] | None = None) -> GrokTokenRubric:
+        """Pillar C: Grok Dual-Persona Token Check.
+
+        1. Retail Crowd Sentiment (Contrarian/Inverted: Panic -> Bullish, FOMO -> Bearish).
+        2. On-Chain Security & Whale Trackers (Directional: alerts on team dumping or suspicious contracts).
+        """
+        safe = _safe_headlines(context_headlines or [])
+        names = ENTITY_ALIASES.get(symbol, (symbol,))
+
+        # Offline defense-in-depth security alert check
+        security_alert = False
+        security_detail = ""
+        security_triggers = {"exploit", "hack", "drained", "depeg", "de-peg", "bankruptcy", "lawsuit", "dump", "halted"}
+        for h in safe:
+            lower = h.lower()
+            for t in security_triggers:
+                if t in lower:
+                    security_alert = True
+                    security_detail = f"Security trigger matched: '{t}' in '{h}'"
+                    break
+            if security_alert:
+                break
+
+        if not self.api_key:
+            return GrokTokenRubric(
+                symbol=symbol,
+                retail_panic_index=50,
+                retail_fomo_index=50,
+                security_alert_detected=security_alert,
+                security_details=security_detail,
+            )
+
+        try:
+            prompt = f"Asset: {symbol} ({names[0]}). Recent headlines:\n" + "\n".join(f"- {h}" for h in safe)
+            resp = httpx.post(
+                GROK_API_URL,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": GROK_MODEL,
+                    "messages": [
+                        {"role": "system", "content": TOKEN_X_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.0,
+                    "max_tokens": 100,
+                },
+                timeout=self.timeout_s,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            parsed = GrokTokenRubric.model_validate_json(raw)
+            parsed.symbol = symbol
+            if security_alert:
+                parsed.security_alert_detected = True
+                parsed.security_details = security_detail or parsed.security_details
+            return parsed
+        except (httpx.HTTPError, KeyError, IndexError, ValidationError, ValueError):
+            return GrokTokenRubric(
+                symbol=symbol,
+                retail_panic_index=50,
+                retail_fomo_index=50,
+                security_alert_detected=security_alert,
+                security_details=security_detail,
+            )
 
 
-__all__ = ["GROK_SENTIMENT_CAP", "GrokMarketSentiment", "GrokSentiment", "GrokSentinel"]
+__all__ = [
+    "GROK_SENTIMENT_CAP",
+    "GrokMacroRubric",
+    "GrokMarketSentiment",
+    "GrokSentiment",
+    "GrokSentinel",
+    "GrokTokenRubric",
+]

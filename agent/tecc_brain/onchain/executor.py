@@ -257,10 +257,9 @@ class ArbitrumCommoditiesExecutor:
 
 
 class PegGuardArbitrageExecutor:
-    """Arbitrage custom executor via PegGuard cross-venue routing.
+    """PegGuard Arbitrage Executor — pending PegGuard module completion.
 
-    Features:
-    - Two-leg de-peg arbitrage sequence: secondary DEX discount purchase + primary par redemption queue.
+    Reserved for two-leg de-peg arbitrage sequence once PegGuard implementation is finished.
     """
 
     market = "arbitrage"
@@ -269,18 +268,11 @@ class PegGuardArbitrageExecutor:
         self.rpc, self.dep, self.mandate = rpc, dep, mandate
 
     def submit(self, intent: ExecutionIntent, account: str) -> ExecutionIntent:
-        if self.mandate and usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
-            return intent.model_copy(update={
-                "status": "failed",
-                "detail": f"${intent.amount_usd:,.0f} exceeds mandate max ${self.mandate.max_amount_usd:,.0f}",
-            })
-        tx_hash = f"0x9e99a{int(datetime.now(timezone.utc).timestamp())}{abs(hash(intent.venue_id)) % 10**10:010d}"
+        # Pending PegGuard module completion
         return intent.model_copy(update={
-            "status": "submitted",
+            "status": "pending",
             "market": "arbitrage",
-            "tx_hash": tx_hash,
-            "target_address": intent.target_address or "pegguard_cross_venue_router",
-            "detail": f"PegGuard: initiated de-peg arbitrage route for {intent.asset_in} (discount capture + par redemption queue)",
+            "detail": "PegGuardArbitrageExecutor: pending PegGuard module implementation",
         })
 
 

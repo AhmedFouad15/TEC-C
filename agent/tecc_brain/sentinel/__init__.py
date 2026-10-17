@@ -7,6 +7,8 @@ that needs price, redemption, reserve or liquidity evidence too (mentor's point;
 
 from __future__ import annotations
 
+import math
+from datetime import datetime, timezone
 import re
 from typing import Protocol
 
@@ -19,6 +21,23 @@ from tecc_brain.reference import Reference
 MAX_HEADLINE = 500
 BASE_NEGATIVE = 0.05
 FLOOR, CEILING = 0.02, 0.98
+
+INSOLVENCY_TRIGGERS: tuple[str, ...] = (
+    "exploit",
+    "drained",
+    "de-peg",
+    "depeg",
+    "bankruptcy",
+    "insolven",
+    "redemptions halted",
+    "wells notice",
+    "hack",
+    "sec lawsuit",
+    "lawsuit",
+    "run on",
+    "paused withdrawals",
+    "halted withdrawals",
+)
 
 ENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "USDC": ("usdc", "circle", "usd coin"),
@@ -52,6 +71,8 @@ class HeadlineSignal(BaseModel):
     headline: str
     matched_terms: list[str]
     source: str = "offline lexicon (FinBERT fallback)"
+    is_insolvency_trigger: bool = Field(default=False, description="Whether headline contains a structural insolvency trigger")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SentinelSource(Protocol):
@@ -73,7 +94,7 @@ class LexiconSentinel:
                     best = (m.start(), -len(name), symbol, name)
         return (best[2], best[3]) if best else None
 
-    def score(self, headline: str) -> HeadlineSignal | None:
+    def score(self, headline: str, timestamp: datetime | None = None) -> HeadlineSignal | None:
         if not headline.strip() or len(headline) > MAX_HEADLINE:
             return None
         verdict = scan(headline)
@@ -89,10 +110,66 @@ class LexiconSentinel:
             for m in pattern.finditer(lower):
                 terms.append(m.group(0))
                 p += weight
+
+        is_trigger = False
+        for t in INSOLVENCY_TRIGGERS:
+            if t in lower:
+                is_trigger = True
+                break
+
+        p_final = round(min(CEILING, max(FLOOR, p)), 3)
         return HeadlineSignal(
-            symbol=entity[0], entity=entity[1], p_negative=round(min(CEILING, max(FLOOR, p)), 3),
-            headline=verdict.normalized, matched_terms=terms,
+            symbol=entity[0],
+            entity=entity[1],
+            p_negative=p_final,
+            headline=verdict.normalized,
+            matched_terms=terms,
+            is_insolvency_trigger=bool(is_trigger and p_final >= 0.70),
+            timestamp=timestamp or datetime.now(timezone.utc),
         )
+
+
+def compute_time_decayed_finbert_score(
+    signals: list[HeadlineSignal],
+    now: datetime | None = None,
+    lambda_decay: float = 0.03,
+) -> tuple[float, bool, str]:
+    """Computes time-decayed FinBERT sentiment and evaluates Adverse Selection Veto:
+
+    1. Exponential Time-Decay Weighting:
+       w_i = exp(-lambda * delta_t_hours)   (lambda = 0.03)
+       weighted_p_negative = sum(w_i * p_neg_i) / sum(w_i)
+       finbert_score = 1.0 - weighted_p_negative
+
+    2. Two-Head Classification (Insolvency Veto Gate):
+       If any headline contains structural insolvency triggers with p_negative > 0.85,
+       immediately triggers Hard Veto (veto_gate = True).
+
+    Returns:
+       (finbert_directional_score, veto_triggered, veto_reason)
+    """
+    if not signals:
+        return 0.95, False, ""  # clean baseline when no negative headlines
+
+    now_dt = now or datetime.now(timezone.utc)
+    total_weight = 0.0
+    weighted_p_neg = 0.0
+    veto_triggered = False
+    veto_reason = ""
+
+    for s in signals:
+        delta_hours = max(0.0, (now_dt - s.timestamp).total_seconds() / 3600.0)
+        w = math.exp(-lambda_decay * delta_hours)
+        total_weight += w
+        weighted_p_neg += w * s.p_negative
+
+        if s.p_negative >= 0.85 and s.is_insolvency_trigger:
+            veto_triggered = True
+            veto_reason = f"Adverse Selection Veto: '{s.headline}' (p_neg={s.p_negative})"
+
+    final_p_neg = (weighted_p_neg / total_weight) if total_weight > 0 else 0.05
+    finbert_score = round(max(0.0, min(1.0, 1.0 - final_p_neg)), 3)
+    return finbert_score, veto_triggered, veto_reason
 
 
 def apply_signal(snapshot: MarketSnapshot, signal: HeadlineSignal) -> MarketSnapshot:
@@ -106,4 +183,12 @@ def apply_signal(snapshot: MarketSnapshot, signal: HeadlineSignal) -> MarketSnap
     return snapshot.model_copy(update={"pegs": pegs, "news": news})
 
 
-__all__ = ["ENTITY_ALIASES", "HeadlineSignal", "LexiconSentinel", "SentinelSource", "apply_signal"]
+__all__ = [
+    "ENTITY_ALIASES",
+    "INSOLVENCY_TRIGGERS",
+    "HeadlineSignal",
+    "LexiconSentinel",
+    "SentinelSource",
+    "apply_signal",
+    "compute_time_decayed_finbert_score",
+]
