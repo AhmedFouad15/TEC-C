@@ -72,9 +72,8 @@ def test_refused_text_has_no_report(store):
 
 
 def test_valid_verdict_is_used_and_can_size_down(store):
-    def half(v, p):
-        v["allocations"][0]["amount_usd"] = 200.0
-        v["total_auto_usd"] = 200.0
+    def half(v, p):  # the model works in privacy units: half of the AUTO cap, whatever the scale
+        v["allocations"][0]["amount_usd"] = v["total_auto_usd"] = v["allocations"][0]["amount_usd"] / 2
         return v
 
     result = run(store, llm=model(half))
@@ -220,14 +219,18 @@ def test_payload_is_structured_and_private(store):
     fake = model(lambda v, p: v)
     run(store, text="Optimize my $1,500 USDC", llm=fake)
     p = fake.seen["payload"]
-    assert fake.seen["system"] == SYSTEM_PROMPT
+    assert fake.seen["system"].startswith(SYSTEM_PROMPT) and "privacy units" in fake.seen["system"]
     assert set(p) == {"request_id", "mandate", "profile", "limits", "market", "regimes", "news", "candidates",
                       "vetoes", "untrusted_text"}
     assert "demo" not in json.dumps(p["profile"]) and "raw_text" not in p["mandate"]  # no account id, no raw text
-    assert p["limits"]["baseline_auto_usd"] == pytest.approx(400)
+    # Finding B: real money never leaves the machine. $1,500 order → 1000 units; $400 AUTO cap → 266.67 units.
+    assert p["mandate"]["amount_usd"] == pytest.approx(1000) and "amount" not in p["mandate"]
+    assert p["limits"]["baseline_auto_usd"] == pytest.approx(400 * 1000 / 1500)
     assert p["profile"]["approval_posteriors"]["aave_v3_usdc"] == pytest.approx(5 / 7, abs=1e-3)
     aave = candidate(p, venue_id="aave_v3_usdc", allowed_mode="AUTO")
-    assert aave["max_amount_usd"] == pytest.approx(400)
+    assert aave["max_amount_usd"] == pytest.approx(400 * 1000 / 1500)
+    structured = json.dumps({k: v for k, v in p.items() if k != "untrusted_text"})
+    assert "1500" not in structured and "400.0" not in structured
     assert all(n["evidence_id"] in p["untrusted_text"] for n in p["news"])  # headlines only as quoted evidence
 
 
@@ -246,3 +249,19 @@ def test_propose_returns_the_llm_report(store):
     assert body["brain_report"]["producer"] == "llm"
     assert body["brain_report"]["schema_version"] == SCHEMA_VERSION
     assert body["proposal_id"]
+
+
+def test_reply_in_privacy_units_maps_back_to_real_dollars(store):
+    result = run(store, llm=model(lambda v, p: v))  # the model funds the full AUTO cap, in units
+    assert result.brain_report.producer == "llm"
+    assert result.decision.auto_amount_usd == pytest.approx(400, abs=0.01)
+    assert result.intent.amount_usd == pytest.approx(400, abs=0.01)
+
+
+def test_a_reply_in_real_dollars_cannot_smuggle_more_autonomy(store):
+    def dollars(v, p):  # a model ignoring the units note and answering $400 → 400 units = $600, above the cap
+        v["allocations"][0]["amount_usd"] = v["total_auto_usd"] = 400.0
+        return v
+
+    r = run(store, llm=model(dollars)).brain_report
+    assert r.producer == "rules" and "cap" in r.fallback_reason

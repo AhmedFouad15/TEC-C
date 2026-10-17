@@ -46,7 +46,7 @@
         "vetoes_honored": "$ALL_VETOES",
         "signal_conflicts": ["NEWS_VS_REGIME_MODEL"],
         "confidence": 0.62,
-        "user_explanation": "Aave still scores best, but fresh reports of thinning USDC liquidity disagree with the calm peg model. I paused the automatic $400 so you can approve it yourself."
+        "user_explanation": "Aave still scores best, but fresh reports of thinning USDC liquidity disagree with the calm peg model. I paused the automatic part so you can approve it yourself."
       },
       "expect": {
         "status_code": 200,
@@ -75,14 +75,14 @@
         "request_id": "$REQUEST_ID",
         "decision": "EXECUTE",
         "allocations": [
-          {"candidate": "aave_v3_usdc", "amount_usd": 150.0, "mode": "AUTO"}
+          {"candidate": "aave_v3_usdc", "amount_usd": "$CAP*0.375", "mode": "AUTO"}
         ],
         "total_auto_usd": "$AUTO_SUM",
         "reason_codes": ["TOP_SCORE", "NEGATIVE_NEWS"],
         "vetoes_honored": "$ALL_VETOES",
         "signal_conflicts": ["NEWS_VS_REGIME_MODEL"],
         "confidence": 0.71,
-        "user_explanation": "Aave is still the best risk-adjusted option, but liquidity news is soft, so I am running $150 now instead of $400. The rest waits for your approval."
+        "user_explanation": "Aave is still the best risk-adjusted option, but liquidity news is soft, so I am running a smaller amount now. The rest waits for your approval."
       },
       "expect": {
         "status_code": 200,
