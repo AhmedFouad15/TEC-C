@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
 
+from tecc_brain.market import SnapshotSource
+from tecc_brain.reference import load_reference
+from tecc_brain.sentinel.blended import NewsRiskSentinel
 from tecc_brain.sentinel.cmc_feargreed import CmcFearGreedClient, FearGreedReading
+from tecc_brain.sentinel.grok import GrokSentinel
 
 
 def test_fear_greed_contrarian_vice_versa_scale():
@@ -10,7 +14,7 @@ def test_fear_greed_contrarian_vice_versa_scale():
     - Neutral (50) -> 0.5 (neutral)
     """
     now = datetime.now(timezone.utc)
-    
+
     # Extreme greed -> sell
     greed_100 = FearGreedReading(value=100, classification="Extreme Greed", as_of=now)
     assert greed_100.buy_sell_score == 0.0
@@ -40,3 +44,39 @@ def test_cmc_client_fallback_to_neutral():
     assert reading.classification == "Neutral"
     assert reading.buy_sell_score == 0.50
     assert "fallback" in reading.source
+
+
+def test_grok_market_sentiment_contrarian_fallback():
+    """Grok market sentiment without API key must return 0.5 neutral fallback."""
+    ref = load_reference()
+    grok = GrokSentinel(ref, api_key=None)
+    score = grok.market_sentiment()
+    assert score == 0.50
+
+
+def test_two_fifty_fifty_formulas_in_sentinel():
+    """Verifies that NewsRiskSentinel implements both 50/50 formulas exactly:
+    Formula 1: Market Statement = 50% CMC Fear & Greed + 50% Grok Macro Sentiment
+    Formula 2: Token Check = 50% Grok Asset Sentiment + 50% FinBERT News Sentiment
+    """
+    ref = load_reference()
+    snapshot = SnapshotSource("demo").snapshot()
+    sentinel = NewsRiskSentinel(ref=ref)
+    
+    report = sentinel.assess(snapshot, ref)
+    
+    # 1. Formula 1: Market Statement
+    ms = report.market_statement
+    expected_market = round(0.5 * ms.cmc_score + 0.5 * ms.grok_score, 3)
+    assert ms.market_buy_sell_score == expected_market
+    assert report.overall_buy_sell_score == expected_market
+
+    # 2. Formula 2: Token Check on each peg
+    for symbol, asset in report.assets.items():
+        assert asset.token_check is not None
+        tc = asset.token_check
+        expected_token = round(0.5 * tc.grok_score + 0.5 * tc.finbert_score, 3)
+        assert tc.token_buy_sell_score == expected_token
+        # Asset combined score combines market statement + token check
+        expected_combined = round(0.5 * ms.market_buy_sell_score + 0.5 * tc.token_buy_sell_score, 3)
+        assert asset.buy_sell_score == expected_combined

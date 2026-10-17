@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "project": "Tec-C (Tethered Expense Corporate Card)",
+    "competition": "Shenzhen International FinTech Competition (FinTechathon 2026)",
+    "topic": "Topic F: Agent Wallet",
+    "co_hosts": "Tsinghua University PBCSF & WeBank",
+    "version": "1.0.0",
+    "network": "FISCO BCOS (WeBank Consortium Chain)",
+    "chainId": 2026,
+    "note": "Multi-chain deployment for the Chinese Market. Features native enterprise gas quota sponsorship ($0.00 gas fee for cardholders). Routes onshore Shibor MMF and cross-border digital settlement assets."
+  },
+  "defaultParameters": {
+    "tetherRadiusDefaultWei": "500000000000000000",
+    "maxSessionGasBudgetWei": "0",
+    "enterpriseGasSponsorship": true,
+    "riskTiers": {
+      "CONSERVATIVE": 1,
+      "BALANCED": 2,
+      "AGGRESSIVE": 3
+    }
+  },
+  "deployedAddresses": {
+    "EntryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+    "TetherGuardHook": "0x0000000000000000000000000000000000dEaD",
+    "SessionKeyValidator": "0x0000000000000000000000000000000000dEaD",
+    "TecPaymaster": "0x0000000000000000000000000000000000dEaD",
+    "TecAccount": "0x0000000000000000000000000000000000dEaD",
+    "USDC": "0x0000000000000000000000000000000000dEaD",
+    "ShiborFeed": "0x0000000000000000000000000000000000dEaD"
+  },
+  "venues": {
+    "shibor_mmf": "0x0000000000000000000000000000000000dEaD"
+  },
+  "eip712": {
+    "domain": {
+      "name": "Tec-C Autonomous Agent Mandate",
+      "version": "1",
+      "chainId": 2026,
+      "verifyingContract": "0x0000000000000000000000000000000000dEaD"
+    }
+  }
+}

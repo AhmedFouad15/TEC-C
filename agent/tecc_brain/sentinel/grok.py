@@ -40,6 +40,18 @@ SYSTEM_PROMPT = (
 )
 
 
+MARKET_SYSTEM_PROMPT = (
+    "You are a macroeconomic sentiment evaluator for financial markets. Rate the current overall market sentiment "
+    "of the crowd on a scale from 0 to 100, where 0 is extreme depression/panic (everyone believes the market will go to zero) "
+    "and 100 is extreme euphoria/greed. "
+    "Respond with ONLY a single-line JSON object of the exact shape {\"rating\": <int 0..100>} — no prose, no markdown fences."
+)
+
+
+class GrokMarketSentiment(BaseModel):
+    rating: int = Field(ge=0, le=100)
+
+
 class GrokSentiment(BaseModel):
     p_negative: float = Field(ge=0.0, le=1.0)
 
@@ -115,5 +127,36 @@ class GrokSentinel:
 
         return BASE_NEGATIVE
 
+    def market_sentiment(self) -> float:
+        """Evaluates people's overall market statement via Grok API (rating out of 100).
+        Applies contrarian ('vice versa') logic per project spec:
+        - If everyone is depressed (rating -> 0), motivated to buy (buy_sell_score -> 1.0)
+        - If super greed (rating -> 100), motivated to sell (buy_sell_score -> 0.0)
+        - Neutral (rating 50) -> 0.5
+        """
+        if not self.api_key:
+            return 0.50
+        try:
+            resp = httpx.post(
+                GROK_API_URL,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": GROK_MODEL,
+                    "messages": [
+                        {"role": "system", "content": MARKET_SYSTEM_PROMPT},
+                        {"role": "user", "content": "What is the current crowd sentiment and statement on the crypto market?"},
+                    ],
+                    "temperature": 0.0,
+                    "max_tokens": 50,
+                },
+                timeout=self.timeout_s,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            parsed = GrokMarketSentiment.model_validate_json(raw)
+            return max(0.0, min(1.0, (100.0 - float(parsed.rating)) / 100.0))
+        except (httpx.HTTPError, KeyError, IndexError, ValidationError, ValueError):
+            return 0.50
 
-__all__ = ["GROK_SENTIMENT_CAP", "GrokSentiment", "GrokSentinel"]
+
+__all__ = ["GROK_SENTIMENT_CAP", "GrokMarketSentiment", "GrokSentiment", "GrokSentinel"]

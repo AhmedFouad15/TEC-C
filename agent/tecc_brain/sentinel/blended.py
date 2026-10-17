@@ -35,20 +35,35 @@ REGIME_LABEL_MAP: dict[str, RegimeLabel] = {
 }
 
 
+class MarketStatementReport(BaseModel):
+    cmc_score: float = Field(ge=0, le=1, description="Contrarian CMC Fear & Greed score (0 sell .. 1 buy)")
+    grok_score: float = Field(ge=0, le=1, description="Contrarian Grok crowd statement score (0 sell .. 1 buy)")
+    market_buy_sell_score: float = Field(ge=0, le=1, description="50/50 blend of CMC and Grok market statements")
+
+
+class TokenCheckReport(BaseModel):
+    symbol: str
+    grok_score: float = Field(ge=0, le=1, description="Grok asset-specific sentiment score (0 sell .. 1 buy)")
+    finbert_score: float = Field(ge=0, le=1, description="FinBERT 7-day headline inference score (0 sell .. 1 buy)")
+    token_buy_sell_score: float = Field(ge=0, le=1, description="50/50 blend of Grok and FinBERT token check")
+
+
 class AssetSentiment(BaseModel):
     symbol: str
     p_negative: float = Field(ge=0, le=1)
     buy_sell_score: float = Field(ge=0, le=1, description="0 strong sell .. 1 strong buy, blended")
+    token_check: TokenCheckReport | None = None
 
 
 class BlendedSentinelReport(BaseModel):
     fear_greed: FearGreedReading
+    market_statement: MarketStatementReport
     assets: dict[str, AssetSentiment]
-    overall_buy_sell_score: float = Field(ge=0, le=1, description="CMC-only, market-wide component of the blend")
+    overall_buy_sell_score: float = Field(ge=0, le=1, description="50/50 market statement score")
 
 
 def blend(fear_greed_score: float, asset_p_negative: float) -> float:
-    """(0..1 buy/sell) for one asset: 50% market-wide CMC score + 50% (1 − asset-specific P(negative))."""
+    """(0..1 buy/sell) for one asset: 50% market-wide score + 50% (1 − asset-specific P(negative))."""
     asset_buy_sell = 1.0 - asset_p_negative
     return FEAR_GREED_WEIGHT * fear_greed_score + ASSET_SENTIMENT_WEIGHT * asset_buy_sell
 
@@ -74,16 +89,65 @@ class NewsRiskSentinel:
     def assess(self, snapshot: MarketSnapshot, ref: Reference) -> BlendedSentinelReport:
         fg = self.fear_greed.fetch()
         grok = self._grok_for(ref)
+        finbert = grok.fallback
+
+        # Formula 1: Market Statement (50% CMC Fear & Greed + 50% Grok Macro Sentiment)
+        cmc_score = fg.buy_sell_score
+        grok_market_score = grok.market_sentiment()
+        market_score = 0.5 * cmc_score + 0.5 * grok_market_score
+        market_report = MarketStatementReport(
+            cmc_score=round(cmc_score, 3),
+            grok_score=round(grok_market_score, 3),
+            market_buy_sell_score=round(market_score, 3),
+        )
+
+        # Formula 2: Token Check per asset (50% Grok Asset + 50% FinBERT Asset)
         recent_by_symbol: dict[str, list[str]] = {}
         for n in snapshot.news:
             recent_by_symbol.setdefault(n.entity, []).append(n.headline)
 
         assets: dict[str, AssetSentiment] = {}
         for symbol in snapshot.pegs:
-            p_negative = grok.asset_sentiment(symbol, recent_by_symbol.get(symbol))
-            score = blend(fg.buy_sell_score, p_negative)
-            assets[symbol] = AssetSentiment(symbol=symbol, p_negative=p_negative, buy_sell_score=score)
-        return BlendedSentinelReport(fear_greed=fg, assets=assets, overall_buy_sell_score=fg.buy_sell_score)
+            headlines = recent_by_symbol.get(symbol, [])
+            # Grok asset reading
+            grok_p_neg = grok.asset_sentiment(symbol, headlines)
+            grok_asset_score = 1.0 - grok_p_neg
+
+            # FinBERT asset reading over headlines
+            finbert_p_negs = []
+            for h in headlines:
+                sig = finbert.score(h)
+                if sig:
+                    finbert_p_negs.append(sig.p_negative)
+            finbert_p_neg = max(finbert_p_negs) if finbert_p_negs else 0.05
+            finbert_asset_score = 1.0 - finbert_p_neg
+
+            # 50/50 Token Check formula
+            token_score = 0.5 * grok_asset_score + 0.5 * finbert_asset_score
+            token_report = TokenCheckReport(
+                symbol=symbol,
+                grok_score=round(grok_asset_score, 3),
+                finbert_score=round(finbert_asset_score, 3),
+                token_buy_sell_score=round(token_score, 3),
+            )
+
+            # Combined overall buy/sell score (market statement + token check)
+            combined_score = 0.5 * market_score + 0.5 * token_score
+            p_negative = round(1.0 - token_score, 3)
+
+            assets[symbol] = AssetSentiment(
+                symbol=symbol,
+                p_negative=p_negative,
+                buy_sell_score=round(combined_score, 3),
+                token_check=token_report,
+            )
+
+        return BlendedSentinelReport(
+            fear_greed=fg,
+            market_statement=market_report,
+            assets=assets,
+            overall_buy_sell_score=round(market_score, 3),
+        )
 
     def _apply(self, snapshot: MarketSnapshot, ref: Reference) -> MarketSnapshot:
         """Raises (never lowers) each tracked peg's sentiment_negative to match the blend, and logs one
@@ -99,9 +163,10 @@ class NewsRiskSentinel:
             pegs[symbol] = peg.model_copy(update={"sentiment_negative": max(peg.sentiment_negative, a.p_negative)})
             news.append(NewsSignal(
                 entity=symbol, p_negative=a.p_negative,
-                headline=f"Blended sentinel: F&G {report.fear_greed.value}/100 ({report.fear_greed.classification}) "
-                         f"+ Grok/FinBERT asset read → buy/sell {a.buy_sell_score:.2f}.",
-                source="blended (50% CMC Fear&Greed + 50% Grok/FinBERT)",
+                headline=f"Blended sentinel: Market Statement {report.overall_buy_sell_score:.2f} (50% CMC F&G + 50% Grok Macro) "
+                         f"+ Token Check {a.token_check.token_buy_sell_score if a.token_check else 0.5:.2f} (50% Grok + 50% FinBERT) "
+                         f"→ buy/sell {a.buy_sell_score:.2f}.",
+                source="blended (Two 50/50 Formulas: Market & Token Check)",
             ))
         return snapshot.model_copy(update={"pegs": pegs, "news": news})
 
@@ -113,5 +178,16 @@ def make_news_hook(sentinel: NewsRiskSentinel, ref: Reference) -> Callable[[Mark
     return _hook
 
 
-__all__ = ["AssetSentiment", "BlendedSentinelReport", "FEAR_GREED_WEIGHT", "ASSET_SENTIMENT_WEIGHT",
-           "NewsRiskSentinel", "REGIME_LABEL_MAP", "RegimeLabel", "blend", "make_news_hook"]
+__all__ = [
+    "ASSET_SENTIMENT_WEIGHT",
+    "AssetSentiment",
+    "BlendedSentinelReport",
+    "FEAR_GREED_WEIGHT",
+    "MarketStatementReport",
+    "NewsRiskSentinel",
+    "REGIME_LABEL_MAP",
+    "RegimeLabel",
+    "TokenCheckReport",
+    "blend",
+    "make_news_hook",
+]

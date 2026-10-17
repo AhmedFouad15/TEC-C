@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "project": "Tec-C (Tethered Expense Corporate Card)",
+    "competition": "Shenzhen International FinTech Competition (FinTechathon 2026)",
+    "topic": "Topic F: Agent Wallet",
+    "co_hosts": "Tsinghua University PBCSF & WeBank",
+    "version": "1.0.0",
+    "network": "Arbitrum One",
+    "chainId": 42161,
+    "note": "Multi-chain deployment for the Commodities Market. Uses Arbitrum One L2 rollup execution with ~18x fee discount. Routes tokenized commodities (PAXG gold, silver, commodity perps) with low-latency Nitro sequencer."
+  },
+  "defaultParameters": {
+    "tetherRadiusDefaultWei": "500000000000000000",
+    "maxSessionGasBudgetWei": "500000000000000",
+    "riskTiers": {
+      "CONSERVATIVE": 1,
+      "BALANCED": 2,
+      "AGGRESSIVE": 3
+    }
+  },
+  "deployedAddresses": {
+    "EntryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+    "TetherGuardHook": "0x0000000000000000000000000000000000dEaD",
+    "SessionKeyValidator": "0x0000000000000000000000000000000000dEaD",
+    "TecPaymaster": "0x0000000000000000000000000000000000dEaD",
+    "TecAccount": "0x0000000000000000000000000000000000dEaD",
+    "USDC": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "ETHUSDFeed": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
+    "PAXG": "0x0000000000000000000000000000000000dEaD"
+  },
+  "venues": {
+    "paxg_hold": "0x0000000000000000000000000000000000dEaD",
+    "uniswap_v3_usdc_eth": "0x0000000000000000000000000000000000dEaD",
+    "curve_steth_eth": "0x0000000000000000000000000000000000dEaD"
+  },
+  "eip712": {
+    "domain": {
+      "name": "Tec-C Autonomous Agent Mandate",
+      "version": "1",
+      "chainId": 42161,
+      "verifyingContract": "0x0000000000000000000000000000000000dEaD"
+    }
+  }
+}
