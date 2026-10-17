@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from tecc_brain.intent.firewall import Threat, scan
 from tecc_brain.intent.parser import LLM_TIMEOUT_S, call_with_timeout
+from tecc_brain.intent.prompts import NOTE_PROMPT as PROMPT
 from tecc_brain.intent.sieve import mask, restore
 from tecc_brain.models import CostFactor, NotePreference
 from tecc_brain.reference import Reference
@@ -49,13 +50,6 @@ FACTOR_CUES: tuple[tuple[CostFactor, re.Pattern[str]], ...] = (
 )
 RISK_OFF_CUES = re.compile(r"\b(?:too risky|safer|scared|less risk|too aggressive|careful|nervous)\b")
 RISK_ON_CUES = re.compile(r"\b(?:more aggressive|higher yields?|more risk|too conservative|too cautious|bolder)\b")
-
-PROMPT = """You read a wallet owner's review note about an automated trade and extract preferences as JSON.
-Sensitive values are replaced by tokens like <AMT_1>. Reply with ONE JSON object and nothing else:
-{{"sentiment": -1, 0 or 1, "lam": "safer", "bolder" or null,
-"preferences": [{{"protocol": one of {protocols} or null, "polarity": -1 or 1,
-"factor": one of ["c_out_stress", "c_in", "loss", "yield"] or null}}]}}
-Note: {note}"""
 
 
 class NoteOutcome(BaseModel):

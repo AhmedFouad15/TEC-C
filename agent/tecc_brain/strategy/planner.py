@@ -173,11 +173,20 @@ def assess_options(
     out.trace.append(f"Market: hurdle {snapshot.hurdle_rate * 100:.2f}% (1Y Shibor); stressed clusters: {', '.join(stressed) or 'none'}.")
 
     ctx = FilterContext(tier=profile.tier, whitelist=vault.whitelist, heartbeat_alive=vault.heartbeat_alive)
+    avoid = {c.split(":", 1)[1] for c in mandate.constraints if c.startswith("avoid:")}
+    only = {c.split(":", 1)[1] for c in mandate.constraints if c.startswith("venue:")}
     for venue in ref.venues.values():
         if mandate.asset not in venue.accepts or venue.id not in snapshot.venues:
             continue
         quote = snapshot.venues[venue.id]
         candidate = Candidate(venue_id=venue.id, action=venue.action, asset_in=mandate.asset, amount_usd=amount, apy=quote.apy)
+        if venue.protocol in avoid or (only and venue.protocol not in only):
+            # The user's own words (or a standing preference they approved at /draft) — never overridden by score.
+            candidate.rejected_reasons = ["user_constraint"]
+            out.rejected.append(candidate)
+            why = f"you asked to avoid {venue.protocol}" if venue.protocol in avoid else f"you asked for {', '.join(sorted(only))} only"
+            out.trace.append(f"Rejected {venue.id}: user_constraint — {why}.")
+            continue
         reasons = hard_filter_reasons(venue, quote, amount, view.assessments, ctx)
         if reasons:
             candidate.rejected_reasons = [r.value for r in reasons]
