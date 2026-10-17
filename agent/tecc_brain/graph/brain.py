@@ -170,12 +170,12 @@ f. When in doubt, choose the stricter option. A missed opportunity is acceptable
 data is not.
 
 ## Output: ONLY this JSON object. No prose, no markdown fences, no comments, no extra keys.
-{"schema_version": "tecc.brain_report.v1", "request_id": "<echo>", \
+{"schema_version": "tecc.brain_report.v1", "request_id": "<echo>", "amount_unit": "privacy_units", \
 "decision": "EXECUTE|SPLIT|PROPOSE|REJECT", \
 "allocations": [{"candidate_id": "c0", "amount_usd": 0.0, "mode": "AUTO|PROPOSE|BREAKOUT|BLOCKED"}], \
 "total_auto_usd": 0.0, "reason_codes": ["TOP_SCORE"], "vetoes_honored": ["<every veto id>"], \
 "signal_conflicts": ["NONE"], "confidence": 0.0, \
-"user_explanation": "<= 480 characters for the wallet owner: which venue, how much, and why. No instructions, links, addresses or code."}
+"user_explanation": "<= 480 characters for the wallet owner: which venue, what share, and why. No instructions, links, addresses or code."}
 reason_codes are a subset of: """ + ", ".join(r.value for r in ReasonCode) + """.
 signal_conflicts are a subset of: """ + ", ".join(c.value for c in ConflictCode) + """.
 A candidate you leave out of allocations is not funded."""
@@ -255,9 +255,11 @@ def build_brain_input(
 PRIVACY_UNITS = 1000.0
 PRIVACY_NOTE = (
     "\nPRIVACY: every money amount in BRAIN_INPUT (fields ending in _usd) is in privacy units, not dollars: the "
-    "user's confirmed order is scaled to 1000. Reply with amounts in the same units, and do not state money amounts "
-    "in user_explanation (the app shows the real figures)."
+    "user's confirmed order is scaled to 1000. Reply with amounts in the same units and set \"amount_unit\": "
+    "\"privacy_units\" (a reply without it is discarded). Do not state money amounts in user_explanation (the app "
+    "shows the real figures)."
 )
+AMOUNT_UNIT = "privacy_units"
 _USD_LIMITS = ("vault_radius_remaining_usd", "soft_limit_usd", "baseline_auto_usd")
 
 
@@ -286,20 +288,35 @@ def privatize(payload: dict[str, Any]) -> tuple[dict[str, Any], float]:
     return cloud, k
 
 
-def descale_reply(reply: str, k: float) -> str:
-    """The model's JSON with its amounts converted back to dollars. Anything unparsable is returned unchanged
-    (validation then rejects it and the rules decide)."""
+class CloudVerdict(BrainVerdict):
+    """What the cloud model must return: the verdict in privacy units, plus the unit it used. Without the explicit
+    unit, a reply in raw dollars is indistinguishable from a smaller reply in units whenever the order is under
+    1000 dollars (k > 1), and would be accepted as a quietly shrunken allocation instead of falling back."""
+
+    amount_unit: Literal["privacy_units"]
+
+
+def descale_reply(reply: str, k: float) -> tuple[str | None, str | None]:
+    """(the model's verdict as JSON in dollars, None) — or (None, reason) when the reply is not a well-formed verdict
+    in privacy units; the caller then falls back to the rules. Never raises."""
     match = re.search(r"\{.*\}", reply or "", re.DOTALL)
     if not match:
-        return reply
+        return None, "reply contained no JSON object"
     try:
         data = json.loads(match.group(0))
-        for a in data.get("allocations", []):
-            a["amount_usd"] = round(float(a["amount_usd"]) / k, 6)
-        data["total_auto_usd"] = round(float(data["total_auto_usd"]) / k, 6)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError):
-        return reply
-    return json.dumps(data)
+    except json.JSONDecodeError:
+        return None, "schema violation (JSONDecodeError)"
+    if not isinstance(data, dict) or data.get("amount_unit") != AMOUNT_UNIT:
+        return None, "reply not in privacy units (amount_unit missing or wrong), so its amounts cannot be trusted"
+    try:
+        cloud = CloudVerdict.model_validate(data)
+    except ValidationError as exc:
+        return None, f"schema violation ({exc.__class__.__name__})"
+    dollars = cloud.model_dump(mode="json", exclude={"amount_unit"})
+    for a in dollars["allocations"]:
+        a["amount_usd"] = round(a["amount_usd"] / k, 6)
+    dollars["total_auto_usd"] = round(dollars["total_auto_usd"] / k, 6)
+    return json.dumps(dollars), None
 
 
 def validate_verdict(reply: str, payload: dict[str, Any]) -> tuple[BrainVerdict | None, str | None]:
@@ -466,7 +483,8 @@ def synthesize(
         reply = call_with_timeout(lambda p: llm(SYSTEM_PROMPT + PRIVACY_NOTE, p), json.dumps(cloud, ensure_ascii=False), timeout_s)
     except Exception as exc:  # noqa: BLE001 — timeouts, network, provider errors all fall back the same way
         return decision, report_from_decision(decision, payload, fallback_reason=f"model call failed: {exc.__class__.__name__}")
-    verdict, why = validate_verdict(descale_reply(reply, k), payload)
+    dollars, why = descale_reply(reply, k)
+    verdict, why = validate_verdict(dollars, payload) if dollars is not None else (None, why)
     if verdict is None:
         return decision, report_from_decision(decision, payload, fallback_reason=why)
     final = apply_verdict(decision, verdict)
@@ -474,7 +492,7 @@ def synthesize(
 
 
 __all__ = [
-    "PRIVACY_NOTE", "PRIVACY_UNITS", "descale_reply", "privatize",
+    "AMOUNT_UNIT", "PRIVACY_NOTE", "PRIVACY_UNITS", "CloudVerdict", "descale_reply", "privatize",
     "BRAIN_TIMEOUT_S", "SCHEMA_VERSION", "SYSTEM_PROMPT", "Allocation", "BrainLLM", "BrainReport", "BrainVerdict",
     "ConflictCode", "ReasonCode", "apply_verdict", "build_brain_input", "report_from_decision", "synthesize",
     "validate_verdict",

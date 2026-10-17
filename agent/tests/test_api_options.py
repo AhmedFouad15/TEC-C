@@ -37,7 +37,8 @@ def scripted(edit):
 
     def complete(system, payload):
         p = seen["payload"] = json.loads(payload)
-        verdict = {"schema_version": SCHEMA_VERSION, "request_id": p["request_id"], "decision": "PROPOSE",
+        verdict = {"schema_version": SCHEMA_VERSION, "request_id": p["request_id"], "amount_unit": "privacy_units",
+                   "decision": "PROPOSE",
                    "allocations": [], "total_auto_usd": 0.0, "reason_codes": [],
                    "vetoes_honored": [v["id"] for v in p["vetoes"]], "signal_conflicts": ["NONE"], "confidence": 0.7,
                    "user_explanation": "Options reviewed."}
@@ -156,3 +157,21 @@ def test_both_entry_points_use_the_injected_news_sentinel(store):
     finally:
         app.dependency_overrides.clear()
     assert spy.calls == 2
+
+
+def test_option_allocation_never_exceeds_its_cap_even_within_validator_tolerance(store):
+    """The validator tolerates a cent of rounding; the executed allocation must not."""
+    def a_hair_over(v, p):
+        first, second = p["candidates"]
+        over = first["max_amount_usd"] * (1 + 2e-5)  # ≈ $150.003: inside the $0.01 tolerance, above the $150 cap
+        v.update(decision="SPLIT", total_auto_usd=over + second["max_amount_usd"], reason_codes=["TOP_SCORE"], allocations=[
+            {"candidate_id": first["id"], "amount_usd": over, "mode": "AUTO"},
+            {"candidate_id": second["id"], "amount_usd": second["max_amount_usd"], "mode": "AUTO"},
+        ])
+        return v
+
+    body = evaluate(store, TWO_USDC, llm=scripted(a_hair_over))
+    assert body["brain_report"]["producer"] == "llm"  # accepted by the validator...
+    assert body["brain_report"]["allocations"][0]["amount_usd"] > 150.0
+    assert all(r["allocated_usd"] <= 150.0 for r in body["results"])  # ...but never allocated above the cap
+    assert all(i["amount_usd"] <= 150.0 for i in body["intents"])

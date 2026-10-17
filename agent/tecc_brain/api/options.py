@@ -220,7 +220,8 @@ def evaluate_options(
     for i, card in enumerate(final.cards):
         option, venue, _ = scored[i]
         s = card.candidate.score
-        allocated = auto_by_card.get(f"c{i}", 0.0) if card.mode == AutonomyMode.AUTO else 0.0
+        # Strict cap: the validator tolerates a cent of rounding, the allocation does not.
+        allocated = min(auto_by_card.get(f"c{i}", 0.0), caps[i]) if card.mode == AutonomyMode.AUTO else 0.0
         if allocated > 0:
             funded_count += 1
             used += allocated

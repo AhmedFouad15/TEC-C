@@ -34,7 +34,7 @@ def model(edit):
         p = seen["payload"]
         auto = next((c for c in p["candidates"] if c["allowed_mode"] == "AUTO"), None)
         verdict = {
-            "schema_version": SCHEMA_VERSION, "request_id": p["request_id"],
+            "schema_version": SCHEMA_VERSION, "request_id": p["request_id"], "amount_unit": "privacy_units",
             "decision": "EXECUTE" if auto else "PROPOSE",
             "allocations": ([{"candidate_id": auto["id"], "amount_usd": auto["max_amount_usd"], "mode": "AUTO"}] if auto else
                             [{"candidate_id": p["candidates"][0]["id"], "amount_usd": p["candidates"][0]["amount_usd"],
@@ -265,3 +265,48 @@ def test_a_reply_in_real_dollars_cannot_smuggle_more_autonomy(store):
 
     r = run(store, llm=model(dollars)).brain_report
     assert r.producer == "rules" and "cap" in r.fallback_reason
+
+
+def test_small_order_raw_dollar_reply_without_the_unit_falls_back(store):
+    """Below $1,000 a raw-dollar answer would land UNDER the cap (k > 1) and pass as a shrunken allocation; the
+    required amount_unit makes it detectable at any order size."""
+    def raw_dollars(v, p):
+        assert p["mandate"]["amount_usd"] == pytest.approx(1000)  # $300 order → 1000 units (k = 3.33)
+        v.pop("amount_unit")
+        v["allocations"][0]["amount_usd"] = v["total_auto_usd"] = 300.0  # "$300", in dollars
+        return v
+
+    result = run(store, text="Optimize my $300 USDC", llm=model(raw_dollars))
+    r = result.brain_report
+    assert r.producer == "rules" and "privacy units" in r.fallback_reason
+    assert result.decision.auto_amount_usd == pytest.approx(300)  # the rules' decision stands, unshrunk
+
+
+@pytest.mark.parametrize("unit", ["usd", "USD", "dollars", None, 1000])
+def test_any_other_amount_unit_falls_back(store, unit):
+    def wrong_unit(v, p):
+        v["amount_unit"] = unit
+        return v
+
+    r = run(store, llm=model(wrong_unit)).brain_report
+    assert r.producer == "rules" and "privacy units" in r.fallback_reason
+
+
+def test_descale_reply_strips_the_unit_and_converts_to_dollars():
+    from tecc_brain.graph.brain import descale_reply
+
+    reply = json.dumps({"schema_version": SCHEMA_VERSION, "request_id": "r1", "amount_unit": "privacy_units",
+                        "decision": "EXECUTE", "allocations": [{"candidate_id": "c0", "amount_usd": 266.666667, "mode": "AUTO"}],
+                        "total_auto_usd": 266.666667, "reason_codes": [], "vetoes_honored": [], "signal_conflicts": [],
+                        "confidence": 0.5, "user_explanation": "ok"})
+    dollars, why = descale_reply(reply, 1000 / 1500)
+    assert why is None
+    data = json.loads(dollars)
+    assert "amount_unit" not in data  # the validated verdict and the stored BrainReport are in real dollars
+    assert data["allocations"][0]["amount_usd"] == pytest.approx(400, abs=1e-5)
+    assert data["total_auto_usd"] == pytest.approx(400, abs=1e-5)
+
+
+def test_output_spec_asks_for_the_unit_and_shares_not_amounts():
+    assert '"amount_unit": "privacy_units"' in SYSTEM_PROMPT
+    assert "which venue, what share, and why" in SYSTEM_PROMPT and "how much" not in SYSTEM_PROMPT

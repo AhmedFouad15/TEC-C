@@ -72,6 +72,7 @@
       "model_reply": {
         "schema_version": "tecc.brain_report.v1",
         "request_id": "$REQUEST_ID",
+        "amount_unit": "privacy_units",
         "decision": "EXECUTE",
         "allocations": [
           {"candidate": "aave_v3_usdc", "amount_usd": 1500.0, "mode": "AUTO"}
@@ -106,6 +107,7 @@
       "model_reply": {
         "schema_version": "tecc.brain_report.v1",
         "request_id": "$REQUEST_ID",
+        "amount_unit": "privacy_units",
         "decision": "PROPOSE",
         "allocations": [
           {"candidate": "aave_v3_usdc", "amount_usd": "$CAP", "mode": "PROPOSE"}
