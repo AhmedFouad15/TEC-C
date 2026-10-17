@@ -25,8 +25,12 @@ class FearGreedReading(BaseModel):
 
     @property
     def buy_sell_score(self) -> float:
-        """0 (strong sell) .. 1 (strong buy) — the scale the task spec uses."""
-        return self.value / 100.0
+        """0 (strong sell) .. 1 (strong buy) — contrarian ("vice versa") scale per project spec:
+        high greed (value -> 100) => motivated to sell (score -> 0.0)
+        high fear / depressed (value -> 0) => motivated to buy (score -> 1.0)
+        neutral (value = 50) => 0.5
+        """
+        return (100.0 - float(self.value)) / 100.0
 
 
 def _neutral(source: str = "cmc_fear_greed (fallback: unavailable)") -> FearGreedReading:

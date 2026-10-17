@@ -428,6 +428,10 @@ class ExecutionIntent(BaseModel):
     amount_usd: float = Field(ge=0)
     amount_onchain: int = Field(ge=0, description="USD × 1e8, the unit TetherGuardHook meters the radius in")
     target_address: str | None = Field(None, description="Venue contract; known after deployment (Phase 7)")
+    market: str = Field(
+        "crypto",
+        description="Target market: 'crypto' (Ethereum), 'chinese_market' (FISCO BCOS), 'commodities' (Arbitrum One), or 'arbitrage' (PegGuard)",
+    )
     status: Literal["pending_signature", "signed", "submitted", "breakout_required", "failed"] = "pending_signature"
     tx_hash: str | None = None
     detail: str = ""
