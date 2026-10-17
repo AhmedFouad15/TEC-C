@@ -25,6 +25,7 @@ None
 - [x] **Phase 5: Adaptive Learning** - UserModel, reward/penalty updates, note parsing, onboarding, on-chain lever policy
 - [x] **Phase 5.1: Sharpe & CVaR (INSERTED)** - Classic risk metrics on every card from the regime model's return distribution
 - [x] **Phase 6: API Layer** - FastAPI pipeline + all endpoints + OpenAPI spec for Member 3
+- [x] **Phase 6.1: Intake Loop & AI Brain (INSERTED)** - /draft→/confirm loop, single-pass tighten-only AI Brain, one decision loop for free text and the options list
 - [ ] **Phase 7: On-Chain Integration** - Anvil deploy, EIP-712 mandate, session-key signing, execute, event → learning
 - [ ] **Phase 8: Live Data, Demo Page & Freeze** - Public data adapters, Brain demo page, README, requirements freeze
 
@@ -105,6 +106,25 @@ Plans:
 - [x] 06-02: `/api/mandate/parse|propose|execute` (execute returns an unsigned execution plan until Phase 7) + `/api/risk/regimes`
 - [x] 06-03: `/api/profile/*`, `/api/review/sync` (simulated events), `/api/backtest/{episode}` + export `shared/api_spec.json`
 
+### Phase 6.1: Intake Loop & AI Brain (INSERTED)
+**Goal**: Free text becomes an order the user reads back and confirms before anything runs, and every order — free text or
+options list — ends in exactly one validated, JSON-structured `BrainReport` from a single-pass AI Brain that can only tighten
+the rule-based decision
+**Depends on**: Phase 6
+**Design**: `agent/INTAKE_AND_ORCHESTRATOR.md` (implementation-status table at the top); decisions D1–D10 in STATE.md
+**Plans**: 3 plans
+
+Plans:
+- [x] 06.1-01: `/api/mandate/draft` → `/confirm` → `/propose {draft_id}`: BrainProfile personalization (standing avoid-notes,
+  Beta-posterior venue preview, soft-tether autonomy preview), ≤5 revisions, per-account rate limits + injection strikes,
+  confirmed Mandate locked by content-hash `version`, one-shot, never re-parsed; planner now enforces `avoid:`/`venue:`
+- [x] 06.1-02: `graph/brain.py` — system prompt, `BrainVerdict`/`BrainReport` schema, payload builder (no account id / raw text /
+  portfolio; headlines as quoted evidence), validator, tighten-only apply, rules fallback; new `brain` graph node;
+  OpenAI-compatible provider via `TECC_BRAIN_LLM_*` (off by default)
+- [x] 06.1-03: `/evaluate_options` through the same Brain step (byte-identical without a model), `/propose` on the upgraded
+  sentinel, AI REJECT keeps options for manual approval, `simulated: true` on FISCO/Arbitrum/PegGuard executors,
+  demo fixtures `agent/demo/brain/*.json` + `python -m scripts.brain_demo`, `agent/.env.example`
+
 ### Phase 7: On-Chain Integration
 **Goal**: The Brain's decisions become real, vault-checked transactions on a local Anvil chain, and on-chain reviews feed learning
 **Depends on**: Phase 6
@@ -113,8 +133,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: Foundry (brew), build, deploy Member 1's suite + mocks to Anvil from Python, local contracts file
-- [ ] 07-02: EIP-712 UserMandate → mandateRoot, session key as ERC-7579 executor (no bundler), 117-byte signature pre-flight, vault-metered execution
+- [x] 07-01: Foundry (brew), build, deploy Member 1's suite + mocks to Anvil from Python, local contracts file
+- [x] 07-02: EIP-712 UserMandate → mandateRoot, session key as ERC-7579 executor (no bundler), 117-byte signature pre-flight, vault-metered execution
 - [ ] 07-03: Review events → learning, on-chain levers (heartbeat/shrink/calibrate), chain-backed API
 
 ### Phase 8: Live Data, Demo Page & Freeze
@@ -126,13 +146,14 @@ Plans:
 
 Plans:
 - [ ] 08-01: Live `MarketDataSource` (DeFiLlama, CoinGecko, Shibor) with timeouts, caching, per-value source tags, snapshot fallback; Member 4 adapter stub
+  (team will inject live keys — CMC / Grok / CoinGlass / AI Brain model — via `agent/.env`; see `agent/.env.example`)
 - [ ] 08-02: Brain demo page served by FastAPI: intent box, Good/Better/Best with score breakdown, regime radar, learning panel, backtest replay
 - [ ] 08-03: `/agent/README.md`, frozen `requirements.txt`, one-command run script, demo rehearsal checklist, team handoff notes
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 5.1 → 6 → 6.1 → 7 → 8
 (Phase 4 depends only on Phase 1 and may be pulled earlier if the API is needed sooner.)
 
 | Phase | Plans Complete | Status | Completed |
@@ -144,5 +165,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. Adaptive Learning | 3/3 | Complete | 2026-10-16 |
 | 5.1 Sharpe & CVaR | 1/1 | Complete | 2026-10-16 |
 | 6. API Layer | 3/3 | Complete | 2026-10-16 |
-| 7. On-Chain Integration | 0/3 | Not started | - |
+| 6.1 Intake Loop & AI Brain | 3/3 | Complete (uncommitted) | 2026-10-17 |
+| 7. On-Chain Integration | 2/3 | In progress | - |
 | 8. Live Data, Demo Page & Freeze | 0/3 | Not started | - |

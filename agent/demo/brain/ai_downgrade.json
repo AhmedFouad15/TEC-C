@@ -1,0 +1,98 @@
+{
+  "id": "ai_downgrade",
+  "title": "AI Brain downgrades an automatic order after negative news",
+  "story": "The rule-based gatekeeper would auto-run $400 of a $1,500 USDC order into Aave. A breaking headline says USDC liquidity is thinning while the peg model still reads 'normal'. The AI Brain weighs the conflict and pulls the $400 back to 'needs your approval' — it can tighten the decision, never loosen it. Step 3 shows the alternative: the model keeps it automatic but sizes it down.",
+  "steps": [
+    {
+      "name": "Baseline: no AI model configured (rule-based gatekeeper only)",
+      "request": {
+        "method": "POST",
+        "path": "/api/mandate/propose",
+        "body": {
+          "text": "Optimize my $1,500 USDC",
+          "headline": "USDC liquidity thins on Curve as market makers pull back; analysts warn of wider spreads"
+        }
+      },
+      "model_reply": null,
+      "expect": {
+        "status_code": 200,
+        "equals": {
+          "brain_report.producer": "rules",
+          "brain_report.decision": "EXECUTE",
+          "decision.auto_amount_usd": 400.0,
+          "intent.amount_usd": 400.0
+        }
+      }
+    },
+    {
+      "name": "Same order, AI Brain enabled: downgrades AUTO to PROPOSE",
+      "request": {
+        "method": "POST",
+        "path": "/api/mandate/propose",
+        "body": {
+          "text": "Optimize my $1,500 USDC",
+          "headline": "USDC liquidity thins on Curve as market makers pull back; analysts warn of wider spreads"
+        }
+      },
+      "model_reply": {
+        "schema_version": "tecc.brain_report.v1",
+        "request_id": "$REQUEST_ID",
+        "decision": "PROPOSE",
+        "allocations": [
+          {"candidate": "aave_v3_usdc", "amount_usd": "$CAP", "mode": "PROPOSE"}
+        ],
+        "total_auto_usd": "$AUTO_SUM",
+        "reason_codes": ["NEGATIVE_NEWS", "LOW_CONFIDENCE"],
+        "vetoes_honored": "$ALL_VETOES",
+        "signal_conflicts": ["NEWS_VS_REGIME_MODEL"],
+        "confidence": 0.62,
+        "user_explanation": "Aave still scores best, but fresh reports of thinning USDC liquidity disagree with the calm peg model. I paused the automatic $400 so you can approve it yourself."
+      },
+      "expect": {
+        "status_code": 200,
+        "equals": {
+          "status": "decided",
+          "brain_report.producer": "llm",
+          "brain_report.decision": "PROPOSE",
+          "decision.mode": "PROPOSE",
+          "decision.auto_amount_usd": 0.0,
+          "intent": null
+        }
+      }
+    },
+    {
+      "name": "Alternative verdict: stays automatic but sized down to $150",
+      "request": {
+        "method": "POST",
+        "path": "/api/mandate/propose",
+        "body": {
+          "text": "Optimize my $1,500 USDC",
+          "headline": "USDC liquidity thins on Curve as market makers pull back; analysts warn of wider spreads"
+        }
+      },
+      "model_reply": {
+        "schema_version": "tecc.brain_report.v1",
+        "request_id": "$REQUEST_ID",
+        "decision": "EXECUTE",
+        "allocations": [
+          {"candidate": "aave_v3_usdc", "amount_usd": 150.0, "mode": "AUTO"}
+        ],
+        "total_auto_usd": "$AUTO_SUM",
+        "reason_codes": ["TOP_SCORE", "NEGATIVE_NEWS"],
+        "vetoes_honored": "$ALL_VETOES",
+        "signal_conflicts": ["NEWS_VS_REGIME_MODEL"],
+        "confidence": 0.71,
+        "user_explanation": "Aave is still the best risk-adjusted option, but liquidity news is soft, so I am running $150 now instead of $400. The rest waits for your approval."
+      },
+      "expect": {
+        "status_code": 200,
+        "equals": {
+          "brain_report.producer": "llm",
+          "brain_report.decision": "EXECUTE",
+          "decision.auto_amount_usd": 150.0,
+          "intent.amount_usd": 150.0
+        }
+      }
+    }
+  ]
+}

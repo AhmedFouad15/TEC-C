@@ -6,6 +6,90 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/mandate/draft": {
+      "post": {
+        "tags": [
+          "mandate"
+        ],
+        "summary": "Draft Mandate",
+        "description": "Step 1: turn free text into a suggested order the user reads back (start, or revise with `draft_id`).",
+        "operationId": "draft_mandate_api_mandate_draft_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftMandateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftMandateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mandate/confirm": {
+      "post": {
+        "tags": [
+          "mandate"
+        ],
+        "summary": "Confirm Draft",
+        "description": "Step 2: the user approved the suggestion /draft showed them. Locks that exact Mandate (by `version`).",
+        "operationId": "confirm_draft_api_mandate_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmDraftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mandate/parse": {
       "post": {
         "tags": [
@@ -53,6 +137,7 @@
           "mandate"
         ],
         "summary": "Propose",
+        "description": "With `draft_id`: run the confirmed, locked Mandate (never a re-parse; one-shot). With `text`: the original\nfree-text path, unchanged.",
         "operationId": "propose_api_mandate_propose_post",
         "requestBody": {
           "content": {
@@ -498,6 +583,138 @@
         }
       }
     },
+    "/evaluate_options": {
+      "post": {
+        "tags": [
+          "options"
+        ],
+        "summary": "Evaluate Options",
+        "operationId": "evaluate_options_evaluate_options_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateOptionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluateOptionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trigger_hourly_monitor": {
+      "post": {
+        "tags": [
+          "options"
+        ],
+        "summary": "Trigger Hourly Monitor",
+        "description": "Manual/demo trigger for the same check the APScheduler job runs every hour (monitor/hourly.py::run_once).",
+        "operationId": "trigger_hourly_monitor_trigger_hourly_monitor_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerMonitorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerMonitorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/monitor/events": {
+      "get": {
+        "tags": [
+          "options"
+        ],
+        "summary": "Monitor Events",
+        "description": "What the hourly job (or the last manual trigger) has found recently — for a UI timeline/log panel.",
+        "operationId": "monitor_events_api_monitor_events_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Monitor Events Api Monitor Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -562,6 +779,31 @@
           "lines"
         ],
         "title": "AgentReport"
+      },
+      "Allocation": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "pattern": "^c\\d{1,2}$",
+            "title": "Candidate Id"
+          },
+          "amount_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Amount Usd"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AutonomyMode"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "amount_usd",
+          "mode"
+        ],
+        "title": "Allocation"
       },
       "AutonomyMode": {
         "type": "string",
@@ -667,6 +909,115 @@
           "actions"
         ],
         "title": "BacktestStep"
+      },
+      "BrainReport": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "tecc.brain_report.v1",
+            "title": "Schema Version"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Request Id"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "EXECUTE",
+              "SPLIT",
+              "PROPOSE",
+              "REJECT"
+            ],
+            "title": "Decision"
+          },
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/Allocation"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Allocations"
+          },
+          "total_auto_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Auto Usd"
+          },
+          "reason_codes": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonCode"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Reason Codes"
+          },
+          "vetoes_honored": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Vetoes Honored"
+          },
+          "signal_conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictCode"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Signal Conflicts"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "user_explanation": {
+            "type": "string",
+            "maxLength": 480,
+            "title": "User Explanation"
+          },
+          "producer": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "rules"
+            ],
+            "title": "Producer"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason",
+            "description": "Why the model's verdict was not used, when it was asked"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "request_id",
+          "decision",
+          "allocations",
+          "total_auto_usd",
+          "reason_codes",
+          "vetoes_honored",
+          "signal_conflicts",
+          "confidence",
+          "user_explanation",
+          "producer"
+        ],
+        "title": "BrainReport",
+        "description": "The final, validated decision of one run — whoever produced it."
       },
       "Candidate": {
         "properties": {
@@ -828,6 +1179,68 @@
         ],
         "title": "ClusterStatus"
       },
+      "ConfirmDraftRequest": {
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Draft Id"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$",
+            "title": "Version",
+            "description": "The `version` /draft returned with the summary the user approved"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft_id",
+          "version"
+        ],
+        "title": "ConfirmDraftRequest"
+      },
+      "ConfirmDraftResponse": {
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "title": "Draft Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DraftStatus"
+          },
+          "mandate": {
+            "$ref": "#/components/schemas/Mandate"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft_id",
+          "status",
+          "mandate",
+          "message"
+        ],
+        "title": "ConfirmDraftResponse"
+      },
+      "ConflictCode": {
+        "type": "string",
+        "enum": [
+          "NEWS_VS_REGIME_MODEL",
+          "SCORE_VS_TAIL_RISK",
+          "PROFILE_VS_MARKET",
+          "NONE"
+        ],
+        "title": "ConflictCode"
+      },
       "Decision": {
         "properties": {
           "mandate": {
@@ -877,6 +1290,241 @@
           "mode"
         ],
         "title": "Decision"
+      },
+      "DraftMandateRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "draft_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Id",
+            "description": "Pass the previous draft_id to revise it; omit to start a new draft."
+          },
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "usdc_distress"
+            ],
+            "title": "Scenario",
+            "default": "demo"
+          },
+          "vault": {
+            "$ref": "#/components/schemas/VaultIn",
+            "description": "Only used for the autonomy preview; /propose re-reads it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "DraftMandateRequest"
+      },
+      "DraftMandateResponse": {
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "title": "Draft Id"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Echo this to /confirm: it pins exactly the suggestion shown"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DraftStatus"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "revisions_left": {
+            "type": "integer",
+            "title": "Revisions Left"
+          },
+          "suggested": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Mandate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The order the Brain will run if confirmed"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "One line to show the user before they confirm, e.g. 'Stake 500 USDC for 365 day(s).'"
+          },
+          "personalization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Personalization"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parse": {
+            "$ref": "#/components/schemas/ParseOutcome"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft_id",
+          "version",
+          "status",
+          "revision",
+          "revisions_left",
+          "parse"
+        ],
+        "title": "DraftMandateResponse"
+      },
+      "DraftStatus": {
+        "type": "string",
+        "enum": [
+          "needs_revision",
+          "ready",
+          "confirmed",
+          "exhausted"
+        ],
+        "title": "DraftStatus"
+      },
+      "EvaluateOptionsRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": "demo"
+          },
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "usdc_distress"
+            ],
+            "title": "Scenario",
+            "default": "demo"
+          },
+          "vault": {
+            "$ref": "#/components/schemas/VaultIn",
+            "default": {
+              "tether_radius_usd": 500.0,
+              "spent_today_usd": 0.0,
+              "heartbeat_alive": true
+            }
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionRequest"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Options"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Free text, if any — stored ONLY as a learning note (like /api/review/sync); never parsed for actions, amounts or recipients, and never seen by Agent 1/2/3 or the executor."
+          }
+        },
+        "type": "object",
+        "required": [
+          "options"
+        ],
+        "title": "EvaluateOptionsRequest"
+      },
+      "EvaluateOptionsResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/OptionResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "intents": {
+            "items": {
+              "$ref": "#/components/schemas/ExecutionIntent"
+            },
+            "type": "array",
+            "title": "Intents"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProfileSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trace": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Trace"
+          },
+          "brain_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrainReport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The single validated decision record (same contract as /propose)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "results"
+        ],
+        "title": "EvaluateOptionsResponse"
       },
       "ExecuteRequest": {
         "properties": {
@@ -983,6 +1631,12 @@
             "title": "Target Address",
             "description": "Venue contract; known after deployment (Phase 7)"
           },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market: 'crypto' (Ethereum), 'chinese_market' (FISCO BCOS), 'commodities' (Arbitrum One), or 'arbitrage' (PegGuard)",
+            "default": "crypto"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -1005,6 +1659,12 @@
               }
             ],
             "title": "Tx Hash"
+          },
+          "simulated": {
+            "type": "boolean",
+            "title": "Simulated",
+            "description": "True when no transaction was actually sent (FISCO BCOS, Arbitrum and PegGuard executors are demo abstractions that generate the hash locally); `tx_hash` is then not on any chain",
+            "default": false
           },
           "detail": {
             "type": "string",
@@ -1232,6 +1892,17 @@
             "type": "string",
             "title": "Source",
             "default": "offline lexicon (FinBERT fallback)"
+          },
+          "is_insolvency_trigger": {
+            "type": "boolean",
+            "title": "Is Insolvency Trigger",
+            "description": "Whether headline contains a structural insolvency trigger",
+            "default": false
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
           }
         },
         "type": "object",
@@ -1506,6 +2177,141 @@
         ],
         "title": "OnboardingResult"
       },
+      "OptionRequest": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Option Id"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ActionType"
+          },
+          "asset": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Asset"
+          },
+          "amount_usd": {
+            "type": "number",
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Amount Usd"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id",
+            "description": "Pin one specific venue; omit to let Agent 2 pick the best fit for this asset/action"
+          },
+          "horizon_days": {
+            "type": "integer",
+            "maximum": 3650.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Horizon Days",
+            "default": 365
+          }
+        },
+        "type": "object",
+        "required": [
+          "option_id",
+          "action",
+          "asset",
+          "amount_usd"
+        ],
+        "title": "OptionRequest",
+        "description": "One predefined, pre-approved action — never free text. `option_id` is the UI's own label, echoed back\nso the frontend can match a result row to the card it rendered, and is never interpreted as an instruction."
+      },
+      "OptionResult": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AutonomyMode"
+          },
+          "allocated_usd": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Allocated Usd",
+            "default": 0.0
+          },
+          "requested_usd": {
+            "type": "number",
+            "title": "Requested Usd"
+          },
+          "score_pct_per_yr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Pct Per Yr"
+          },
+          "cvar_95_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvar 95 Pct"
+          },
+          "sharpe": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option_id",
+          "venue_id",
+          "mode",
+          "requested_usd"
+        ],
+        "title": "OptionResult"
+      },
       "ParseOutcome": {
         "properties": {
           "mandate": {
@@ -1555,6 +2361,86 @@
           "text"
         ],
         "title": "ParseRequest"
+      },
+      "Personalization": {
+        "properties": {
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "lam": {
+            "type": "number",
+            "title": "Lam"
+          },
+          "tau": {
+            "type": "number",
+            "title": "Tau"
+          },
+          "added_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Added Constraints",
+            "description": "From standing preferences, e.g. avoid:curve"
+          },
+          "constraint_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Constraint Reasons"
+          },
+          "venue_preview": {
+            "items": {
+              "$ref": "#/components/schemas/VenuePreview"
+            },
+            "type": "array",
+            "title": "Venue Preview",
+            "description": "Display only; the Brain decides"
+          },
+          "estimated_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Usd"
+          },
+          "soft_limit_usd": {
+            "type": "number",
+            "title": "Soft Limit Usd"
+          },
+          "autonomy_preview": {
+            "type": "string",
+            "enum": [
+              "likely_auto",
+              "needs_approval",
+              "needs_faceid"
+            ],
+            "title": "Autonomy Preview"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tier",
+          "lam",
+          "tau",
+          "soft_limit_usd",
+          "autonomy_preview"
+        ],
+        "title": "Personalization",
+        "description": "What the BrainProfile changed or predicts at draft time — all shown to the user before they confirm."
       },
       "ProfileSummary": {
         "properties": {
@@ -1694,12 +2580,6 @@
       },
       "ProposeRequest": {
         "properties": {
-          "text": {
-            "type": "string",
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Text"
-          },
           "account": {
             "type": "string",
             "title": "Account",
@@ -1734,12 +2614,36 @@
             ],
             "title": "Headline",
             "description": "Optional breaking headline for the NLP Risk Sentinel"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "Free text order. Omit when draft_id is set."
+          },
+          "draft_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Id",
+            "description": "A confirmed draft from /api/mandate/confirm (preferred). Its locked Mandate runs exactly as confirmed, once; `text` is ignored when this is set."
           }
         },
         "type": "object",
-        "required": [
-          "text"
-        ],
         "title": "ProposeRequest"
       },
       "ProposeResponse": {
@@ -1797,6 +2701,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ProfileSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "brain_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrainReport"
               },
               {
                 "type": "null"
@@ -1878,6 +2792,27 @@
           "options"
         ],
         "title": "QuizQuestion"
+      },
+      "ReasonCode": {
+        "type": "string",
+        "enum": [
+          "TOP_SCORE",
+          "CLOSE_SCORES_SPLIT",
+          "CLUSTER_DIVERSIFICATION",
+          "SOFT_LIMIT_CAP",
+          "RADIUS_CAP",
+          "HARD_VETO",
+          "PEG_FAILURE_RISK",
+          "NEGATIVE_SCORE",
+          "TAIL_RISK",
+          "NEGATIVE_NEWS",
+          "USER_CONSTRAINT",
+          "FIRST_USE_VENUE",
+          "LOW_CONFIDENCE",
+          "INJECTION_SUSPECTED",
+          "NO_CANDIDATES"
+        ],
+        "title": "ReasonCode"
       },
       "RegimeProbs": {
         "properties": {
@@ -2277,6 +3212,54 @@
         ],
         "title": "Threat"
       },
+      "TriggerMonitorRequest": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Accounts"
+          },
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "usdc_distress"
+            ],
+            "title": "Scenario",
+            "default": "demo"
+          }
+        },
+        "type": "object",
+        "title": "TriggerMonitorRequest"
+      },
+      "TriggerMonitorResponse": {
+        "properties": {
+          "checked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Checked"
+          },
+          "triggered": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Triggered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "checked",
+          "triggered"
+        ],
+        "title": "TriggerMonitorResponse"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2375,6 +3358,34 @@
           "beta"
         ],
         "title": "VenueApproval"
+      },
+      "VenuePreview": {
+        "properties": {
+          "venue_id": {
+            "type": "string",
+            "title": "Venue Id"
+          },
+          "approval_posterior": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Approval Posterior",
+            "description": "Beta posterior mean α/(α+β) of your past approvals"
+          },
+          "observations": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Observations",
+            "description": "Signals learned for this venue (0 = no history, prior only)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "venue_id",
+          "approval_posterior",
+          "observations"
+        ],
+        "title": "VenuePreview"
       }
     }
   }

@@ -1,9 +1,10 @@
 """The Brain as a LangGraph multi-agent graph — the team's architecture (BRAIN_DESIGN §1, team notes):
 
-    gatekeeper_intake ─▶ profile ─▶ nlp_sentinel ─▶ econometric_liquidity ─▶ gatekeeper_aggregator ─▶ web3_executor
-    (firewall, parse,             (market + news    (hard filters, score,     (Good/Better/Best,        (sign + send;
-     privacy sieve)                → 3 regimes,      Sharpe, CVaR)             autonomy gate,            Phase 7)
-                                     contagion)                                 execution intent)
+    gatekeeper_intake ─▶ profile ─▶ nlp_sentinel ─▶ econometric_liquidity ─▶ gatekeeper_aggregator ─▶ brain ─▶ web3_executor
+    (firewall, parse,             (market + news    (hard filters, score,     (Good/Better/Best,        (one optional  (sign + send;
+     privacy sieve)                → 3 regimes,      Sharpe, CVaR)             autonomy gate: the        LLM pass that   Phase 7)
+                                     contagion)                                 rule-based baseline)      can only tighten;
+                                                                                                          → BrainReport JSON)
 
 Refused or unparseable text stops after intake (no market agent ever sees it); a BLOCKED decision never reaches the
 executor. Each agent reports its own lines for the UI. LangSmith tracing is never enabled: nothing leaves the machine.
@@ -19,6 +20,8 @@ from typing import Annotated, Any, Literal, Protocol, TypedDict
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
+from tecc_brain.graph.brain import BRAIN_TIMEOUT_S, BrainLLM, BrainReport, build_brain_input, synthesize
+from tecc_brain.intent.firewall import scan
 from tecc_brain.intent.parser import IntentParser, default_parser
 from tecc_brain.intent.rules import ParseOutcome
 from tecc_brain.intent.sieve import mask
@@ -31,6 +34,7 @@ from tecc_brain.models import (
     BrainProfile,
     Decision,
     ExecutionIntent,
+    Mandate,
     MarketSnapshot,
     Portfolio,
     RiskTier,
@@ -54,6 +58,7 @@ AGENT_ORDER = (
     "nlp_sentinel",
     "econometric_liquidity",
     "gatekeeper_aggregator",
+    "brain",
     "web3_executor",
 )
 AGENT_TITLES = {
@@ -62,6 +67,7 @@ AGENT_TITLES = {
     "nlp_sentinel": "NLP Risk Sentinel",
     "econometric_liquidity": "Econometric & Liquidity agent",
     "gatekeeper_aggregator": "Gatekeeper · aggregator",
+    "brain": "AI Brain (single-pass synthesis)",
     "web3_executor": "Web3 Executor",
 }
 DEMO_ACCOUNT = "demo"
@@ -101,6 +107,7 @@ class PipelineResult(BaseModel):
     regimes: dict[str, RegimeView] = {}
     clusters: dict[str, ClusterStatus] = {}
     profile: ProfileSummary | None = None
+    brain_report: BrainReport | None = None  # the single, validated decision record (None if refused/unparsed)
     agents: list[AgentReport] = []
 
 
@@ -120,11 +127,14 @@ class BrainDeps:
     ref: Reference = field(default_factory=load_reference)
     executor: Executor | None = None
     news_hook: Callable[[MarketSnapshot], MarketSnapshot] | None = None  # e.g. Member 4's FinBERT feed
+    brain_llm: BrainLLM | None = None  # None → the rule-based decision is the BrainReport (offline demo)
+    brain_timeout_s: float = BRAIN_TIMEOUT_S
 
 
 class BrainState(TypedDict, total=False):
     text: str
     account: str
+    mandate_in: Mandate | None  # an order the user already confirmed (/api/mandate/confirm): re-scanned, never re-parsed
     status: Status
     parse: ParseOutcome
     profile: BrainProfile
@@ -133,6 +143,7 @@ class BrainState(TypedDict, total=False):
     view: MarketView
     assessment: OptionsAssessment
     decision: Decision
+    brain_report: BrainReport
     intent: ExecutionIntent | None
     agents: Annotated[list[AgentReport], operator.add]
 
@@ -160,7 +171,16 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
         portfolio = deps.portfolio or (
             load_demo_portfolio() if state["account"] == DEMO_ACCOUNT else Portfolio(account=state["account"])
         )
-        outcome = deps.parser.parse(state["text"], deps.ref, portfolio)
+        confirmed = state.get("mandate_in")
+        if confirmed is not None:
+            # The user approved this exact structured order. Parsing again could change it (an LLM parser is not
+            # deterministic, and profile constraints added at /draft are not in the text), so only the firewall
+            # re-runs here, as defence in depth.
+            outcome = ParseOutcome(mandate=confirmed, verdict=scan(confirmed.raw_text))
+            if not outcome.verdict.allowed:
+                outcome.mandate = None
+        else:
+            outcome = deps.parser.parse(state["text"], deps.ref, portfolio)
         lines: list[str] = []
         if not outcome.verdict.allowed:
             threats = ", ".join(t.value for t in outcome.verdict.threats)
@@ -173,7 +193,8 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
             lines.append(f"Could not understand the request: {'; '.join(outcome.errors) or 'no action found'}.")
             return {"status": "unparsed", "parse": outcome, "portfolio": portfolio, "agents": _report("gatekeeper_intake", lines)}
         m = outcome.mandate
-        lines.append(f"Understood ({m.parser} parser): {m.action.value} {m.amount:g} {m.asset}, horizon {m.horizon_days} days"
+        how = "Confirmed by you" if confirmed is not None else f"Understood ({m.parser} parser)"
+        lines.append(f"{how}: {m.action.value} {m.amount:g} {m.asset}, horizon {m.horizon_days} days"
                      + (f", constraints {', '.join(m.constraints)}" if m.constraints else "") + ".")
         return {"parse": outcome, "portfolio": portfolio, "agents": _report("gatekeeper_intake", lines)}
 
@@ -226,6 +247,16 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
         assessment = state["assessment"]
         decision = decide(assessment, state["snapshot"], state["portfolio"], state["profile"], deps.vault, deps.ref)
         lines = decision.trace[len(assessment.trace):]
+        return {"decision": decision, "agents": _report("gatekeeper_aggregator", lines)}
+
+    def brain(state: BrainState) -> dict[str, Any]:
+        baseline = state["decision"]
+        payload = build_brain_input(baseline, state["assessment"].amount_usd, state["profile"], deps.vault,
+                                    state["snapshot"], state["view"], deps.ref)
+        decision, report = synthesize(baseline, payload, deps.brain_llm, deps.brain_timeout_s)
+        lines = [f"Decision {report.decision} by the {'AI model' if report.producer == 'llm' else 'rule-based gatekeeper'}"
+                 + (f" (model output not used: {report.fallback_reason})" if report.fallback_reason else "") + "."]
+        lines.append(report.user_explanation)
         intent = None
         auto = next((c for c in decision.cards if c.mode == AutonomyMode.AUTO), None)
         if auto is not None and decision.auto_amount_usd > 0:
@@ -238,7 +269,8 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
             lines.append(f"Execution intent: {venue.action.value} ${intent.amount_usd:,.0f} into {venue.name} "
                          f"({intent.amount_onchain} on-chain units).")
         status: Status = "blocked" if decision.mode == AutonomyMode.BLOCKED else "decided"
-        return {"decision": decision, "intent": intent, "status": status, "agents": _report("gatekeeper_aggregator", lines)}
+        return {"decision": decision, "brain_report": report, "intent": intent, "status": status,
+                "agents": _report("brain", lines)}
 
     def web3_executor(state: BrainState) -> dict[str, Any]:
         intent = state.get("intent")
@@ -254,7 +286,7 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
     def after_intake(state: BrainState) -> str:
         return END if state.get("status") in ("refused", "unparsed") else "profile"
 
-    def after_aggregator(state: BrainState) -> str:
+    def after_brain(state: BrainState) -> str:
         return END if state.get("status") == "blocked" else "web3_executor"
 
     graph = StateGraph(BrainState)
@@ -264,6 +296,7 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
         ("nlp_sentinel", nlp_sentinel),
         ("econometric_liquidity", econometric_liquidity),
         ("gatekeeper_aggregator", gatekeeper_aggregator),
+        ("brain", brain),
         ("web3_executor", web3_executor),
     ):
         graph.add_node(name, fn)
@@ -272,7 +305,8 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
     graph.add_edge("profile", "nlp_sentinel")
     graph.add_edge("nlp_sentinel", "econometric_liquidity")
     graph.add_edge("econometric_liquidity", "gatekeeper_aggregator")
-    graph.add_conditional_edges("gatekeeper_aggregator", after_aggregator, ["web3_executor", END])
+    graph.add_edge("gatekeeper_aggregator", "brain")
+    graph.add_conditional_edges("brain", after_brain, ["web3_executor", END])
     graph.add_edge("web3_executor", END)
     return graph.compile()
 
@@ -289,9 +323,12 @@ def regime_views(view: MarketView, ref: Reference) -> dict[str, RegimeView]:
     return out
 
 
-def run_pipeline(text: str, account: str, **deps: Any) -> PipelineResult:
+def run_pipeline(text: str, account: str, mandate: Mandate | None = None, **deps: Any) -> PipelineResult:
+    """`mandate`: a confirmed order from the /draft → /confirm loop; when set, `text` is ignored for parsing."""
     brain = BrainDeps(**deps)
-    state: BrainState = build_graph(brain).invoke({"text": text, "account": account, "agents": []})
+    initial: BrainState = {"text": mandate.raw_text if mandate is not None else text, "account": account,
+                           "mandate_in": mandate, "agents": []}
+    state: BrainState = build_graph(brain).invoke(initial)
     view = state.get("view")
     regimes = regime_views(view, brain.ref) if view is not None else {}
     profile = state.get("profile")
@@ -301,6 +338,7 @@ def run_pipeline(text: str, account: str, **deps: Any) -> PipelineResult:
         decision=state.get("decision"),
         intent=state.get("intent"),
         regimes=regimes,
+        brain_report=state.get("brain_report"),
         clusters=view.clusters if view is not None else {},
         profile=ProfileSummary(
             account=profile.account, tier=profile.tier, lam=profile.lam, tau=profile.tau,

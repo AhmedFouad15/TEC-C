@@ -223,8 +223,9 @@ class FiscoBcosExecutor:
             "status": "submitted",
             "market": "chinese_market",
             "tx_hash": tx_hash,
+            "simulated": True,  # no RPC call is made: the hash is generated locally (demo abstraction)
             "target_address": intent.target_address or "fisco_bcos_consortium_gateway",
-            "detail": f"FISCO BCOS: settled on WeBank consortium chain with enterprise gas sponsorship ($0.00 gas fee; action={intent.action.value})",
+            "detail": f"SIMULATED · FISCO BCOS: settled on WeBank consortium chain with enterprise gas sponsorship ($0.00 gas fee; action={intent.action.value})",
         })
 
 
@@ -252,8 +253,9 @@ class ArbitrumCommoditiesExecutor:
             "status": "submitted",
             "market": "commodities",
             "tx_hash": tx_hash,
+            "simulated": True,  # no RPC call is made: the hash is generated locally (demo abstraction)
             "target_address": intent.target_address or "arbitrum_one_commodity_bridge",
-            "detail": f"Arbitrum One: executed commodity order ({intent.asset_in} {intent.action.value} on {intent.venue_id}) via L2 nitro rollup sequencer",
+            "detail": f"SIMULATED · Arbitrum One: executed commodity order ({intent.asset_in} {intent.action.value} on {intent.venue_id}) via L2 nitro rollup sequencer",
         })
 
 
@@ -399,8 +401,9 @@ class PegGuardArbitrageExecutor:
             "status": "submitted",
             "market": "arbitrage",
             "tx_hash": tx_hash,
+            "simulated": True,  # no RPC call is made: the hash is generated locally (demo abstraction)
             "target_address": target_addr,
-            "detail": detail,
+            "detail": f"SIMULATED · {detail}",
         })
 
 

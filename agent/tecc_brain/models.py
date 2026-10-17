@@ -434,4 +434,9 @@ class ExecutionIntent(BaseModel):
     )
     status: Literal["pending_signature", "signed", "submitted", "breakout_required", "failed"] = "pending_signature"
     tx_hash: str | None = None
+    simulated: bool = Field(
+        False,
+        description="True when no transaction was actually sent (FISCO BCOS, Arbitrum and PegGuard executors are "
+                    "demo abstractions that generate the hash locally); `tx_hash` is then not on any chain",
+    )
     detail: str = ""
