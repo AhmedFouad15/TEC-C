@@ -72,14 +72,16 @@ def test_arbitrum_commodities_executor():
 
 
 def test_pegguard_arbitrage_executor():
-    """PegGuardArbitrageExecutor blank stub pending completion of PegGuard module."""
+    """PegGuardArbitrageExecutor evaluates the 5-layer PegGuard framework and executes two-leg arbitrage."""
     executor = PegGuardArbitrageExecutor()
     intent = sample_intent(venue_id="curve_steth_eth", usd=400.0, asset="ETH", action=ActionType.BUY_DISCOUNT, market="arbitrage")
-    
+
     result = executor.submit(intent, "demo")
-    assert result.status == "pending"
+    assert result.status == "submitted"
     assert result.market == "arbitrage"
-    assert "PegGuard" in result.detail
+    assert result.tx_hash and result.tx_hash.startswith("0xcca1")
+    assert "PegGuard Class A Two-Leg Arbitrage (stETH)" in result.detail
+    assert executor.last_decision is not None and executor.last_decision.authorized is True
 
 
 def test_market_router_dispatch():
