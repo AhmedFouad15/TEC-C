@@ -248,6 +248,58 @@ def build_brain_input(
     }
 
 
+# --- privacy: the cloud model never sees the user's real money -------------------------------------------
+# Every dollar figure is rescaled so the confirmed order = 1000 "privacy units" (and the order's size in asset
+# units is dropped). Ratios, caps and scores are unchanged, so the model reasons exactly as before; its reply is
+# scaled back locally and validated against the real numbers. (Prof. Qiang Yang's concern; review Finding B.)
+PRIVACY_UNITS = 1000.0
+PRIVACY_NOTE = (
+    "\nPRIVACY: every money amount in BRAIN_INPUT (fields ending in _usd) is in privacy units, not dollars: the "
+    "user's confirmed order is scaled to 1000. Reply with amounts in the same units."
+)
+_USD_LIMITS = ("vault_radius_remaining_usd", "soft_limit_usd", "baseline_auto_usd")
+
+
+def _privacy_scale(payload: dict[str, Any]) -> float:
+    base = payload["mandate"].get("amount_usd") or max(
+        [c["amount_usd"] for c in payload["candidates"]] + [payload["limits"][k] for k in _USD_LIMITS] + [0.0]
+    )
+    return PRIVACY_UNITS / base if base and base > 0 else 1.0
+
+
+def privatize(payload: dict[str, Any]) -> tuple[dict[str, Any], float]:
+    """The payload as the cloud model sees it, and the scale k (units = dollars × k)."""
+    k = _privacy_scale(payload)
+    cloud = json.loads(json.dumps(payload))
+
+    def units(x: float | None) -> float | None:
+        return round(x * k, 6) if x is not None else None
+
+    cloud["mandate"]["amount_usd"] = units(cloud["mandate"].get("amount_usd"))
+    cloud["mandate"].pop("amount", None)  # "10 ETH" would reveal the size: the model only needs the scaled USD
+    for key in _USD_LIMITS:
+        cloud["limits"][key] = units(cloud["limits"][key])
+    for c in cloud["candidates"]:
+        c["amount_usd"], c["max_amount_usd"] = units(c["amount_usd"]), units(c["max_amount_usd"])
+    return cloud, k
+
+
+def descale_reply(reply: str, k: float) -> str:
+    """The model's JSON with its amounts converted back to dollars. Anything unparsable is returned unchanged
+    (validation then rejects it and the rules decide)."""
+    match = re.search(r"\{.*\}", reply or "", re.DOTALL)
+    if not match:
+        return reply
+    try:
+        data = json.loads(match.group(0))
+        for a in data.get("allocations", []):
+            a["amount_usd"] = round(float(a["amount_usd"]) / k, 6)
+        data["total_auto_usd"] = round(float(data["total_auto_usd"]) / k, 6)
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError):
+        return reply
+    return json.dumps(data)
+
+
 def validate_verdict(reply: str, payload: dict[str, Any]) -> tuple[BrainVerdict | None, str | None]:
     """(verdict, None) if every rule holds, else (None, reason). Never raises."""
     match = re.search(r"\{.*\}", reply or "", re.DOTALL)
@@ -408,10 +460,11 @@ def synthesize(
     if decision.mode == AutonomyMode.BLOCKED:
         return decision, report_from_decision(decision, payload)  # nothing to tighten: skip the model call
     try:
-        reply = call_with_timeout(lambda p: llm(SYSTEM_PROMPT, p), json.dumps(payload, ensure_ascii=False), timeout_s)
+        cloud, k = privatize(payload)
+        reply = call_with_timeout(lambda p: llm(SYSTEM_PROMPT + PRIVACY_NOTE, p), json.dumps(cloud, ensure_ascii=False), timeout_s)
     except Exception as exc:  # noqa: BLE001 — timeouts, network, provider errors all fall back the same way
         return decision, report_from_decision(decision, payload, fallback_reason=f"model call failed: {exc.__class__.__name__}")
-    verdict, why = validate_verdict(reply, payload)
+    verdict, why = validate_verdict(descale_reply(reply, k), payload)
     if verdict is None:
         return decision, report_from_decision(decision, payload, fallback_reason=why)
     final = apply_verdict(decision, verdict)
@@ -419,6 +472,7 @@ def synthesize(
 
 
 __all__ = [
+    "PRIVACY_NOTE", "PRIVACY_UNITS", "descale_reply", "privatize",
     "BRAIN_TIMEOUT_S", "SCHEMA_VERSION", "SYSTEM_PROMPT", "Allocation", "BrainLLM", "BrainReport", "BrainVerdict",
     "ConflictCode", "ReasonCode", "apply_verdict", "build_brain_input", "report_from_decision", "synthesize",
     "validate_verdict",
