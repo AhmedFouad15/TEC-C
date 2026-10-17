@@ -19,13 +19,18 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="session")
 def anvil_url():
-    if shutil.which("anvil") is None:
+    anvil_bin = shutil.which("anvil")
+    if not anvil_bin:
+        foundry_anvil = Path.home() / ".foundry" / "bin" / "anvil.exe"
+        if foundry_anvil.exists():
+            anvil_bin = str(foundry_anvil)
+    if not anvil_bin:
         pytest.skip("anvil not installed (brew install foundry)")
     if not (REPO / "contracts" / "out" / "TetherGuardHook.sol" / "TetherGuardHook.json").exists():
         pytest.skip("contracts not built (run `forge build` in contracts/)")
     port = _free_port()
     proc = subprocess.Popen(
-        ["anvil", "--port", str(port), "--host", "127.0.0.1", "--silent"],
+        [anvil_bin, "--port", str(port), "--host", "127.0.0.1", "--disable-code-size-limit", "--silent"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     deadline = time.monotonic() + 15
