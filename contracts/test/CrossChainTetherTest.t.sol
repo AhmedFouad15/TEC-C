@@ -319,4 +319,53 @@ contract CrossChainTetherTest is Test {
 
         assertEq(arbHook.totalAuditedExecutions(), 1);
     }
+
+    /**
+     * @notice Security Regression Test:
+     *         When a new 24h epoch rolls over (`p.currentEpoch != currentEpoch`) and `syncCrossChainSpend`
+     *         is called BEFORE any local `preCheck` on that chain, `getRemainingRadius` and
+     *         `getCrossChainSpendingState` must immediately reflect the new epoch's remote spend
+     *         and zero out stale local spend.
+     */
+    function test_CrossChain_SyncInNewEpochBeforeLocalTx_UpdatesRemainingRadius() public {
+        // 1. Spend $100 locally on Ethereum in Epoch N
+        bytes memory spend100 = abi.encodePacked(
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(100 * 1e6))
+        );
+        vm.prank(tecAccount);
+        bytes memory hookData = ethHook.preCheck(sessionKey, 0, spend100);
+        vm.prank(tecAccount);
+        ethHook.postCheck(hookData);
+
+        assertEq(ethHook.getRemainingRadius(tecAccount), 400 * 1e8);
+
+        // 2. Roll over to Epoch N+1 (24h + 1s later) without any local preCheck on ethHook yet
+        vm.warp(block.timestamp + 1 days + 1);
+        uint256 newEpoch = block.timestamp / 1 days;
+        usdcFeed.setPrice(1 * 1e8);
+        ethFeed.setPrice(3000 * 1e8);
+        vm.prank(sessionKey);
+        ethHook.recordAIHeartbeat(tecAccount);
+
+        // 3. Relayer syncs $350 remote spend from Arbitrum in Epoch N+1 to ethHook
+        vm.prank(relayer);
+        ethHook.syncCrossChainSpend(tecAccount, CHAIN_ARBITRUM, 350 * 1e8, newEpoch);
+
+        // 4. getRemainingRadius must return $150 ($500 - $350), NOT $500!
+        assertEq(ethHook.getRemainingRadius(tecAccount), 150 * 1e8);
+
+        // 5. getCrossChainSpendingState must report totalSpent=$350, remaining=$150
+        (uint256 totalSpent, uint256 remaining) = ethHook.getCrossChainSpendingState(tecAccount);
+        assertEq(totalSpent, 350 * 1e8);
+        assertEq(remaining, 150 * 1e8);
+
+        // 6. Attempting to spend $200 locally on Ethereum in Epoch N+1 must revert ($200 > $150 remaining)
+        bytes memory spend200 = abi.encodePacked(
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(200 * 1e6))
+        );
+        vm.prank(tecAccount);
+        vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 200 * 1e8, 150 * 1e8));
+        ethHook.preCheck(sessionKey, 0, spend200);
+    }
 }
+

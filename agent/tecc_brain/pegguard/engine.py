@@ -125,8 +125,9 @@ def compute_fundamental_fair_value(
                  * exp[(y_asset - r_fee - c_illiquidity) * tau_redeem]
     """
     reserve_ratio = min(1.0, max(0.0, liquid_reserves / max(circulating_supply, 1e-12)))
-    tau_years = tau_redeem_days / 365.0
-    carry_factor = math.exp((y_asset - r_fee - c_illiquidity) * tau_years)
+    tau_years = max(0.0, tau_redeem_days) / 365.0
+    exponent = max(-20.0, min(1.0, (y_asset - r_fee - c_illiquidity) * tau_years))
+    carry_factor = math.exp(exponent)
     fv_fund = p_par * reserve_ratio * carry_factor
     return round(fv_fund, 6), round(reserve_ratio, 6)
 
@@ -205,6 +206,17 @@ def fit_ar1_ols(spread_series: list[float], dt_hours: float = 1.0) -> OLSFitResu
     Fits Delta(delta_t) = alpha + kappa * delta_{t-1} + eps_t
     with Delta-method standard errors for theta_OLS = -ln(1 + kappa) / dt.
     """
+    if not math.isfinite(dt_hours) or dt_hours <= 0 or any(not math.isfinite(x) for x in spread_series):
+        return OLSFitResult(
+            alpha=0.0,
+            kappa=0.0,
+            beta=1.0,
+            theta_ols=0.0,
+            theta_se=0.0,
+            residual_sigma=0.0,
+            death_spiral_canary=True,
+        )
+
     n = len(spread_series)
     if n < 3:
         # Default stationary initializer when series is short

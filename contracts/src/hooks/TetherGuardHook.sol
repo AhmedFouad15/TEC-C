@@ -1066,7 +1066,8 @@ contract TetherGuardHook is IERC7579Hook {
         view
         returns (uint256)
     {
-        uint256 total = p.dailySpent + crossChainSpent[account][epoch];
+        uint256 localSpent = (p.currentEpoch == epoch) ? p.dailySpent : 0;
+        uint256 total = localSpent + crossChainSpent[account][epoch];
         return p.tetherRadius > total ? p.tetherRadius - total : 0;
     }
 
@@ -1369,12 +1370,7 @@ contract TetherGuardHook is IERC7579Hook {
      * @return The remaining spending allowance for the current epoch.
      */
     function getRemainingRadius(address account) external view returns (uint256) {
-        AccountPolicy storage p = policies[account];
-        uint256 currentEpoch = block.timestamp / 1 days;
-        if (p.currentEpoch != currentEpoch) {
-            return p.tetherRadius;
-        }
-        return _getAccountRemaining(account, p, currentEpoch);
+        return _getAccountRemaining(account, policies[account], block.timestamp / 1 days);
     }
 
     // =========================================================================
@@ -1462,10 +1458,8 @@ contract TetherGuardHook is IERC7579Hook {
     {
         AccountPolicy storage p = policies[account];
         uint256 currentEpoch = block.timestamp / 1 days;
-        if (p.currentEpoch != currentEpoch) {
-            return (0, p.tetherRadius);
-        }
-        totalSpent = p.dailySpent + crossChainSpent[account][currentEpoch];
+        uint256 localSpent = (p.currentEpoch == currentEpoch) ? p.dailySpent : 0;
+        totalSpent = localSpent + crossChainSpent[account][currentEpoch];
         remainingRadius = p.tetherRadius > totalSpent ? p.tetherRadius - totalSpent : 0;
     }
 
