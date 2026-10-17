@@ -22,6 +22,7 @@ This reuses the existing agents rather than re-implementing them:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -199,7 +200,8 @@ def evaluate_options(
         # store (same contract as /api/review/sync's FeedbackEvent.note) — never a venue, amount or recipient.
         from tecc_brain.learning.update import learn
 
-        event = FeedbackEvent(event_id=f"options-comment:{req.account}:{int(datetime.now(timezone.utc).timestamp())}",
+        # uuid, not the clock: two comments in the same second must both be learned (event ids dedupe replays)
+        event = FeedbackEvent(event_id=f"options-comment:{req.account}:{uuid.uuid4().hex}",
                               signal=Signal.NOTE, at=datetime.now(timezone.utc), note=req.comment[:1000])
         outcome = learn(profile, event, ref=ref)
         store.save(outcome.profile)
@@ -223,11 +225,13 @@ class TriggerMonitorResponse(BaseModel):
 
 
 @router.post("/trigger_hourly_monitor", response_model=TriggerMonitorResponse)
-def trigger_hourly_monitor(req: TriggerMonitorRequest, ref: Reference = Depends(get_ref)) -> TriggerMonitorResponse:
+def trigger_hourly_monitor(
+    req: TriggerMonitorRequest, ref: Reference = Depends(get_ref), store=Depends(get_store)
+) -> TriggerMonitorResponse:
     """Manual/demo trigger for the same check the APScheduler job runs every hour (monitor/hourly.py::run_once)."""
     from tecc_brain.monitor.hourly import run_once
 
-    events = run_once(req.accounts, scenario=req.scenario, ref=ref)
+    events = run_once(req.accounts, scenario=req.scenario, ref=ref, store=store)
     return TriggerMonitorResponse(checked=req.accounts, triggered=[e.model_dump(mode="json") for e in events])
 
 

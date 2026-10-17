@@ -72,11 +72,13 @@ def get_event_log() -> _EventLog:
     return _LOG
 
 
-def run_once(accounts: list[str], *, scenario: str = "demo", ref: Reference | None = None) -> list[MonitorEvent]:
+def run_once(
+    accounts: list[str], *, scenario: str = "demo", ref: Reference | None = None, store: ProfileStore | None = None
+) -> list[MonitorEvent]:
     """Agent 1's sweep for this tick. Returns the triggers it found (and re-ran the pipeline for)."""
     ref = ref or load_reference()
     sentinel = NewsRiskSentinel(ref=ref)
-    store = ProfileStore()
+    store = store or ProfileStore()  # the API passes its own store, so tests and demos never touch real profiles
     snapshot = SnapshotSource(scenario).snapshot()
     report = sentinel.assess(snapshot, ref)
     triggered: list[MonitorEvent] = []
@@ -140,7 +142,8 @@ def start_scheduler(app: "FastAPI | None" = None) -> None:
 
     interval = int(os.environ.get("TECC_MONITOR_INTERVAL_MINUTES", DEFAULT_INTERVAL_MINUTES))
     _scheduler = BackgroundScheduler(daemon=True)
-    _scheduler.add_job(_tick, "interval", minutes=interval, id="tecc_hourly_monitor", next_run_time=None)
+    # Do NOT pass next_run_time=None: in APScheduler 3 that adds the job *paused*, so it would never run.
+    _scheduler.add_job(_tick, "interval", minutes=interval, id="tecc_hourly_monitor")
     _scheduler.start()
 
 

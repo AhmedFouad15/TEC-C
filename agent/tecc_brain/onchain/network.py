@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SEPOLIA_CONTRACTS_FILE = REPO_ROOT / "shared" / "contracts.sepolia.json"
 ARBITRUM_CONTRACTS_FILE = REPO_ROOT / "shared" / "contracts.arbitrum.json"
 FISCO_CONTRACTS_FILE = REPO_ROOT / "shared" / "contracts.fisco.json"
-DEAD_ADDRESS = "0x0000000000000000000000000000000000dEaD"
+DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD"
 
 DEFAULT_ANVIL_RPC = "http://127.0.0.1:8545"
 
