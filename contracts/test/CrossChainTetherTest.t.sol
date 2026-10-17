@@ -108,9 +108,7 @@ contract CrossChainTetherTest is Test {
 
         // Spend $500 USD (500 USDC = 500 * 1e6) on Ethereum
         bytes memory execData = abi.encodePacked(
-            address(usdc),
-            uint256(0),
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(500 * 1e6))
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(500 * 1e6))
         );
 
         vm.prank(tecAccount);
@@ -123,9 +121,7 @@ contract CrossChainTetherTest is Test {
 
         // Ethereum attempt to spend $1 more reverts immediately
         bytes memory oneDollarExec = abi.encodePacked(
-            address(usdc),
-            uint256(0),
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(1 * 1e6))
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(1 * 1e6))
         );
         vm.prank(tecAccount);
         vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 1 * 1e8, 0));
@@ -163,9 +159,7 @@ contract CrossChainTetherTest is Test {
 
         // 1. Spend $200 on Ethereum
         bytes memory spend200 = abi.encodePacked(
-            address(usdc),
-            uint256(0),
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(200 * 1e6))
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(200 * 1e6))
         );
         vm.prank(tecAccount);
         bytes memory hookData1 = ethHook.preCheck(sessionKey, 0, spend200);
@@ -185,9 +179,7 @@ contract CrossChainTetherTest is Test {
 
         // 2. Spend remaining $300 on Arbitrum
         bytes memory spend300 = abi.encodePacked(
-            address(usdc),
-            uint256(0),
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(300 * 1e6))
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(300 * 1e6))
         );
         vm.prank(tecAccount);
         bytes memory hookData2 = arbHook.preCheck(sessionKey, 0, spend300);
@@ -209,9 +201,7 @@ contract CrossChainTetherTest is Test {
 
         // FISCO BCOS cannot execute even $1
         bytes memory spend1 = abi.encodePacked(
-            address(usdc),
-            uint256(0),
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(1 * 1e6))
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(1 * 1e6))
         );
         vm.prank(tecAccount);
         vm.expectRevert(abi.encodeWithSelector(TetherGuardHook.TetherRadiusExceeded.selector, 1 * 1e8, 0));
@@ -303,9 +293,7 @@ contract CrossChainTetherTest is Test {
         assertEq(arbHook.getRemainingRadius(tecAccount), 0);
 
         bytes memory breakoutTx = abi.encodePacked(
-            address(usdc),
-            uint256(0),
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(100 * 1e6))
+            address(usdc), uint256(0), abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(100 * 1e6))
         );
         bytes32 execHash = keccak256(breakoutTx);
 

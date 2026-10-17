@@ -66,7 +66,7 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /// @notice Mapping from smart account address to its active AccountPolicy configuration
-    mapping(address => AccountPolicy) public policies;
+    mapping(address => AccountPolicy) internal policies;
 
     /// @notice Mapping from account => target contract => authorization status
     mapping(address => mapping(address => bool)) public whitelistedTargets;
@@ -139,7 +139,7 @@ contract TetherGuardHook is IERC7579Hook {
     mapping(address => uint256) public executionCount;
 
     /// @notice Execution history per smart account (account => record ID => AutonomousExecutionRecord)
-    mapping(address => mapping(uint256 => AutonomousExecutionRecord)) public executionRecords;
+    mapping(address => mapping(uint256 => AutonomousExecutionRecord)) internal executionRecords;
 
     /// @notice Global counter of all audited executions processed by this hook across all accounts
     uint256 public totalAuditedExecutions;
@@ -564,14 +564,18 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Reverted when a biometric challenge is reused, protecting against replay attacks.
     error ChallengeAlreadyUsed();
 
+    function _checkAccountOrOwner(address account) internal view {
+        if (msg.sender != account && msg.sender != policies[account].rootOwner) {
+            revert UnauthorizedCaller();
+        }
+    }
+
     /**
      * @notice Restricts execution to either the smart account itself or its registered root owner passkey address.
      * @param account The smart account whose policy is being accessed or modified.
      */
     modifier onlyAccountOrOwner(address account) {
-        if (msg.sender != account && msg.sender != policies[account].rootOwner) {
-            revert UnauthorizedCaller();
-        }
+        _checkAccountOrOwner(account);
         _;
     }
 
@@ -1057,7 +1061,11 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Helper to compute remaining radius for an account in the given epoch.
      */
-    function _getAccountRemaining(address account, AccountPolicy storage p, uint256 epoch) internal view returns (uint256) {
+    function _getAccountRemaining(address account, AccountPolicy storage p, uint256 epoch)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 total = p.dailySpent + crossChainSpent[account][epoch];
         return p.tetherRadius > total ? p.tetherRadius - total : 0;
     }
@@ -1103,8 +1111,9 @@ contract TetherGuardHook is IERC7579Hook {
         //  (a) spending exceeds remaining daily tether radius, OR
         //  (b) target is not whitelisted and account is not in Tier 3 (Unrestricted), OR
         //  (c) target risk tier exceeds account's risk tier setting.
-        bool isBreakout = (effectiveAmount > remainingRadius) ||
-            (p.riskTier != RISK_TIER_UNRESTRICTED && (!whitelistedTargets[account][target] || targetRiskTiers[account][target] > p.riskTier));
+        bool isBreakout = (effectiveAmount > remainingRadius)
+            || (p.riskTier != RISK_TIER_UNRESTRICTED
+                && (!whitelistedTargets[account][target] || targetRiskTiers[account][target] > p.riskTier));
 
         // 2. Caller is Root Owner (Passkey / FaceID holder):
         if (msgSender == p.rootOwner) {
@@ -1119,7 +1128,9 @@ contract TetherGuardHook is IERC7579Hook {
             } else {
                 // Safe execution within tether radius
                 p.dailySpent += effectiveAmount;
-                emit TetherRadiusConsumed(account, effectiveAmount, _getAccountRemaining(account, p, currentEpoch), currentEpoch);
+                emit TetherRadiusConsumed(
+                    account, effectiveAmount, _getAccountRemaining(account, p, currentEpoch), currentEpoch
+                );
                 return abi.encode(true, account, effectiveAmount, target);
             }
         }
@@ -1179,7 +1190,9 @@ contract TetherGuardHook is IERC7579Hook {
         }
 
         p.dailySpent += effectiveAmount;
-        emit TetherRadiusConsumed(account, effectiveAmount, _getAccountRemaining(account, p, currentEpoch), currentEpoch);
+        emit TetherRadiusConsumed(
+            account, effectiveAmount, _getAccountRemaining(account, p, currentEpoch), currentEpoch
+        );
 
         return abi.encode(false, account, effectiveAmount, target);
     }
@@ -1215,6 +1228,23 @@ contract TetherGuardHook is IERC7579Hook {
         emit PostExecutionAudited(account, isRoot, value, target, totalAuditedExecutions);
     }
 
+    function _getPendingRecord(address account, uint256 recordId)
+        internal
+        view
+        returns (AutonomousExecutionRecord storage rec)
+    {
+        rec = executionRecords[account][recordId];
+        if (rec.id == 0) revert InvalidRecordId();
+        if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
+    }
+
+    function _applyRadiusPenalty(AccountPolicy storage p, uint256 pct) internal {
+        uint256 penalty = (p.tetherRadius * pct) / 100;
+        uint256 targetRadius = (p.tetherRadius > penalty) ? p.tetherRadius - penalty : 0;
+        uint256 minFloor = p.baselineRadius / 2;
+        p.tetherRadius = (p.tetherRadius > minFloor && targetRadius < minFloor) ? minFloor : targetRadius;
+    }
+
     /**
      * @notice Morning Review: User "Likes" / Ratifies an autonomous transaction done while inactive.
      * @dev Replenishes The Tether Radius by the amount of this transaction (since it has explicit user ratification).
@@ -1222,10 +1252,7 @@ contract TetherGuardHook is IERC7579Hook {
      * @param recordId The unique ID of the autonomous execution record to ratify.
      */
     function ratifyTransaction(address account, uint256 recordId) external onlyAccountOrOwner(account) {
-        AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
-        if (rec.id == 0) revert InvalidRecordId();
-        if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
-
+        AutonomousExecutionRecord storage rec = _getPendingRecord(account, recordId);
         rec.status = ReviewStatus.LIKED_AND_RATIFIED;
 
         AccountPolicy storage p = policies[account];
@@ -1234,13 +1261,9 @@ contract TetherGuardHook is IERC7579Hook {
             p.currentEpoch = currentEpoch;
             p.dailySpent = 0;
         } else if (rec.timestamp / 1 days == currentEpoch) {
-            if (p.dailySpent >= rec.value) {
-                p.dailySpent -= rec.value;
-            } else {
-                p.dailySpent = 0;
-            }
+            p.dailySpent = p.dailySpent >= rec.value ? p.dailySpent - rec.value : 0;
         }
-        p.consecutiveRatifications++; // on-chain endorsement recorded for autonomous calibration
+        p.consecutiveRatifications++;
 
         emit TransactionRatified(account, recordId, rec.value, p.dailySpent);
     }
@@ -1256,27 +1279,13 @@ contract TetherGuardHook is IERC7579Hook {
         external
         onlyAccountOrOwner(account)
     {
-        AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
-        if (rec.id == 0) revert InvalidRecordId();
-        if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
-
+        AutonomousExecutionRecord storage rec = _getPendingRecord(account, recordId);
         rec.status = ReviewStatus.REVERT_REQUESTED;
         rec.userNote = reason;
 
         AccountPolicy storage p = policies[account];
-        p.consecutiveRatifications = 0; // reset consecutive approvals due to rejection
-
-        // Apply trust penalty: cut radius by 20%, strictly decrease or keep at floor
-        uint256 penalty = (p.tetherRadius * 20) / 100;
-        uint256 targetRadius = (p.tetherRadius > penalty) ? p.tetherRadius - penalty : 0;
-        uint256 minFloor = p.baselineRadius / 2;
-        if (p.tetherRadius > minFloor && targetRadius < minFloor) {
-            p.tetherRadius = minFloor;
-        } else if (p.tetherRadius <= minFloor) {
-            p.tetherRadius = targetRadius;
-        } else {
-            p.tetherRadius = targetRadius;
-        }
+        p.consecutiveRatifications = 0;
+        _applyRadiusPenalty(p, 20);
 
         emit TransactionFlaggedForRevert(account, recordId, reason, p.tetherRadius);
     }
@@ -1294,25 +1303,13 @@ contract TetherGuardHook is IERC7579Hook {
         external
         onlyAccountOrOwner(account)
     {
-        AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
-        if (rec.id == 0) revert InvalidRecordId();
-        if (rec.status != ReviewStatus.PENDING_REVIEW) revert RecordAlreadyReviewed(rec.status);
-
+        AutonomousExecutionRecord storage rec = _getPendingRecord(account, recordId);
         rec.status = ReviewStatus.NOTED;
         rec.userNote = note;
 
         AccountPolicy storage p = policies[account];
         if (penalizeBrain) {
-            uint256 penalty = (p.tetherRadius * 10) / 100;
-            uint256 targetRadius = (p.tetherRadius > penalty) ? p.tetherRadius - penalty : 0;
-            uint256 minFloor = p.baselineRadius / 2;
-            if (p.tetherRadius > minFloor && targetRadius < minFloor) {
-                p.tetherRadius = minFloor;
-            } else if (p.tetherRadius <= minFloor) {
-                p.tetherRadius = targetRadius;
-            } else {
-                p.tetherRadius = targetRadius;
-            }
+            _applyRadiusPenalty(p, 10);
         }
 
         emit TransactionNoteSubmitted(account, recordId, note, penalizeBrain, p.tetherRadius);
@@ -1377,13 +1374,19 @@ contract TetherGuardHook is IERC7579Hook {
         if (p.currentEpoch != currentEpoch) {
             return p.tetherRadius;
         }
-        uint256 total = p.dailySpent + crossChainSpent[account][currentEpoch];
-        return p.tetherRadius > total ? p.tetherRadius - total : 0;
+        return _getAccountRemaining(account, p, currentEpoch);
     }
 
     // =========================================================================
     // --- Cross-Chain Tether State Synchronization (Multi-Chain Velocity) ---
     // =========================================================================
+
+    function _applyCrossChainSpend(address account, uint256 sourceChainId, uint256 amountUSD, uint256 epoch) internal {
+        require(amountUSD > 0, "INVALID_AMOUNT");
+        chainSpentByEpoch[account][sourceChainId][epoch] += amountUSD;
+        crossChainSpent[account][epoch] += amountUSD;
+        emit CrossChainSpendSynced(account, sourceChainId, amountUSD, crossChainSpent[account][epoch], epoch);
+    }
 
     /**
      * @notice Authorizes or revokes a cross-chain relayer/bridge contract.
@@ -1399,43 +1402,20 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Synchronizes spend from another chain into this hook's active epoch.
      * @dev Enforces the Cross-Chain Tether Radius so spending on Chain A immediately reduces available quota on Chain B and C.
-     *      Callable by:
-     *      - The account itself (via cross-chain message / CCIP / LayerZero call)
-     *      - The account's root owner (biometric FaceID passkey holder)
-     *      - An authorized AI session key
-     *      - An authorized cross-chain relayer
      * @param account The smart account whose cross-chain spend is being synchronized.
      * @param sourceChainId The chain ID where the spending occurred (e.g. 1 for Ethereum, 42161 for Arbitrum, 2026 for FISCO BCOS).
      * @param amountUSD The USD value spent on the remote chain (normalized in 8 decimals).
      * @param epoch The epoch index (block.timestamp / 1 days).
      */
-    function syncCrossChainSpend(
-        address account,
-        uint256 sourceChainId,
-        uint256 amountUSD,
-        uint256 epoch
-    ) external {
+    function syncCrossChainSpend(address account, uint256 sourceChainId, uint256 amountUSD, uint256 epoch) external {
         AccountPolicy storage p = policies[account];
         require(p.rootOwner != address(0), "ACCOUNT_NOT_INITIALIZED");
         require(
-            msg.sender == account ||
-            msg.sender == p.rootOwner ||
-            authorizedSessionKeys[account][msg.sender] ||
-            authorizedCrossChainRelayers[msg.sender],
+            msg.sender == account || msg.sender == p.rootOwner || authorizedSessionKeys[account][msg.sender]
+                || authorizedCrossChainRelayers[msg.sender],
             "UNAUTHORIZED_CROSS_CHAIN_SYNC"
         );
-        require(amountUSD > 0, "INVALID_AMOUNT");
-
-        chainSpentByEpoch[account][sourceChainId][epoch] += amountUSD;
-        crossChainSpent[account][epoch] += amountUSD;
-
-        emit CrossChainSpendSynced(
-            account,
-            sourceChainId,
-            amountUSD,
-            crossChainSpent[account][epoch],
-            epoch
-        );
+        _applyCrossChainSpend(account, sourceChainId, amountUSD, epoch);
     }
 
     /**
@@ -1444,16 +1424,11 @@ contract TetherGuardHook is IERC7579Hook {
      * @param proof The cross-chain spend proof struct containing account, sourceChainId, amountUSD, epoch, nonce, and deadline.
      * @param signature Cryptographic ECDSA signature from rootOwner or authorized session key.
      */
-    function syncCrossChainSpendWithSignature(
-        CrossChainSpendProof calldata proof,
-        bytes calldata signature
-    ) external {
+    function syncCrossChainSpendWithSignature(CrossChainSpendProof calldata proof, bytes calldata signature) external {
         AccountPolicy storage p = policies[proof.account];
         require(p.rootOwner != address(0), "ACCOUNT_NOT_INITIALIZED");
         require(block.timestamp <= proof.deadline, "SIGNATURE_EXPIRED");
         require(!crossChainNonces[proof.account][proof.nonce], "NONCE_ALREADY_USED");
-        require(proof.amountUSD > 0, "INVALID_AMOUNT");
-
         crossChainNonces[proof.account][proof.nonce] = true;
 
         bytes32 messageHash = keccak256(
@@ -1470,21 +1445,8 @@ contract TetherGuardHook is IERC7579Hook {
         );
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         address signer = _recoverSigner(ethSignedMessageHash, signature);
-        require(
-            signer == p.rootOwner || authorizedSessionKeys[proof.account][signer],
-            "INVALID_CROSS_CHAIN_SIGNER"
-        );
-
-        chainSpentByEpoch[proof.account][proof.sourceChainId][proof.epoch] += proof.amountUSD;
-        crossChainSpent[proof.account][proof.epoch] += proof.amountUSD;
-
-        emit CrossChainSpendSynced(
-            proof.account,
-            proof.sourceChainId,
-            proof.amountUSD,
-            crossChainSpent[proof.account][proof.epoch],
-            proof.epoch
-        );
+        require(signer == p.rootOwner || authorizedSessionKeys[proof.account][signer], "INVALID_CROSS_CHAIN_SIGNER");
+        _applyCrossChainSpend(proof.account, proof.sourceChainId, proof.amountUSD, proof.epoch);
     }
 
     /**
@@ -1511,11 +1473,24 @@ contract TetherGuardHook is IERC7579Hook {
     // --- Biometric Grace Period & Sign Approval System (Breaking the Tether) ---
     // =========================================================================
 
+    function _recordSignApproval(address account, bytes32 executionHash, bool approve) internal {
+        lastUserActivity[account] = block.timestamp;
+        if (approve) {
+            signApprovals[account][executionHash] = true;
+            signRejections[account][executionHash] = false;
+            uint256 windowEnd = biometricVerifiedUntil[account];
+            uint256 minGrace = block.timestamp + 60 seconds;
+            signApprovalExpiresAt[account][executionHash] = windowEnd > minGrace ? windowEnd : minGrace;
+        } else {
+            signApprovals[account][executionHash] = false;
+            signRejections[account][executionHash] = true;
+            delete signApprovalExpiresAt[account][executionHash];
+        }
+        emit SignApprovalSubmitted(account, executionHash, approve);
+    }
+
     /**
      * @notice Completes biometric verification (FaceID / TouchID / Passkey) when the user is active.
-     * @dev Opens an active 5-minute verification grace period. During this window, any
-     *      breakout transaction sent by the Brain requires only a simple sign approval
-     *      (Normal Accept or Reject), rather than prompting for biometric authentication repeatedly.
      * @param account The address of the smart account.
      */
     function completeBiometricVerification(address account) external onlyAccountOrOwner(account) {
@@ -1536,8 +1511,6 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice User provides Sign Approval (Normal Accept or Reject) for a transaction proposed by the Brain.
-     * @dev Can only be called while the 5-minute biometric verification window is active.
-     *      Does NOT prompt for biometrics—just a standard sign approval confirmation.
      * @param account The smart account.
      * @param executionHash The keccak256 hash of the execution calldata.
      * @param approve True for Accept, False for Reject.
@@ -1549,27 +1522,11 @@ contract TetherGuardHook is IERC7579Hook {
         if (block.timestamp > biometricVerifiedUntil[account]) {
             revert BiometricVerificationRequired();
         }
-
-        lastUserActivity[account] = block.timestamp;
-
-        if (approve) {
-            signApprovals[account][executionHash] = true;
-            signRejections[account][executionHash] = false;
-            uint256 windowEnd = biometricVerifiedUntil[account];
-            uint256 minGrace = block.timestamp + 60 seconds;
-            signApprovalExpiresAt[account][executionHash] = windowEnd > minGrace ? windowEnd : minGrace;
-        } else {
-            signApprovals[account][executionHash] = false;
-            signRejections[account][executionHash] = true;
-            delete signApprovalExpiresAt[account][executionHash];
-        }
-
-        emit SignApprovalSubmitted(account, executionHash, approve);
+        _recordSignApproval(account, executionHash, approve);
     }
 
     /**
      * @notice Relayed / Gasless Sign Approval with an ECDSA signature from the Root Owner.
-     * @dev Protected with nonce, deadline, and chainId to prevent signature replay and cross-chain attacks.
      * @param account The smart account address.
      * @param executionHash The keccak256 hash of the target execution calldata.
      * @param approve True to approve, false to reject.
@@ -1602,21 +1559,7 @@ contract TetherGuardHook is IERC7579Hook {
             revert InvalidApprovalSignature();
         }
 
-        lastUserActivity[account] = block.timestamp;
-
-        if (approve) {
-            signApprovals[account][executionHash] = true;
-            signRejections[account][executionHash] = false;
-            uint256 windowEnd = biometricVerifiedUntil[account];
-            uint256 minGrace = block.timestamp + 60 seconds;
-            signApprovalExpiresAt[account][executionHash] = windowEnd > minGrace ? windowEnd : minGrace;
-        } else {
-            signApprovals[account][executionHash] = false;
-            signRejections[account][executionHash] = true;
-            delete signApprovalExpiresAt[account][executionHash];
-        }
-
-        emit SignApprovalSubmitted(account, executionHash, approve);
+        _recordSignApproval(account, executionHash, approve);
     }
 
     /**
