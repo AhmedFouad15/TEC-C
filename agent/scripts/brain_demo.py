@@ -58,6 +58,9 @@ def resolve_reply(template: dict[str, Any], payload: dict[str, Any]) -> dict[str
             alloc["candidate_id"] = cand["id"]
             if alloc.get("amount_usd") == "$CAP":
                 alloc["amount_usd"] = cand["max_amount_usd"]
+            elif isinstance(alloc.get("amount_usd"), str) and alloc["amount_usd"].startswith("$CAP*"):
+                # a share of the cap: the model works in privacy units, so scripts size relative to the cap
+                alloc["amount_usd"] = round(cand["max_amount_usd"] * float(alloc["amount_usd"][5:]), 6)
         allocations.append(alloc)
     reply["allocations"] = allocations
     if reply.get("total_auto_usd") == "$AUTO_SUM":

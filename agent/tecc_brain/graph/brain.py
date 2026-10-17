@@ -255,7 +255,8 @@ def build_brain_input(
 PRIVACY_UNITS = 1000.0
 PRIVACY_NOTE = (
     "\nPRIVACY: every money amount in BRAIN_INPUT (fields ending in _usd) is in privacy units, not dollars: the "
-    "user's confirmed order is scaled to 1000. Reply with amounts in the same units."
+    "user's confirmed order is scaled to 1000. Reply with amounts in the same units, and do not state money amounts "
+    "in user_explanation (the app shows the real figures)."
 )
 _USD_LIMITS = ("vault_radius_remaining_usd", "soft_limit_usd", "baseline_auto_usd")
 
@@ -267,20 +268,21 @@ def _privacy_scale(payload: dict[str, Any]) -> float:
     return PRIVACY_UNITS / base if base and base > 0 else 1.0
 
 
+def _scale_usd(node: Any, k: float) -> Any:
+    if isinstance(node, dict):
+        return {key: (round(v * k, 6) if key.endswith("_usd") and isinstance(v, (int, float)) and not isinstance(v, bool)
+                      else _scale_usd(v, k)) for key, v in node.items()}
+    if isinstance(node, list):
+        return [_scale_usd(v, k) for v in node]
+    return node
+
+
 def privatize(payload: dict[str, Any]) -> tuple[dict[str, Any], float]:
-    """The payload as the cloud model sees it, and the scale k (units = dollars × k)."""
+    """The payload as the cloud model sees it, and the scale k (units = dollars × k). Every field ending in _usd is
+    rescaled wherever it sits (mandate, options, candidates, limits); quoted headlines are public text, left as is."""
     k = _privacy_scale(payload)
-    cloud = json.loads(json.dumps(payload))
-
-    def units(x: float | None) -> float | None:
-        return round(x * k, 6) if x is not None else None
-
-    cloud["mandate"]["amount_usd"] = units(cloud["mandate"].get("amount_usd"))
+    cloud = {key: (v if key == "untrusted_text" else _scale_usd(v, k)) for key, v in payload.items()}
     cloud["mandate"].pop("amount", None)  # "10 ETH" would reveal the size: the model only needs the scaled USD
-    for key in _USD_LIMITS:
-        cloud["limits"][key] = units(cloud["limits"][key])
-    for c in cloud["candidates"]:
-        c["amount_usd"], c["max_amount_usd"] = units(c["amount_usd"]), units(c["max_amount_usd"])
     return cloud, k
 
 

@@ -81,17 +81,20 @@ def test_payload_describes_the_options_list(store):
     assert p["mandate"]["kind"] == "options_list"
     assert [o["option_id"] for o in p["mandate"]["options"]] == ["a", "b", "x"]
     assert {c["option_id"] for c in p["candidates"]} == {"a", "b"}
-    assert all(c["max_amount_usd"] == pytest.approx(150) for c in p["candidates"])  # per-option AUTO caps
+    caps = [c["max_amount_usd"] for c in p["candidates"]]  # per-option AUTO caps, in privacy units (Finding B)
+    assert caps[0] == pytest.approx(caps[1]) and caps[0] != pytest.approx(150)
     assert p["vetoes"][0]["id"] == "veto:x" and p["vetoes"][0]["venue_id"] is None
-    assert p["limits"]["baseline_auto_usd"] == pytest.approx(300)
+    assert p["limits"]["baseline_auto_usd"] == pytest.approx(2 * caps[0])
+    assert all(o["amount_usd"] != 150 for o in p["mandate"]["options"])  # option sizes are scaled too
 
 
 def test_model_can_narrow_a_split_to_one_smaller_execution(store):
     def narrow(v, p):
         first, second = p["candidates"]
-        v.update(decision="EXECUTE", total_auto_usd=100.0, reason_codes=["TOP_SCORE"], allocations=[
-            {"candidate_id": first["id"], "amount_usd": 100.0, "mode": "AUTO"},
-            {"candidate_id": second["id"], "amount_usd": 150.0, "mode": "PROPOSE"},
+        smaller = first["max_amount_usd"] * 100 / 150  # $100 of a $150 cap, expressed in privacy units
+        v.update(decision="EXECUTE", total_auto_usd=smaller, reason_codes=["TOP_SCORE"], allocations=[
+            {"candidate_id": first["id"], "amount_usd": smaller, "mode": "AUTO"},
+            {"candidate_id": second["id"], "amount_usd": second["max_amount_usd"], "mode": "PROPOSE"},
         ])
         return v
 
@@ -99,8 +102,8 @@ def test_model_can_narrow_a_split_to_one_smaller_execution(store):
     assert body["brain_report"]["producer"] == "llm"
     assert body["status"] == "EXECUTE_ONE"
     modes = sorted((r["mode"], r["allocated_usd"]) for r in body["results"])
-    assert modes == [("AUTO", 100.0), ("PROPOSE", 0.0)]
-    assert [i["amount_usd"] for i in body["intents"]] == [100.0]
+    assert modes == [("AUTO", pytest.approx(100.0, abs=0.01)), ("PROPOSE", 0.0)]
+    assert [i["amount_usd"] for i in body["intents"]] == [pytest.approx(100.0, abs=0.01)]
 
 
 def test_model_reject_keeps_every_option_for_manual_approval(store):
@@ -115,8 +118,9 @@ def test_model_reject_keeps_every_option_for_manual_approval(store):
 
 
 @pytest.mark.parametrize("edit", [
-    lambda v, p: {**v, "decision": "SPLIT", "total_auto_usd": 400.0, "allocations": [
-        {"candidate_id": c["id"], "amount_usd": 200.0, "mode": "AUTO"} for c in p["candidates"]]},  # above each cap
+    lambda v, p: {**v, "decision": "SPLIT", "total_auto_usd": sum(c["max_amount_usd"] * 1.5 for c in p["candidates"]),
+                  "allocations": [{"candidate_id": c["id"], "amount_usd": c["max_amount_usd"] * 1.5, "mode": "AUTO"}
+                                  for c in p["candidates"]]},  # above each cap
     lambda v, p: {**v, "vetoes_honored": []},  # ignores the vetoed option
 ])
 def test_invalid_verdicts_leave_the_baseline_untouched(store, edit):
