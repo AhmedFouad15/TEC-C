@@ -17,8 +17,29 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-@pytest.fixture(scope="session")
-def anvil_url():
+def _is_our_fresh_chain(proc: subprocess.Popen, port: int, chain_id: int | None) -> bool:
+    """Our anvil process is alive and the node on the port is a brand-new chain with the expected id."""
+    import json
+    import urllib.request
+
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            return False  # anvil exited (e.g. port taken between _free_port and bind)
+        try:
+            def rpc(method):
+                req = urllib.request.Request(f"http://127.0.0.1:{port}", headers={"Content-Type": "application/json"},
+                                             data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": []}).encode())
+                with urllib.request.urlopen(req, timeout=1) as r:
+                    return int(json.loads(r.read())["result"], 16)
+
+            return rpc("eth_blockNumber") == 0 and (chain_id is None or rpc("eth_chainId") == chain_id)
+        except OSError:
+            time.sleep(0.1)
+    return False
+
+
+def _start_anvil(chain_id: int | None = None):
     anvil_bin = shutil.which("anvil")
     if not anvil_bin:
         foundry_anvil = Path.home() / ".foundry" / "bin" / "anvil.exe"
@@ -28,21 +49,33 @@ def anvil_url():
         pytest.skip("anvil not installed (brew install foundry)")
     if not (REPO / "contracts" / "out" / "TetherGuardHook.sol" / "TetherGuardHook.json").exists():
         pytest.skip("contracts not built (run `forge build` in contracts/)")
-    port = _free_port()
-    proc = subprocess.Popen(
-        [anvil_bin, "--port", str(port), "--host", "127.0.0.1", "--disable-code-size-limit", "--silent"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-                break
-        except OSError:
-            time.sleep(0.1)
+    for _attempt in range(3):
+        port = _free_port()
+        cmd = [anvil_bin, "--port", str(port), "--host", "127.0.0.1", "--disable-code-size-limit", "--silent"]
+        if chain_id is not None:
+            cmd += ["--chain-id", str(chain_id)]
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if _is_our_fresh_chain(proc, port, chain_id):
+            break
+        proc.kill()  # lost the port race, or something else answered on it: never test against a foreign node
     else:
-        proc.kill()
-        pytest.skip("anvil did not start")
-    yield f"http://127.0.0.1:{port}"
+        pytest.skip("anvil did not start on a free port")
+    return proc, f"http://127.0.0.1:{port}"
+
+
+@pytest.fixture(scope="session")
+def anvil_url():
+    proc, url = _start_anvil()
+    yield url
+    proc.terminate()
+    proc.wait(timeout=5)
+
+
+@pytest.fixture(scope="session")
+def arbitrum_like_url():
+    """A second, independent local chain with Arbitrum Sepolia's chain id (421614): proves the Commodities
+    executor sends real transactions on a different chain than Ethereum, exactly as it would on the testnet."""
+    proc, url = _start_anvil(chain_id=421614)
+    yield url
     proc.terminate()
     proc.wait(timeout=5)

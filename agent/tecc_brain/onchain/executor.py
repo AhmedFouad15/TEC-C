@@ -24,7 +24,7 @@ from tecc_brain.models import ActionType, ExecutionIntent, usd_to_onchain
 from tecc_brain.onchain.artifacts import Contract
 from tecc_brain.onchain.deploy import USDC_DECIMALS, LocalDeployment
 from tecc_brain.onchain.mandate import UserMandate
-from tecc_brain.onchain.rpc import Rpc, RpcError
+from tecc_brain.onchain.rpc import GAS_HEADROOM, GAS_MARGIN, Rpc, RpcError
 from tecc_brain.onchain.session import execution_calldata, session_signature
 
 ERC1271_MAGIC = bytes.fromhex("1626ba7e")
@@ -152,6 +152,12 @@ class ChainExecutor:
         if usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
             return failed(f"${intent.amount_usd:,.0f} exceeds the owner's mandate (max ${self.mandate.max_amount_usd:,.0f})")
         try:
+            connected = self.rpc.chain_id()
+        except (RpcError, OSError) as exc:
+            return failed(f"node unreachable: {exc}")
+        if connected != self.dep.chain_id:
+            return failed(f"connected to chain {connected}, but the deployment is for chain {self.dep.chain_id}; nothing sent")
+        try:
             calldata = self._execution(intent)
         except ValueError as exc:
             return failed(str(exc))
@@ -173,11 +179,10 @@ class ChainExecutor:
         except RpcError as exc:
             return failed(f"refused by the vault: {self._reason(exc)}")
 
-        gas_price = int(self.rpc.call("eth_gasPrice"), 16)
         signed = Account.sign_transaction({
-            "type": 2, "chainId": self.dep.chain_id, "to": self.dep.account, "data": data, "value": 0,
+            **self.rpc.fee_fields(), "chainId": self.dep.chain_id, "to": self.dep.account, "data": data, "value": 0,
             "nonce": int(self.rpc.call("eth_getTransactionCount", [self.key.address, "pending"]), 16),
-            "gas": int(gas * 1.25), "maxFeePerGas": gas_price * 2, "maxPriorityFeePerGas": min(gas_price, 10**9),
+            "gas": int(gas * GAS_MARGIN) + GAS_HEADROOM,
         }, self.key.key)
         try:
             receipt = self.rpc.send_raw("0x" + bytes(signed.raw_transaction).hex())
@@ -200,64 +205,78 @@ class ChainExecutor:
 CryptoExecutor = ChainExecutor
 
 
-class FiscoBcosExecutor:
-    """Chinese Market custom executor via FISCO BCOS consortium chain (WeBank & Tsinghua PBCSF).
+SIMULATION_GUIDE = "agent/MULTICHAIN_NODES.md"
 
-    Features:
-    - Enterprise gas quota sponsorship: 100% free transactions ($0.00 gas fee via consortium gas quota).
-    - Regulated consortium settlement: Onshore Shibor MMF and cross-border digital asset rails.
+
+def simulated(intent: ExecutionIntent, market: str, detail: str) -> ExecutionIntent:
+    """An honest dry run: nothing was sent, so there is no transaction hash."""
+    return intent.model_copy(update={
+        "status": "simulated",
+        "market": market,
+        "tx_hash": None,
+        "simulated": True,
+        "detail": f"SIMULATED: {detail}",
+    })
+
+
+class EvmMarketExecutor:
+    """A market whose chain runs Ethereum-compatible contracts and JSON-RPC (Arbitrum, FISCO BCOS web3 RPC, …).
+
+    Live when given a node (`rpc`), the vault deployed on it (`dep`), the owner's mandate and the session key:
+    it then sends real, vault-checked transactions through the same ChainExecutor as Ethereum. Without them it
+    reports `simulated` and never invents a transaction hash.
     """
+
+    market = "evm"
+    chain_label = "EVM chain"
+    network = "anvil"
+
+    def __init__(
+        self,
+        rpc: Rpc | None = None,
+        dep: LocalDeployment | None = None,
+        mandate: UserMandate | None = None,
+        session_key: bytes | str | None = None,
+        ledger: RecordLedger | None = None,
+    ) -> None:
+        self.rpc, self.dep, self.mandate = rpc, dep, mandate
+        live = rpc is not None and dep is not None and mandate is not None and session_key is not None
+        self.chain = ChainExecutor(rpc, dep, session_key, mandate, ledger) if live else None  # type: ignore[arg-type]
+
+    @property
+    def is_live(self) -> bool:
+        return self.chain is not None
+
+    def submit(self, intent: ExecutionIntent, account: str) -> ExecutionIntent:
+        if self.mandate and usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
+            return intent.model_copy(update={
+                "status": "failed", "market": self.market,
+                "detail": f"${intent.amount_usd:,.0f} exceeds mandate max ${self.mandate.max_amount_usd:,.0f}",
+            })
+        if self.chain is None:
+            return simulated(intent, self.market, (
+                f"no transaction was sent to {self.chain_label}: no node is configured for this market. "
+                f"Deploy with `scripts/deploy_market_chain.py --network {self.network}` (see {SIMULATION_GUIDE})."
+            ))
+        out = self.chain.submit(intent, account)
+        return out.model_copy(update={"market": self.market, "detail": f"{self.chain_label} (chain {self.dep.chain_id}): {out.detail}"})  # type: ignore[union-attr]
+
+
+class FiscoBcosExecutor(EvmMarketExecutor):
+    """Chinese market: FISCO BCOS (WeBank's consortium chain). FISCO BCOS 3.x nodes expose an Ethereum-compatible
+    `[web3_rpc]` endpoint, so the vault and this executor run unchanged once a node is up (see SIMULATION_GUIDE)."""
 
     market = "chinese_market"
-
-    def __init__(self, rpc: Rpc | None = None, dep: LocalDeployment | None = None, mandate: UserMandate | None = None) -> None:
-        self.rpc, self.dep, self.mandate = rpc, dep, mandate
-
-    def submit(self, intent: ExecutionIntent, account: str) -> ExecutionIntent:
-        if self.mandate and usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
-            return intent.model_copy(update={
-                "status": "failed",
-                "detail": f"${intent.amount_usd:,.0f} exceeds mandate max ${self.mandate.max_amount_usd:,.0f}",
-            })
-        tx_hash = f"0xf15c0{int(datetime.now(timezone.utc).timestamp())}{abs(hash(intent.venue_id)) % 10**10:010d}"
-        return intent.model_copy(update={
-            "status": "submitted",
-            "market": "chinese_market",
-            "tx_hash": tx_hash,
-            "simulated": True,  # no RPC call is made: the hash is generated locally (demo abstraction)
-            "target_address": intent.target_address or "fisco_bcos_consortium_gateway",
-            "detail": f"SIMULATED · FISCO BCOS: settled on WeBank consortium chain with enterprise gas sponsorship ($0.00 gas fee; action={intent.action.value})",
-        })
+    chain_label = "FISCO BCOS"
+    network = "fisco_bcos"
 
 
-class ArbitrumCommoditiesExecutor:
-    """Commodities custom executor via Arbitrum One L2 rollup.
-
-    Features:
-    - Low-latency L2 execution with ~18x gas discount vs L1.
-    - Specialized routing for tokenized commodities (e.g. PAXG gold, silver, commodity perps).
-    """
+class ArbitrumCommoditiesExecutor(EvmMarketExecutor):
+    """Commodities: Arbitrum One (or Arbitrum Sepolia for the demo), e.g. tokenized gold (PAXG)."""
 
     market = "commodities"
-
-    def __init__(self, rpc: Rpc | None = None, dep: LocalDeployment | None = None, mandate: UserMandate | None = None) -> None:
-        self.rpc, self.dep, self.mandate = rpc, dep, mandate
-
-    def submit(self, intent: ExecutionIntent, account: str) -> ExecutionIntent:
-        if self.mandate and usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
-            return intent.model_copy(update={
-                "status": "failed",
-                "detail": f"${intent.amount_usd:,.0f} exceeds mandate max ${self.mandate.max_amount_usd:,.0f}",
-            })
-        tx_hash = f"0x42161{int(datetime.now(timezone.utc).timestamp())}{abs(hash(intent.venue_id)) % 10**10:010d}"
-        return intent.model_copy(update={
-            "status": "submitted",
-            "market": "commodities",
-            "tx_hash": tx_hash,
-            "simulated": True,  # no RPC call is made: the hash is generated locally (demo abstraction)
-            "target_address": intent.target_address or "arbitrum_one_commodity_bridge",
-            "detail": f"SIMULATED · Arbitrum One: executed commodity order ({intent.asset_in} {intent.action.value} on {intent.venue_id}) via L2 nitro rollup sequencer",
-        })
+    chain_label = "Arbitrum"
+    network = "arbitrum"
 
 
 class PegGuardArbitrageExecutor:
@@ -370,13 +389,9 @@ class PegGuardArbitrageExecutor:
 
         l1, l2, l3, l4, l5 = decision.layer1, decision.layer2, decision.layer3, decision.layer4, decision.layer5
 
-        # Execute Asset-Specific Two-Leg Hedge Sequence (Layer 5)
-        tx_digest = keccak(
-            text=f"pegguard:{account}:{symbol}:{l5.hedge_class}:{intent.venue_id}:{l5.final_order_size_usd}:{l3.recovery_adjusted_ev_bps}"
-        ).hex()
-
+        # Layer 5 produces a two-leg *plan*. Neither leg has a live venue yet (perpetual exchange, FISCO repo
+        # facility), so the plan is returned as a simulation: no order is placed and no hash is invented.
         if l5.hedge_class == "CLASS_A_CRYPTO_PERP":
-            tx_hash = "0xcca1" + tx_digest[:60]
             target_addr = intent.target_address or f"{l5.long_leg_venue}+{l5.short_leg_venue}"
             detail = (
                 f"PegGuard Class A Two-Leg Arbitrage ({symbol}): "
@@ -392,12 +407,11 @@ class PegGuardArbitrageExecutor:
             eff_liab = repo.effective_short_liability_usd if repo else l5.final_order_size_usd
             p_usdt = repo.p_usdt_market if repo else 1.000
             saved = repo.squeeze_protection_saved_usd if repo else 0.0
-            tx_hash = "0xccb2" + tx_digest[:60]
             target_addr = intent.target_address or f"{l5.long_leg_venue}+{l5.short_leg_venue}"
             detail = (
                 f"PegGuard Class B Two-Leg Arbitrage ({symbol} via FISCO BCOS Par-Capped USDT Repo): "
                 f"[Leg 1: {l5.long_leg_instrument} on {l5.long_leg_venue} @ R_cons={l1.r_cons:.4f} (Baseline*={l1.baseline_star:.4f})] + "
-                f"[Leg 2: {l5.short_leg_instrument} on FISCO BCOS ($0.00 gas quota, P_USDT={p_usdt:.3f}, "
+                f"[Leg 2: {l5.short_leg_instrument} on FISCO BCOS (P_USDT={p_usdt:.3f}, "
                 f"Par-Capped Liability=${eff_liab:,.2f}, Squeeze Saved=${saved:,.2f})] | "
                 f"{l2.regime_name} (P_rec={l2.p_rec:.1%}) | "
                 f"Recovery-Adjusted EV={l3.recovery_adjusted_ev_bps:+.1f} bps | "
@@ -405,14 +419,8 @@ class PegGuardArbitrageExecutor:
                 f"OrderSize=${l5.final_order_size_usd:,.2f}"
             )
 
-        return intent.model_copy(update={
-            "status": "submitted",
-            "market": "arbitrage",
-            "tx_hash": tx_hash,
-            "simulated": True,  # no RPC call is made: the hash is generated locally (demo abstraction)
-            "target_address": target_addr,
-            "detail": f"SIMULATED · {detail}",
-        })
+        plan = simulated(intent, "arbitrage", f"PegGuard authorized a two-leg plan; no orders were placed. {detail}")
+        return plan.model_copy(update={"target_address": target_addr})
 
 
 class CrossChainTetherTracker:

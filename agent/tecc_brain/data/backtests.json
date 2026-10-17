@@ -1,41 +1,42 @@
 {
   "note": "Approximate daily closes for illustration; sentiment, redemption and liquidity inputs are hand-set from the public record, not fitted. Hurdle 2.15% throughout.",
+  "sentinel_note": "fear_greed: approximate daily values of the alternative.me Crypto Fear & Greed index (CMC's index did not exist in 2022); headline: paraphrased news of the day. Used only by the sentinel-weight backtest; hand-set, not fitted.",
   "hurdle_rate": 0.0215,
   "episodes": [
     {
       "id": "usdc_svb_2023", "title": "USDC after Silicon Valley Bank", "asset": "USDC", "position_usd": 10000,
       "note": "Coverage 0.9175 while $3.3B sat at SVB; FDIC backstop announced Sunday 12 Mar evening restores 1.0.",
       "points": [
-        {"date": "2023-03-10", "price": 1.000, "sentiment_negative": 0.30, "redemption_status": 0.0, "liquidity_stress": 0.20, "coverage": 1.0,    "event": "SVB fails"},
-        {"date": "2023-03-11", "price": 0.880, "sentiment_negative": 0.85, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 0.9175, "event": "Circle discloses $3.3B at SVB"},
-        {"date": "2023-03-12", "price": 0.950, "sentiment_negative": 0.70, "redemption_status": 0.5, "liquidity_stress": 0.70, "coverage": 0.9175, "event": "Weekend, banks closed"},
-        {"date": "2023-03-13", "price": 0.990, "sentiment_negative": 0.40, "redemption_status": 0.0, "liquidity_stress": 0.30, "coverage": 1.0,    "event": "FDIC backstop; redemptions resume"},
-        {"date": "2023-03-14", "price": 1.000, "sentiment_negative": 0.20, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0,    "event": "Peg restored"}
+        {"date": "2023-03-10", "price": 1.000, "sentiment_negative": 0.30, "redemption_status": 0.0, "liquidity_stress": 0.20, "coverage": 1.0,    "event": "SVB fails", "fear_greed": 34, "headline": "Silicon Valley Bank fails; Circle confirms part of USDC reserves are held at SVB"},
+        {"date": "2023-03-11", "price": 0.880, "sentiment_negative": 0.85, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 0.9175, "event": "Circle discloses $3.3B at SVB", "fear_greed": 33, "headline": "USDC de-pegs to 88 cents after Circle discloses $3.3B stuck at failed SVB"},
+        {"date": "2023-03-12", "price": 0.950, "sentiment_negative": 0.70, "redemption_status": 0.5, "liquidity_stress": 0.70, "coverage": 0.9175, "event": "Weekend, banks closed", "fear_greed": 36, "headline": "USDC trades below $1 as banks stay closed over the weekend"},
+        {"date": "2023-03-13", "price": 0.990, "sentiment_negative": 0.40, "redemption_status": 0.0, "liquidity_stress": 0.30, "coverage": 1.0,    "event": "FDIC backstop; redemptions resume", "fear_greed": 45, "headline": "Regulators backstop SVB deposits; USDC reserves fully covered and redemptions resume"},
+        {"date": "2023-03-14", "price": 1.000, "sentiment_negative": 0.20, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0,    "event": "Peg restored", "fear_greed": 50, "headline": "USDC restored to its $1 peg"}
       ]
     },
     {
       "id": "steth_celsius_2022", "title": "stETH during Celsius / 3AC", "asset": "stETH", "position_usd": 10000,
       "note": "No withdrawal path until Shanghai (R=1), but the staked ETH backing stayed intact.",
       "points": [
-        {"date": "2022-06-10", "price": 0.970, "sentiment_negative": 0.40, "redemption_status": 1.0, "liquidity_stress": 0.50, "coverage": 1.0, "event": "Curve pool imbalance grows"},
-        {"date": "2022-06-13", "price": 0.940, "sentiment_negative": 0.60, "redemption_status": 1.0, "liquidity_stress": 0.80, "coverage": 1.0, "event": "Celsius freezes withdrawals"},
-        {"date": "2022-06-15", "price": 0.950, "sentiment_negative": 0.60, "redemption_status": 1.0, "liquidity_stress": 0.70, "coverage": 1.0, "event": "3AC distress"},
-        {"date": "2022-06-18", "price": 0.940, "sentiment_negative": 0.50, "redemption_status": 1.0, "liquidity_stress": 0.70, "coverage": 1.0, "event": "Forced selling"},
-        {"date": "2022-07-15", "price": 0.970, "sentiment_negative": 0.30, "redemption_status": 1.0, "liquidity_stress": 0.40, "coverage": 1.0, "event": "Discount narrows"},
-        {"date": "2023-04-13", "price": 1.000, "sentiment_negative": 0.10, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0, "event": "Shanghai enables withdrawals"}
+        {"date": "2022-06-10", "price": 0.970, "sentiment_negative": 0.40, "redemption_status": 1.0, "liquidity_stress": 0.50, "coverage": 1.0, "event": "Curve pool imbalance grows", "fear_greed": 23, "headline": "stETH discount widens as Curve pool imbalance grows"},
+        {"date": "2022-06-13", "price": 0.940, "sentiment_negative": 0.60, "redemption_status": 1.0, "liquidity_stress": 0.80, "coverage": 1.0, "event": "Celsius freezes withdrawals", "fear_greed": 11, "headline": "Celsius pauses withdrawals; stETH depeg deepens"},
+        {"date": "2022-06-15", "price": 0.950, "sentiment_negative": 0.60, "redemption_status": 1.0, "liquidity_stress": 0.70, "coverage": 1.0, "event": "3AC distress", "fear_greed": 7, "headline": "3AC faces insolvency as stETH sell-off continues"},
+        {"date": "2022-06-18", "price": 0.940, "sentiment_negative": 0.50, "redemption_status": 1.0, "liquidity_stress": 0.70, "coverage": 1.0, "event": "Forced selling", "fear_greed": 7, "headline": "Forced selling keeps stETH below ETH"},
+        {"date": "2022-07-15", "price": 0.970, "sentiment_negative": 0.30, "redemption_status": 1.0, "liquidity_stress": 0.40, "coverage": 1.0, "event": "Discount narrows", "fear_greed": 20, "headline": "stETH discount narrows as markets calm"},
+        {"date": "2023-04-13", "price": 1.000, "sentiment_negative": 0.10, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0, "event": "Shanghai enables withdrawals", "fear_greed": 62, "headline": "Shanghai upgrade enables staked ETH withdrawals"}
       ]
     },
     {
       "id": "ust_2022", "title": "UST collapse", "asset": "UST", "position_usd": 10000,
       "note": "Mint/burn claim honoured at $1 of LUNA while it worked (coverage 1.0); real reserves ~$3B BTC vs ~$18B supply (q 0.20).",
       "points": [
-        {"date": "2022-05-05", "price": 1.000, "sentiment_negative": 0.10, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0, "event": "Calm"},
-        {"date": "2022-05-07", "price": 0.990, "sentiment_negative": 0.30, "redemption_status": 0.0, "liquidity_stress": 0.30, "coverage": 1.0, "event": "Large Curve withdrawals"},
-        {"date": "2022-05-09", "price": 0.950, "sentiment_negative": 0.80, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 1.0, "event": "LFG deploys BTC reserves"},
-        {"date": "2022-05-10", "price": 0.700, "sentiment_negative": 0.80, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 1.0, "event": "Mint/burn capacity overwhelmed"},
-        {"date": "2022-05-11", "price": 0.400, "sentiment_negative": 0.90, "redemption_status": 1.0, "liquidity_stress": 0.95, "coverage": 1.0, "event": "Death spiral"},
-        {"date": "2022-05-12", "price": 0.150, "sentiment_negative": 0.95, "redemption_status": 1.0, "liquidity_stress": 1.00, "coverage": 1.0, "event": "Terra chain halted"},
-        {"date": "2022-05-13", "price": 0.100, "sentiment_negative": 0.95, "redemption_status": 1.0, "liquidity_stress": 1.00, "coverage": 1.0, "event": "Collapse"}
+        {"date": "2022-05-05", "price": 1.000, "sentiment_negative": 0.10, "redemption_status": 0.0, "liquidity_stress": 0.10, "coverage": 1.0, "event": "Calm", "fear_greed": 27, "headline": "Terra's UST holds its peg as Anchor deposits grow"},
+        {"date": "2022-05-07", "price": 0.990, "sentiment_negative": 0.30, "redemption_status": 0.0, "liquidity_stress": 0.30, "coverage": 1.0, "event": "Large Curve withdrawals", "fear_greed": 22, "headline": "Large withdrawals from the Curve UST pool spark concern"},
+        {"date": "2022-05-09", "price": 0.950, "sentiment_negative": 0.80, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 1.0, "event": "LFG deploys BTC reserves", "fear_greed": 11, "headline": "UST de-pegs to 95 cents; LFG deploys bitcoin reserves to defend it"},
+        {"date": "2022-05-10", "price": 0.700, "sentiment_negative": 0.80, "redemption_status": 0.5, "liquidity_stress": 0.90, "coverage": 1.0, "event": "Mint/burn capacity overwhelmed", "fear_greed": 10, "headline": "UST crashes to 70 cents as mint/burn capacity is overwhelmed"},
+        {"date": "2022-05-11", "price": 0.400, "sentiment_negative": 0.90, "redemption_status": 1.0, "liquidity_stress": 0.95, "coverage": 1.0, "event": "Death spiral", "fear_greed": 10, "headline": "UST depeg turns into a death spiral as LUNA collapses"},
+        {"date": "2022-05-12", "price": 0.150, "sentiment_negative": 0.95, "redemption_status": 1.0, "liquidity_stress": 1.00, "coverage": 1.0, "event": "Terra chain halted", "fear_greed": 10, "headline": "Terra blockchain halted after UST and LUNA collapse"},
+        {"date": "2022-05-13", "price": 0.100, "sentiment_negative": 0.95, "redemption_status": 1.0, "liquidity_stress": 1.00, "coverage": 1.0, "event": "Collapse", "fear_greed": 12, "headline": "UST collapses to 10 cents"}
       ]
     }
   ]

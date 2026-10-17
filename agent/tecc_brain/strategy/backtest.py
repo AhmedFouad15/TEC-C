@@ -9,6 +9,9 @@ All strategies start with the same position at the first day's price; extra buys
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from pydantic import BaseModel
 
 from tecc_brain.models import PegState
@@ -80,7 +83,13 @@ def available_backtests() -> list[str]:
     return [e["id"] for e in read_data_json("backtests.json")["episodes"]]
 
 
-def run_backtest(episode_id: str, ref: Reference | None = None) -> BacktestResult:
+def run_backtest(
+    episode_id: str,
+    ref: Reference | None = None,
+    sentiment_hook: Callable[[dict[str, Any], str], float] | None = None,
+) -> BacktestResult:
+    """`sentiment_hook(point, symbol)` → P(negative) from a news sentinel; like the live news hook it can only raise
+    the day's sentiment input, never lower it."""
     ref = ref or load_reference()
     data = read_data_json("backtests.json")
     episode = next((e for e in data["episodes"] if e["id"] == episode_id), None)
@@ -95,10 +104,13 @@ def run_backtest(episode_id: str, ref: Reference | None = None) -> BacktestResul
     steps: list[BacktestStep] = []
     for point in points:
         date, price = point["date"], point["price"]
+        sentiment = point["sentiment_negative"]
+        if sentiment_hook is not None:
+            sentiment = max(sentiment, sentiment_hook(point, asset.symbol))
         peg = PegState(
             symbol=asset.symbol,
             price=price,
-            sentiment_negative=point["sentiment_negative"],
+            sentiment_negative=sentiment,
             redemption_status=point["redemption_status"],
             liquidity_stress=point["liquidity_stress"],
             coverage=point["coverage"],

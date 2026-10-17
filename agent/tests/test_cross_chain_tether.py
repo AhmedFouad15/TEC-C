@@ -40,6 +40,16 @@ class MockCryptoExecutor:
         })
 
 
+class MockMarketExecutor:
+    """Stands in for a live market executor in tracker-only tests (no chain needed)."""
+
+    def __init__(self, market: str) -> None:
+        self.market = market
+
+    def submit(self, intent: ExecutionIntent, account: str) -> ExecutionIntent:
+        return intent.model_copy(update={"status": "submitted", "market": self.market, "tx_hash": "0x" + "ab" * 32})
+
+
 def test_cross_chain_tracker_initial_state():
     """Initially tracker has 0 spent and full remaining allowance."""
     tracker = CrossChainTetherTracker(daily_limit_usd=500.0)
@@ -103,8 +113,8 @@ def test_cross_chain_split_spend_locks_remaining():
     """
     tracker = CrossChainTetherTracker(daily_limit_usd=500.0)
     eth_exec = MockCryptoExecutor()
-    fisco_exec = FiscoBcosExecutor()
-    arb_exec = ArbitrumCommoditiesExecutor()
+    fisco_exec = MockMarketExecutor("chinese_market")
+    arb_exec = MockMarketExecutor("commodities")
 
     router = MarketRouter(
         crypto=eth_exec,
@@ -174,7 +184,7 @@ def test_cross_chain_account_isolation():
     assert can_tx_bob is True
 
 
-def test_live_anvil_cross_chain_sync_locks_onchain_hook_and_router(anvil_url, tmp_path):
+def test_live_anvil_cross_chain_sync_locks_onchain_hook_and_router(anvil_url, arbitrum_like_url, tmp_path):
     """End-to-end live Anvil test:
     1. Deploy real Vault on Anvil ($500 radius).
     2. Spend $300 on Ethereum via MarketRouter -> real on-chain execution.
@@ -208,7 +218,18 @@ def test_live_anvil_cross_chain_sync_locks_onchain_hook_and_router(anvil_url, tm
 
         ledger = RecordLedger(tmp_path / "records.json")
         eth_exec = ChainExecutor(rpc, dep, key.key, mandate, ledger)
-        arb_exec = ArbitrumCommoditiesExecutor(mandate=mandate)
+        # Arbitrum: a second, independent chain (chain id 421614) with its own vault — real transactions there too.
+        arb_rpc = Rpc(arbitrum_like_url)
+        arb_dep = deploy_local(arb_rpc, eth_usd=2500.0)
+        arb_key = Account.create()
+        arb_now = arb_rpc.block_timestamp()
+        arb_mandate = UserMandate(
+            account=arb_dep.account, session_key=arb_key.address, max_amount_usd=1000.0, valid_after=arb_now - 60,
+            valid_until=arb_now + 86_400, risk_tier=2, policy=policy_hash(sorted(arb_dep.venues)),
+        )
+        provision_session_key(arb_rpc, arb_dep, arb_mandate)
+        arb_exec = ArbitrumCommoditiesExecutor(arb_rpc, arb_dep, arb_mandate, session_key=arb_key.key,
+                                               ledger=RecordLedger(tmp_path / "arb_records.json"))
         fisco_exec = FiscoBcosExecutor(mandate=mandate)
         tracker = CrossChainTetherTracker(daily_limit_usd=500.0)
 
@@ -237,6 +258,7 @@ def test_live_anvil_cross_chain_sync_locks_onchain_hook_and_router(anvil_url, tm
             dep.account,
         )
         assert res_arb.status == "submitted", res_arb.detail
+        assert arb_rpc.call("eth_getTransactionReceipt", [res_arb.tx_hash])["status"] == "0x1"  # real, on chain 421614
         assert tracker.get_remaining(dep.account) == 0.0
 
         # Sync the $200 Arbitrum spend onto the Ethereum TetherGuardHook contract

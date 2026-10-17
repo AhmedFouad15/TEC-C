@@ -52,11 +52,11 @@ def test_fisco_bcos_executor_chinese_market():
     intent = sample_intent(venue_id="shibor_mmf", usd=300.0, action=ActionType.DEPOSIT, market="chinese_market")
     
     result = executor.submit(intent, "demo")
-    assert result.status == "submitted"
+    # No FISCO BCOS node configured: an honest simulation, never a fabricated transaction hash.
+    assert result.status == "simulated"
     assert result.market == "chinese_market"
-    assert result.tx_hash and result.tx_hash.startswith("0xf15c0")
-    assert "WeBank" in result.detail
-    assert "$0.00 gas fee" in result.detail
+    assert result.tx_hash is None
+    assert "FISCO BCOS" in result.detail and result.detail.startswith("SIMULATED:")
 
 
 def test_arbitrum_commodities_executor():
@@ -65,10 +65,11 @@ def test_arbitrum_commodities_executor():
     intent = sample_intent(venue_id="paxg_hold", usd=500.0, asset="USDC", action=ActionType.DEPOSIT, market="commodities")
     
     result = executor.submit(intent, "demo")
-    assert result.status == "submitted"
+    # No Arbitrum node configured: simulated (the live path is covered in test_market_live.py).
+    assert result.status == "simulated"
     assert result.market == "commodities"
-    assert result.tx_hash and result.tx_hash.startswith("0x42161")
-    assert "Arbitrum One" in result.detail
+    assert result.tx_hash is None
+    assert "Arbitrum" in result.detail
 
 
 def test_pegguard_arbitrage_executor():
@@ -77,9 +78,10 @@ def test_pegguard_arbitrage_executor():
     intent = sample_intent(venue_id="curve_steth_eth", usd=400.0, asset="ETH", action=ActionType.BUY_DISCOUNT, market="arbitrage")
 
     result = executor.submit(intent, "demo")
-    assert result.status == "submitted"
+    # PegGuard authorizes a two-leg plan; no live venue exists for the legs yet, so it is a simulation.
+    assert result.status == "simulated"
     assert result.market == "arbitrage"
-    assert result.tx_hash and result.tx_hash.startswith("0xcca1")
+    assert result.tx_hash is None
     assert "PegGuard Class A Two-Leg Arbitrage (stETH)" in result.detail
     assert executor.last_decision is not None and executor.last_decision.authorized is True
 
@@ -95,12 +97,12 @@ def test_market_router_dispatch():
     # 1. Chinese Market
     intent_cn = sample_intent(market="chinese_market")
     res_cn = router.submit(intent_cn, "demo")
-    assert "WeBank" in res_cn.detail
+    assert "FISCO BCOS" in res_cn.detail
 
     # 2. Commodities
     intent_com = sample_intent(market="commodities")
     res_com = router.submit(intent_com, "demo")
-    assert "Arbitrum One" in res_com.detail
+    assert "Arbitrum" in res_com.detail
 
     # 3. Arbitrage
     intent_arb = sample_intent(market="arbitrage")
@@ -151,21 +153,23 @@ def test_crypto_execution_action_dispatch(monkeypatch):
 
 
 def test_simulated_executors_are_labelled():
-    """D9: FISCO BCOS, Arbitrum and PegGuard make no RPC call, so their results say so — in a field the API and UI
-    can show, not only in prose."""
+    """D9: FISCO BCOS, Arbitrum and PegGuard make no RPC call when unconfigured, so their results say so — in fields
+    the API and UI can show, not only in prose."""
     fisco = FiscoBcosExecutor().submit(sample_intent(venue_id="shibor_mmf", market="chinese_market"), "demo")
     arb = ArbitrumCommoditiesExecutor().submit(sample_intent(venue_id="paxg_hold", asset="PAXG", market="commodities"), "demo")
     for res in (fisco, arb):
-        assert res.status == "submitted" and res.simulated is True
-        assert res.detail.startswith("SIMULATED · ")
+        assert res.status == "simulated" and res.simulated is True
+        assert res.tx_hash is None
+        assert res.detail.startswith("SIMULATED:")
 
 
 def test_pegguard_submissions_are_labelled_simulated():
     res = PegGuardArbitrageExecutor().submit(
         sample_intent(venue_id="curve_steth_eth", usd=400.0, asset="ETH", action=ActionType.BUY_DISCOUNT, market="arbitrage"), "demo")
-    assert res.status == "submitted"
-    assert res.simulated is True and res.detail.startswith("SIMULATED · ")
+    assert res.status == "simulated"
+    assert res.simulated is True and res.detail.startswith("SIMULATED:")
 
 
 def test_intents_are_not_simulated_by_default():
     assert sample_intent().simulated is False
+

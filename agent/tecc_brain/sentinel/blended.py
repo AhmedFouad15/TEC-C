@@ -43,9 +43,9 @@ GROK_MACRO_WEIGHT = 0.35
 COINGLASS_MACRO_WEIGHT = 0.30
 
 # Pipeline 2 Weights
-COINGLASS_TOKEN_WEIGHT = 0.45
-FINBERT_TOKEN_WEIGHT = 0.30
-GROK_TOKEN_WEIGHT = 0.25
+COINGLASS_TOKEN_WEIGHT = 0.30
+FINBERT_TOKEN_WEIGHT = 0.50
+GROK_TOKEN_WEIGHT = 0.20
 
 RegimeLabel = Literal["NORMAL_MARKET", "TEMPORARY_LIQUIDITY_DISTRESS", "FUNDAMENTAL_PEG_FAILURE"]
 REGIME_LABEL_MAP: dict[str, RegimeLabel] = {
@@ -53,6 +53,25 @@ REGIME_LABEL_MAP: dict[str, RegimeLabel] = {
     "distress": "TEMPORARY_LIQUIDITY_DISTRESS",
     "failure": "FUNDAMENTAL_PEG_FAILURE",
 }
+
+
+# How the token check becomes the P(negative) that feeds the regime model (review Finding D, backtested on the
+# USDC-SVB, stETH-Celsius and UST episodes — see strategy/sentinel_backtest.py):
+#   "anchored" (default): FinBERT's news P(negative) is the level; CoinGlass and Grok only move it when they deviate
+#                         from neutral (0.5): p = (1 − F) − w_C·(C − 0.5) − w_G·(G − 0.5).
+#   "linear"  (original): p = 1 − (w_C·C + w_F·F + w_G·G). With neutral C and G this reads "no signal" as ~50% bad
+#                         news, adding about +0.28 to P(negative) on calm days and costing the Brain its autonomy.
+# Weights 0.30 / 0.50 / 0.20 (was 0.45 / 0.30 / 0.25): the backtest cannot validate CoinGlass or Grok (no history),
+# so together they may move P(negative) by at most ±0.25 around FinBERT's reading.
+TOKEN_P_NEGATIVE_MODE = "anchored"
+
+
+def token_p_negative(cg_score: float, finbert_score: float, grok_score: float) -> float:
+    if TOKEN_P_NEGATIVE_MODE == "linear":
+        p = 1.0 - (COINGLASS_TOKEN_WEIGHT * cg_score + FINBERT_TOKEN_WEIGHT * finbert_score + GROK_TOKEN_WEIGHT * grok_score)
+    else:
+        p = (1.0 - finbert_score) - COINGLASS_TOKEN_WEIGHT * (cg_score - 0.5) - GROK_TOKEN_WEIGHT * (grok_score - 0.5)
+    return round(min(1.0, max(0.0, p)), 3)
 
 
 class MarketStatementReport(BaseModel):
@@ -240,7 +259,7 @@ class NewsRiskSentinel:
                 )
                 token_score = round(raw_token_score, 3)
                 combined_score = round(0.50 * market_score + 0.50 * token_score, 3)
-                p_negative = round(1.0 - token_score, 3)
+                p_negative = token_p_negative(cg_score, finbert_score, grok_score)
 
             token_report = TokenCheckReport(
                 symbol=symbol,
@@ -304,7 +323,7 @@ class NewsRiskSentinel:
                         p_negative=a.p_negative,
                         headline=(
                             f"Upgraded Sentinel: Macro {report.overall_buy_sell_score:.2f} (35% CMC + 35% Grok + 30% CoinGlass) | "
-                            f"Token {tc.token_buy_sell_score if tc else 0.5:.2f} (45% CoinGlass + 30% FinBERT + 25% Grok) "
+                            f"Token {tc.token_buy_sell_score if tc else 0.5:.2f} (30% CoinGlass + 50% FinBERT + 20% Grok) "
                             f"→ buy/sell {a.buy_sell_score:.2f}."
                         ),
                         source="Upgraded Market Statement & Token Check (FinBERT + Grok + CoinGlass)",
@@ -321,6 +340,8 @@ def make_news_hook(sentinel: NewsRiskSentinel, ref: Reference) -> Callable[[Mark
 
 
 __all__ = [
+    "TOKEN_P_NEGATIVE_MODE",
+    "token_p_negative",
     "CMC_MACRO_WEIGHT",
     "COINGLASS_MACRO_WEIGHT",
     "COINGLASS_TOKEN_WEIGHT",

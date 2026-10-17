@@ -20,25 +20,25 @@
   },
   "deployedAddresses": {
     "EntryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-    "TetherGuardHook": "0x0000000000000000000000000000000000dEaD",
-    "SessionKeyValidator": "0x0000000000000000000000000000000000dEaD",
-    "TecPaymaster": "0x0000000000000000000000000000000000dEaD",
-    "TecAccount": "0x0000000000000000000000000000000000dEaD",
+    "TetherGuardHook": "0x000000000000000000000000000000000000dEaD",
+    "SessionKeyValidator": "0x000000000000000000000000000000000000dEaD",
+    "TecPaymaster": "0x000000000000000000000000000000000000dEaD",
+    "TecAccount": "0x000000000000000000000000000000000000dEaD",
     "USDC": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
     "ETHUSDFeed": "0x694AA1769357215DE4FAC081bf1f309aDC325306",
-    "USDCUSDFeed": "0x0000000000000000000000000000000000dEaD",
-    "LidoStaking": "0x0000000000000000000000000000000000dEaD",
-    "CurveLP": "0x0000000000000000000000000000000000dEaD"
+    "USDCUSDFeed": "0x000000000000000000000000000000000000dEaD",
+    "LidoStaking": "0x000000000000000000000000000000000000dEaD",
+    "CurveLP": "0x000000000000000000000000000000000000dEaD"
   },
   "venues": {
     "note": "venue id (from agent/tecc_brain/data/venues.json) -> deployed target address on Sepolia; filled by the smart-contract engineer."
   },
   "eip712": {
     "domain": {
-      "name": "Tec-C Autonomous Agent Mandate",
+      "name": "Tec-C UserMandate",
       "version": "1",
       "chainId": 11155111,
-      "verifyingContract": "0x0000000000000000000000000000000000dEaD"
+      "verifyingContract": "0x000000000000000000000000000000000000dEaD"
     }
   }
 }

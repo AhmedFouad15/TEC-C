@@ -432,7 +432,10 @@ class ExecutionIntent(BaseModel):
         "crypto",
         description="Target market: 'crypto' (Ethereum), 'chinese_market' (FISCO BCOS), 'commodities' (Arbitrum One), or 'arbitrage' (PegGuard)",
     )
-    status: Literal["pending_signature", "signed", "submitted", "breakout_required", "failed"] = "pending_signature"
+    status: Literal["pending_signature", "signed", "submitted", "breakout_required", "failed", "simulated"] = Field(
+        "pending_signature",
+        description="'simulated' = no transaction was sent (that market has no live node configured); never has a tx_hash",
+    )
     tx_hash: str | None = None
     simulated: bool = Field(
         False,
