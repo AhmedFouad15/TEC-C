@@ -12,13 +12,13 @@ See: .planning/PROJECT.md (updated 2026-10-16)
 Phase: 6.2 complete (branch `fix/audit-resolution`) · 7 of 8 in progress (07-01, 07-02 done; 07-03 not started)
 Plan: Next — 07-03 (review events → learning, on-chain levers), then Phase 8
 Status: In progress
-Last activity: 2026-10-18 — Phase 6.2: every System Flow Audit finding (B1–B5, N1–N8) resolved; 658 Python tests
+Last activity: 2026-10-18 — Phase 6.2: every System Flow Audit finding (B1–B5, N1–N8) resolved; 660 Python tests
 
 Progress: ████████▌░ 86% (26/30 plans)
 
 ## Test Status (2026-10-18, `cd agent && python -m pytest`)
 
-- 658 Python tests: 657 pass; `test_audit_anchor.py::test_privacy_audit_anchor_client_submit_and_verify` needs a
+- 660 Python tests: 659 pass; `test_audit_anchor.py::test_privacy_audit_anchor_client_submit_and_verify` needs a
   current `forge build` (the local `contracts/out` predates `PrivacyAuditAnchor.sol`). Regression tests for every
   audit finding: `agent/tests/test_audit_resolution.py`.
 - Demo fixtures: `python -m scripts.brain_demo` (from `agent/`) — 2 scenarios, 10 steps, all as expected.

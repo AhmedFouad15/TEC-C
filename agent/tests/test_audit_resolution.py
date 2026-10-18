@@ -237,13 +237,20 @@ def test_n1_same_venue_options_are_told_apart_by_option_id(api):
 # --- N2 / N6: the Brain sets the market and execution goes through the router ---------------------------
 
 
-def test_n2_market_follows_the_venue(api):
-    body = api.post("/evaluate_options", json={"options": [
-        {"option_id": "mmf", "action": "deposit", "asset": "USDC", "amount_usd": 100, "venue_id": "shibor_mmf"},
-        {"option_id": "gold", "action": "deposit", "asset": "USDC", "amount_usd": 100, "venue_id": "paxg_hold"}]}).json()
-    by_venue = {i["venue_id"]: i["market"] for i in body["intents"]}
-    assert by_venue.get("shibor_mmf", "chinese_market") == "chinese_market"
-    assert by_venue.get("paxg_hold", "commodities") == "commodities"
+@pytest.mark.parametrize(("text", "venue", "market"), [
+    ("Deposit 300 USDC into paxos", "paxg_hold", "commodities"),  # Arbitrum One
+    ("Put 200 USDC into shibor_mmf", "shibor_mmf", "chinese_market"),  # FISCO BCOS
+])
+def test_n2_market_follows_the_venue_through_execution(api, text, venue, market):
+    body = api.post("/api/mandate/propose", json={"text": text}).json()
+    card = next(c for c in body["decision"]["cards"] if c["candidate"]["venue_id"] == venue)
+    assert card["market"] == market
+    out = api.post("/api/mandate/execute", json={"proposal_id": body["proposal_id"], "label": card["label"],
+                                                 "venue_id": venue}).json()
+    assert out["intent"]["market"] == market and out["intent"]["status"] == "simulated"
+
+
+def test_n2_propose_routes_its_automatic_slice(api):
     propose = api.post("/api/mandate/propose", json={"text": "Optimize my $1,500 USDC"}).json()
     assert propose["intent"]["market"] == "crypto" and propose["intent"]["status"] == "simulated"
 
