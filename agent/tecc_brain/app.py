@@ -54,6 +54,21 @@ for module in (mandate, risk, profile, insight, options, arbitrage, biometrics):
 app.include_router(virtual_session_admin_router, dependencies=[Depends(require_client)])
 
 
+from pathlib import Path
+from fastapi.responses import HTMLResponse
+
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+
+
+@app.get("/", response_class=HTMLResponse)
+def index() -> HTMLResponse:
+    """Serves the interactive demo frontend for the Tec-C Agent Wallet."""
+    index_file = FRONTEND_DIR / "index.html"
+    if index_file.exists():
+        return HTMLResponse(index_file.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Tec-C Brain API</h1>")
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}

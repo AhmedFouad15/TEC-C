@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tec-C: Autonomous Agent Wallet | Command Center</title>
+  <style>
+    :root {
+      --bg: #F3F2EE;
+      --surface: #FFFFFF;
+      --border: #D4D2CA;
+      --border-subtle: #E7E5DE;
+      --border-input: #CFCDC4;
+      --text: #1E1E1C;
+      --muted: #77756D;
+      --green: #2E8B57;
+      --green-bg: #E3F3EA;
+      --green-dark: #1F6B41;
+      --blue: #2F5BEA;
+      --blue-bg: #E6EEFF;
+      --amber: #C98A00;
+      --amber-bg: #FFF3D6;
+      --red: #C0392B;
+      --red-bg: #FBF1F0;
+      --yellow-note: #FFE45C;
+      --yellow-border: #D9B800;
+      --yellow-input: #FFF3A8;
+      --font: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; font-family: inherit; }
+
+    /* Top Bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-badge {
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--text);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .spacer { flex: 1 1 20px; }
+    .top-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 13px;
+      background: var(--surface);
+      transition: all 0.2s;
+    }
+    .top-pill:hover { border-color: var(--text); }
+    .top-pill-btn { cursor: pointer; }
+    .donut-chart {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: conic-gradient(var(--green) 0 42%, var(--border-subtle) 0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .donut-inner {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+    }
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.active { background: var(--green); box-shadow: 0 0 0 2px var(--green-bg); }
+    .status-dot.locked { background: #B9B7AE; }
+    .status-dot.warning { background: var(--amber); }
+    .status-dot.danger { background: var(--red); }
+    .avatar-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    /* Layout */
+    .app-body {
+      display: flex;
+      flex: 1;
+      align-items: stretch;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      flex: 0 0 220px;
+      box-sizing: border-box;
+      padding: 20px 14px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .nav-item {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text);
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-item:hover { background: var(--bg); }
+    .nav-item.active {
+      background: var(--text);
+      color: #fff;
+      font-weight: 600;
+    }
+    .nav-badge {
+      background: var(--border-subtle);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0 8px;
+      font-size: 11px;
+      line-height: 18px;
+      font-weight: 700;
+    }
+    .nav-item.active .nav-badge {
+      background: #fff;
+      color: var(--text);
+    }
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Main Container */
+    .main-content {
+      flex: 1 1 800px;
+      min-width: 0;
+      padding: 28px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; gap: 24px; animation: fadeIn 0.2s ease-in-out; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Page Header */
+    .page-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .page-subtitle {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    /* Cards & Containers */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      box-sizing: border-box;
+    }
+    .card-title {
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    /* Button Groups & Pills */
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .pill-btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border-input);
+      border-radius: 999px;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .pill-btn:hover { border-color: var(--text); }
+    .pill-btn.active {
+      border-color: var(--text);
+      background: var(--text);
+      color: #fff;
+      font-weight: 600;
+    }
+    .pill-btn:disabled {
+      background: var(--bg);
+      border-style: dashed;
+      color: #A9A79E;
+      cursor: not-allowed;
+    }
+
+    /* Primary Action Button */
+    .btn-primary {
+      padding: 14px 24px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--text);
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      width: 100%;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover { opacity: 0.92; }
+    .btn-primary:active { transform: scale(0.99); }
+
+    /* Market Grid */
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .market-card {
+      border: 1px solid var(--border-input);
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      background: #fff;
+      transition: all 0.15s;
+    }
+    .market-card:hover { border-color: var(--text); }
+    .market-card.active {
+      border: 2px solid var(--text);
+      background: #FAFAFA;
+    }
+    .market-name { font-weight: 700; font-size: 13px; }
+    .market-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* Slider Component */
+    .slider-track-wrap {
+      position: relative;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--border-subtle);
+      margin: 10px 0 6px 0;
+      cursor: pointer;
+    }
+    .slider-fill {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--text);
+      width: 10%;
+      transition: width 0.1s;
+    }
+    .slider-thumb {
+      position: absolute;
+      top: -5px;
+      width: 18px;
+      height: 18px;
+      margin-left: -9px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      transition: left 0.1s;
+    }
+
+    /* Live Pipeline Timeline */
+    .timeline {
+      border-left: 2px solid var(--border);
+      margin: 16px 0 0 10px;
+      display: flex;
+      flex-direction: column;
+    }
+    .timeline-step {
+      position: relative;
+      padding: 0 0 20px 24px;
+    }
+    .timeline-dot {
+      position: absolute;
+      left: -12px;
+      top: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .timeline-dot.done { background: var(--green); color: #fff; }
+    .timeline-dot.running {
+      border: 3px solid var(--blue);
+      background: #fff;
+      animation: pulse 1.5s infinite;
+    }
+    .timeline-dot.waiting {
+      border: 2px solid var(--border-input);
+      background: #fff;
+      color: var(--muted);
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(47, 91, 234, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(47, 91, 234, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(47, 91, 234, 0); }
+    }
+
+    /* Candidate Cards (Screen 2) */
+    .candidate-card {
+      flex: 1 1 260px;
+      min-width: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .candidate-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+    .candidate-card.chosen {
+      border: 3px solid var(--text);
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 3px 10px;
+      display: inline-block;
+    }
+    .badge-green { background: var(--green-bg); color: var(--green); }
+    .badge-blue { background: var(--blue-bg); color: var(--blue); }
+    .badge-amber { background: var(--amber-bg); color: var(--amber); }
+    .badge-red { background: var(--red-bg); color: var(--red); }
+
+    /* Tables */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .data-table tr:hover td { background: #FAFAFA; }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 1000;
+    }
+    .toast {
+      background: var(--text);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.25s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(40px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span>Tec-C</span>
+      <span class="brand-badge">Agent Vault</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="top-pill">
+      <span style="color:var(--muted)">Vault</span>
+      <b id="top-vault-val">$48,210</b>
+      <span style="color:var(--green);font-weight:600">+1.2%</span>
+    </div>
+    <div class="top-pill">
+      <div class="donut-chart"><div class="donut-inner"></div></div>
+      <span style="color:var(--muted)">Tether</span>
+      <b id="top-tether-val">$420 / $1,000</b>
+    </div>
+    <div class="top-pill">
+      <span class="status-dot active"></span>
+      <span style="color:var(--muted)">Brain heartbeat</span>
+      <b>Live</b>
+    </div>
+    <div class="top-pill top-pill-btn" onclick="toggleBiometricWindow()" title="Click to simulate biometric FaceID unlock">
+      <span class="status-dot" id="bio-dot" style="background:#B9B7AE"></span>
+      <span style="color:var(--muted)">Biometric window</span>
+      <b id="bio-status-text">Locked</b>
+    </div>
+    <div class="avatar-btn" title="Pending Reviews: 3">3</div>
+    <div class="avatar-btn" style="background:var(--border-subtle);cursor:pointer;" onclick="switchTab('settings')" title="Vault Settings">⚙</div>
+  </header>
+
+  <div class="app-body">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <a href="#home" class="nav-item active" onclick="switchTab('home')">
+        <span>Home</span>
+      </a>
+      <a href="#opportunities" class="nav-item" onclick="switchTab('opportunities')">
+        <span>Opportunities</span>
+        <span class="nav-badge" id="opp-count">3</span>
+      </a>
+      <a href="#portfolio" class="nav-item" onclick="switchTab('portfolio')">
+        <span>Portfolio &amp; Watchdog</span>
+      </a>
+      <a href="#review" class="nav-item" onclick="switchTab('review')">
+        <span>Morning Review</span>
+        <span class="nav-badge" id="review-badge">3</span>
+      </a>
+      <a href="#virtual-session" class="nav-item" onclick="switchTab('virtual-session')">
+        <span>Virtual Sessions</span>
+      </a>
+      <a href="#settings" class="nav-item" onclick="switchTab('settings')">
+        <span>Safety &amp; Settings</span>
+      </a>
+
+      <div class="sidebar-footer">
+        <div><strong>Tec-C FinTechathon 2026</strong></div>
+        <div>Tsinghua PBCSF &bull; WeBank</div>
+        <div>ERC-7579 &bull; RIP-7212 P-256</div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 1: HOME - COMMAND CENTER -->
+      <!-- ======================================================== -->
+      <section id="panel-home" class="view-panel active">
+        <div>
+          <h1 class="page-title">Command Center</h1>
+          <p class="page-subtitle">Configure structured mandates inside your daily leash. The Brain explores, rates, and synthesizes.</p>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+          
+          <!-- Command Composer -->
+          <div class="card" style="flex:1.4 1 420px;display:flex;flex-direction:column;gap:18px;">
+            <div class="card-title">
+              <span>New Command Composer</span>
+              <span class="badge badge-green">Mathematical Leash</span>
+            </div>
+
+            <!-- Block 1: Action -->
+            <div>
+              <div class="section-label">1 &bull; Action</div>
+              <div class="pill-group" id="action-pills">
+                <button class="pill-btn" onclick="selectAction(this, 'Find opportunities')">Find opportunities</button>
+                <button class="pill-btn" onclick="selectAction(this, 'Invest')">Invest</button>
+                <button class="pill-btn active" onclick="selectAction(this, 'Stake')">Stake</button>
+                <button class="pill-btn" onclick="selectAction(this, 'Swap')">Swap</button>
+                <button class="pill-btn" onclick="selectAction(this, 'Rebalance')">Rebalance</button>
+                <button class="pill-btn" onclick="selectAction(this, 'Reduce risk')">Reduce risk</button>
+                <button class="pill-btn" onclick="selectAction(this, 'Exit position')">Exit position</button>
+                <button class="pill-btn" onclick="selectAction(this, 'Park idle cash')">Park idle cash</button>
+              </div>
+            </div>
+
+            <!-- Block 2: Market -->
+            <div>
+              <div class="section-label">2 &bull; Market</div>
+              <div class="market-grid">
+                <div class="market-card active" onclick="selectMarket(this, 'Crypto', 'Ethereum')">
+                  <div class="market-name">Crypto</div>
+                  <div class="market-sub">Ethereum L1</div>
+                  <span class="status-dot active" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" onclick="selectMarket(this, 'Chinese market', 'FISCO BCOS')">
+                  <div class="market-name">Chinese market</div>
+                  <div class="market-sub">FISCO BCOS</div>
+                  <span class="status-dot active" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" onclick="selectMarket(this, 'Commodities', 'Arbitrum One')">
+                  <div class="market-name">Commodities</div>
+                  <div class="market-sub">Arbitrum One</div>
+                  <span class="status-dot active" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" onclick="selectMarket(this, 'Arbitrage', 'PegGuard')">
+                  <div class="market-name">Arbitrage</div>
+                  <div class="market-sub">PegGuard 24/7</div>
+                  <span class="status-dot warning" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" onclick="selectMarket(this, 'Any', 'All enabled')">
+                  <div class="market-name">Any</div>
+                  <div class="market-sub">All enabled</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Block 3: Asset or Scope -->
+            <div>
+              <div class="section-label">3 &bull; Asset or Scope</div>
+              <div class="pill-group" id="asset-pills">
+                <button class="pill-btn active" onclick="selectAsset(this, 'ETH')">ETH</button>
+                <button class="pill-btn active" onclick="selectAsset(this, 'stETH')">stETH</button>
+                <button class="pill-btn" onclick="selectAsset(this, 'rETH')">rETH</button>
+                <button class="pill-btn" onclick="selectAsset(this, 'USDC')">USDC</button>
+                <button class="pill-btn" onclick="selectAsset(this, 'All in market')">All in market</button>
+              </div>
+            </div>
+
+            <!-- Block 4: Capital Amount -->
+            <div>
+              <div class="section-label">4 &bull; Capital Amount &amp; Tether Utilization</div>
+              <div class="pill-group">
+                <button class="pill-btn" onclick="setSliderPercent(5)">5%</button>
+                <button class="pill-btn active" id="btn-pct-10" onclick="setSliderPercent(10)">10%</button>
+                <button class="pill-btn" onclick="setSliderPercent(25)">25%</button>
+                <button class="pill-btn" onclick="setSliderPercent(50)">50%</button>
+              </div>
+              <div class="slider-track-wrap" onclick="handleSliderClick(event)">
+                <div class="slider-fill" id="slider-fill" style="width:10%;"></div>
+                <div class="slider-thumb" id="slider-thumb" style="left:10%;"></div>
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="slider-caption">
+                10% = $4,821 &bull; uses $482 of the $580 left in today's Tether Radius
+              </div>
+            </div>
+
+            <!-- Block 5: Risk Tier -->
+            <div>
+              <div class="section-label">5 &bull; Policy Risk Tier</div>
+              <div class="pill-group">
+                <button class="pill-btn" onclick="selectTier(this, 'Tier 1')">Tier 1 (Core Preservation)</button>
+                <button class="pill-btn active" onclick="selectTier(this, 'Tier 2')">Tier 2 (Growth Yield)</button>
+                <button class="pill-btn" disabled title="Tier 3 requires hardware Passkey biometric unlock">Tier 3 (Unrestricted &bull; Locked)</button>
+              </div>
+            </div>
+
+            <!-- Dynamic Prompt Preview -->
+            <div style="background:var(--bg);border-radius:10px;padding:12px 14px;font-style:italic;" id="prompt-preview">
+              &ldquo;Stake ETH and stETH in Crypto, using 10% of capital, Tier 2.&rdquo;
+            </div>
+
+            <button class="btn-primary" onclick="submitCommandToBrain()">
+              Submit to Brain
+            </button>
+          </div>
+
+          <!-- Live Pipeline Tracker -->
+          <div class="card" style="flex:1 1 300px;">
+            <div class="card-title">
+              <span>Live Pipeline</span>
+              <span style="font-size:12px;color:var(--muted)">Request #0412</span>
+            </div>
+
+            <div class="timeline" id="pipeline-timeline">
+              <div class="timeline-step">
+                <div class="timeline-dot done">&check;</div>
+                <div style="font-weight:600">Command Intake</div>
+                <div style="font-size:12px;color:var(--muted)">Submitted &bull; 0.2s</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot done">&check;</div>
+                <div style="font-weight:600">Brain Analysis</div>
+                <div style="font-size:12px;color:var(--muted)">3 options discovered &bull; 1.4s</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot running"></div>
+                <div style="font-weight:600">Multi-Agent Ratings</div>
+                <div style="margin-top:6px;display:flex;flex-direction:column;gap:5px;font-size:12px;">
+                  <div style="display:flex;justify-content:space-between"><span>News &amp; NLP</span><span style="color:var(--green);font-weight:600">done (+0.71)</span></div>
+                  <div style="display:flex;justify-content:space-between"><span>Econometrics &amp; Liquidity</span><span style="color:var(--blue);font-weight:600">running (CVaR -3.1%)</span></div>
+                  <div style="display:flex;justify-content:space-between"><span>Injection Defense</span><span style="color:var(--green);font-weight:600">pass (0 threats)</span></div>
+                </div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot waiting">&bull;</div>
+                <div style="font-weight:600;color:var(--muted)">Brain Decision Synthesis</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot waiting">&bull;</div>
+                <div style="font-weight:600;color:var(--muted)">Session Key Dispatch</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot waiting">&bull;</div>
+                <div style="font-weight:600;color:var(--muted)">TetherGuardHook PreCheck</div>
+              </div>
+            </div>
+
+            <button class="pill-btn" style="width:100%;margin-top:14px;border:1px solid var(--text);font-weight:600" onclick="switchTab('opportunities')">
+              View Evaluated Opportunities &rarr;
+            </button>
+          </div>
+
+          <!-- Status Widgets -->
+          <div style="flex:0.8 1 240px;display:flex;flex-direction:column;gap:16px;">
+            <div class="card">
+              <div class="section-label">Tether Leash Remaining</div>
+              <div style="font-size:26px;font-weight:800;margin-top:4px;">$580 <span style="font-size:13px;font-weight:400;color:var(--muted)">left today</span></div>
+              <div style="height:8px;border-radius:4px;background:var(--border-subtle);margin-top:10px;">
+                <div style="width:42%;height:8px;border-radius:4px;background:var(--green);"></div>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:8px;">Epoch resets in 09h 14m</div>
+            </div>
+
+            <div class="card">
+              <div class="section-label">Overnight Ratifications</div>
+              <div style="font-size:26px;font-weight:800;margin-top:4px;">3 <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span></div>
+              <button class="pill-btn" style="width:100%;margin-top:12px;border:1px solid var(--text);font-weight:600" onclick="switchTab('review')">
+                Review Morning Trades &rarr;
+              </button>
+            </div>
+
+            <!-- Background PegGuard Arbitrage Toggle -->
+            <div class="card" style="border-left:4px solid var(--amber);">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span class="section-label" style="margin:0">PegGuard Arbitrage</span>
+                <span class="badge badge-amber" id="arb-status-badge">Active</span>
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:8px;">
+                Autonomous 24/7 background de-peg scanner across 25 assets.
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+                <span style="font-size:12px;font-weight:600;">Status: <span id="arb-state-text" style="color:var(--green)">Enabled</span></span>
+                <button class="pill-btn" id="arb-toggle-btn" style="padding:4px 12px;font-size:12px;" onclick="togglePegGuardArbitrage()">Turn Off</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 2: OPPORTUNITIES & DEEP RATINGS -->
+      <!-- ======================================================== -->
+      <section id="panel-opportunities" class="view-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 class="page-title">Opportunities &amp; AI Ratings</h1>
+            <p class="page-subtitle">Request #0412 &bull; Stake ETH &amp; stETH in Crypto, 10% Capital, Tier 2</p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <span class="badge badge-blue" style="font-size:13px;padding:6px 14px;">Evaluated &bull; 3 Options</span>
+          </div>
+        </div>
+
+        <!-- Zone A: Candidates -->
+        <div class="section-label">Zone A &bull; Candidate Comparison for Request #0412</div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;">
+          
+          <!-- Option A -->
+          <div class="candidate-card chosen" onclick="selectCandidateCard(this, 'A')">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <b>A &bull; Stake ETH on Lido</b>
+              <span class="badge badge-green">Chosen 70%</span>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Crypto &bull; Staking &bull; 2.0 ETH &bull; $4,821</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
+              <span class="badge" style="border:1px solid var(--border)">News +0.71</span>
+              <span class="badge" style="border:1px solid var(--border)">Econ 0.64</span>
+              <span class="badge" style="border:1px solid var(--border)">Injection Pass</span>
+            </div>
+            <div style="font-size:22px;font-weight:800;margin-top:6px;">
+              0.68 <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
+            </div>
+          </div>
+
+          <!-- Option B -->
+          <div class="candidate-card" onclick="selectCandidateCard(this, 'B')">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <b>B &bull; Supply ETH on Aave v3</b>
+              <span class="badge badge-green">Chosen 30%</span>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Crypto &bull; Lending &bull; 2.0 ETH &bull; $4,821</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
+              <span class="badge" style="border:1px solid var(--border)">News +0.55</span>
+              <span class="badge" style="border:1px solid var(--border)">Econ 0.70</span>
+              <span class="badge" style="border:1px solid var(--border)">Injection Pass</span>
+            </div>
+            <div style="font-size:22px;font-weight:800;margin-top:6px;">
+              0.61 <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
+            </div>
+          </div>
+
+          <!-- Option C -->
+          <div class="candidate-card" onclick="selectCandidateCard(this, 'C')">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <b>C &bull; Buy stETH on DEX</b>
+              <span class="badge badge-red">Rejected</span>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Crypto &bull; Swap &bull; 2.0 ETH &bull; $4,821</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
+              <span class="badge" style="border:1px solid var(--border)">News +0.71</span>
+              <span class="badge" style="border:1px solid var(--border)">Econ 0.41</span>
+              <span class="badge badge-amber">Injection Warn</span>
+            </div>
+            <div style="font-size:22px;font-weight:800;margin-top:6px;">
+              0.44 <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Zone B: Deep Rating Breakdown -->
+        <div class="section-label">Zone B &bull; Deep Rating Breakdown for Selected Option (Lido Staking)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          
+          <!-- 1. News & Sentiment -->
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">
+              <span>1. News &amp; NLP Sentiment</span>
+              <span class="badge badge-green">+0.71 Positive</span>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted)">FinBERT Confidence Score (-1.0 to +1.0)</div>
+              <div style="position:relative;height:10px;border-radius:5px;margin-top:8px;background:linear-gradient(90deg,#E7B4AD,#E7E5DE,#B4DBC4)">
+                <div style="position:absolute;left:85%;top:-4px;width:6px;height:18px;margin-left:-3px;background:var(--text);border-radius:3px"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px">
+                <span>-1.0 Panic</span><span>0 Neutral</span><span>+1.0 Euphoria</span>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;">
+              <strong>Recent Headlines Analyzed:</strong>
+              <ul style="margin:6px 0 0 16px;line-height:1.6">
+                <li>Lido staking deposits hit record high (2h ago &bull; Positive)</li>
+                <li>Ethereum validator queue clears (5h ago &bull; Positive)</li>
+                <li>Staking rewards APY stable at 3.4% (7h ago &bull; Neutral)</li>
+              </ul>
+            </div>
+            <div style="background:var(--bg);border-radius:8px;padding:10px;font-size:12px;color:var(--muted);border-left:3px solid var(--blue)">
+              <strong>Vault Sovereignty Invariant:</strong> News informs trade sizing only; it can never freeze or halt the smart vault.
+            </div>
+          </div>
+
+          <!-- 2. Econometrics & Liquidity -->
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">
+              <span>2. Econometrics &amp; Liquidity</span>
+              <span class="badge badge-green">Acceptable</span>
+            </div>
+            <div style="display:flex;gap:10px;">
+              <div style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;">
+                <div style="font-size:11px;color:var(--muted)">Tail Risk (CVaR 95%)</div>
+                <div style="font-size:20px;font-weight:700">-3.1%</div>
+              </div>
+              <div style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;">
+                <div style="font-size:11px;color:var(--muted)">Extreme (CVaR 99%)</div>
+                <div style="font-size:20px;font-weight:700">-5.4%</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted)">Loss Distribution &bull; 95% CVaR Tail</div>
+              <svg width="100%" height="80" viewBox="0 0 280 80" style="margin-top:6px;">
+                <path d="M0 75 C40 75 60 60 90 30 C110 10 130 10 150 30 C180 60 200 72 230 75 L280 75" fill="none" stroke="#1E1E1C" stroke-width="2"/>
+                <path d="M200 72 C215 74 225 75 235 75 L280 75 L280 78 L200 78 Z" fill="#C0392B" opacity="0.5"/>
+                <line x1="200" y1="10" x2="200" y2="78" stroke="#C0392B" stroke-dasharray="4 3"/>
+              </svg>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">
+              Modeled slippage for $4,821 execution: <strong>0.08%</strong> (Liquidity depth $240M).
+            </div>
+          </div>
+
+          <!-- 3. Prompt-Injection Defense -->
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">
+              <span>3. Injection &amp; Policy Defense</span>
+              <span class="badge badge-green">Pass &bull; 0 Threats</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Target contract verified on bytecode whitelist</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Honeypot test: Clean verified contract</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Contract age: 4.2 years battle-tested</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Amount check: Exactly matches mandate ($4,821)</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Instruction scan: Zero prompt override keywords</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Zone C: Brain Decision & Autonomous Synthesis -->
+        <div class="card" style="border:2px solid var(--text);background:#FAFAFA;">
+          <div class="card-title">
+            <span>Zone C &bull; Brain Decision &amp; Autonomous Synthesis</span>
+            <span class="badge badge-green">Autonomous Execution</span>
+          </div>
+          <div style="font-size:14px;color:var(--text);line-height:1.6;">
+            <strong>Synthesis Rationale:</strong> Options A (Lido) and B (Aave) both pass hard safety filters with close composite scores (0.68 vs 0.61). The Brain chooses a portfolio diversification split: <strong>70% Lido Staking ($3,375)</strong> &bull; <strong>30% Aave Lending ($1,446)</strong>.
+          </div>
+          <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <button class="btn-primary" style="flex:1 1 200px" onclick="executeAutonomousTrade()">
+              Execute Autonomous Split Inside Tether ($482 of $580 Left)
+            </button>
+            <button class="pill-btn" onclick="showToast('Candidate vetoed: trade discarded.')">Discard</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 3: PORTFOLIO & HOURLY WATCHDOG -->
+      <!-- ======================================================== -->
+      <section id="panel-portfolio" class="view-panel">
+        <div>
+          <h1 class="page-title">Portfolio Holdings &amp; Watchdog</h1>
+          <p class="page-subtitle">Multi-chain treasury normalized to 8-decimal USD via Chainlink feeds &bull; 24-Hour Autonomous Watchdog</p>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          <!-- Valuation Card -->
+          <div class="card" style="flex:1.4 1 380px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:12px;color:var(--muted)">Total Portfolio Valuation</div>
+                <div style="font-size:32px;font-weight:800;letter-spacing:-0.02em;">$48,210</div>
+                <div style="color:var(--green);font-size:13px;font-weight:600;">+$574 (+1.2%) in 24h</div>
+              </div>
+              <div class="pill-group">
+                <button class="pill-btn active" style="padding:4px 12px;font-size:12px;">24h</button>
+                <button class="pill-btn" style="padding:4px 12px;font-size:12px;">7d</button>
+                <button class="pill-btn" style="padding:4px 12px;font-size:12px;">30d</button>
+              </div>
+            </div>
+            <!-- Trend SVG -->
+            <svg width="100%" height="100" viewBox="0 0 500 100" style="margin-top:14px;">
+              <path d="M0 75 C40 70 70 60 110 64 C150 68 190 40 230 42 C270 44 300 28 340 30 C380 32 420 18 460 22 C485 24 495 14 500 12" fill="none" stroke="#1E1E1C" stroke-width="2.5"/>
+              <path d="M0 75 C40 70 70 60 110 64 C150 68 190 40 230 42 C270 44 300 28 340 30 C380 32 420 18 460 22 C485 24 495 14 500 12 L500 100 L0 100 Z" fill="#E7E5DE" opacity="0.6"/>
+            </svg>
+          </div>
+
+          <!-- Sector Allocation Card -->
+          <div class="card" style="flex:1 1 280px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+            <div style="width:110px;height:110px;border-radius:50%;background:conic-gradient(#1E1E1C 0 52%,#2F5BEA 0 74%,#C98A00 0 90%,#B9B7AE 0);display:flex;align-items:center;justify-content:center;flex:none">
+              <div style="width:65px;height:65px;border-radius:50%;background:#fff"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;flex:1 1 120px;">
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#1E1E1C;margin-right:6px"></span>Crypto</span><b>52%</b></div>
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#2F5BEA;margin-right:6px"></span>Chinese Mkt</span><b>22%</b></div>
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#C98A00;margin-right:6px"></span>Commodities</span><b>16%</b></div>
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#B9B7AE;margin-right:6px"></span>Arbitrage</span><b>10%</b></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Holdings Table -->
+        <div class="card">
+          <div class="card-title">
+            <span>Treasury Holdings</span>
+            <input type="text" placeholder="Search asset..." style="padding:6px 12px;border:1px solid var(--border-input);border-radius:999px;font-size:12px;width:180px;">
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Market</th>
+                <th>Amount</th>
+                <th>USD Value</th>
+                <th>Share</th>
+                <th>24h P&amp;L</th>
+                <th>Sentiment</th>
+                <th>Health Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>stETH</strong></td>
+                <td>Crypto (Ethereum)</td>
+                <td>6.20</td>
+                <td>$14,933</td>
+                <td>31%</td>
+                <td style="color:var(--green);font-weight:600">+4.1%</td>
+                <td>Positive (+0.71)</td>
+                <td><span class="badge badge-green">&bull; OK</span></td>
+              </tr>
+              <tr>
+                <td><strong>USDC</strong></td>
+                <td>Crypto (Arbitrum One)</td>
+                <td>10,200</td>
+                <td>$10,200</td>
+                <td>21%</td>
+                <td style="color:var(--muted)">0.0%</td>
+                <td>Neutral (0.00)</td>
+                <td><span class="badge badge-green">&bull; OK</span></td>
+              </tr>
+              <tr>
+                <td><strong>PAXG</strong></td>
+                <td>Commodities (Arbitrum)</td>
+                <td>3.10</td>
+                <td>$7,720</td>
+                <td>16%</td>
+                <td style="color:var(--green);font-weight:600">+1.8%</td>
+                <td>Neutral (+0.12)</td>
+                <td><span class="badge badge-amber">&bull; Watch</span></td>
+              </tr>
+              <tr style="background:var(--red-bg)">
+                <td><strong>e-CNY MMF</strong></td>
+                <td>Chinese Mkt (FISCO BCOS)</td>
+                <td>10,600</td>
+                <td>$10,600</td>
+                <td>22%</td>
+                <td style="color:var(--red);font-weight:600">-0.6%</td>
+                <td style="color:var(--red)">Negative (-0.45)</td>
+                <td><span class="badge badge-red">&bull; Re-evaluate</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Hourly Watchdog Section -->
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          <div class="card" style="flex:1.2 1 380px;display:flex;flex-direction:column;gap:14px;">
+            <div class="card-title">
+              <span>Hourly Watchdog Engine</span>
+              <span style="font-size:12px;color:var(--muted)">Next scan in <span id="watchdog-timer">38:10</span></span>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Last 24 Scans (22 Clean &bull; 1 Signal &bull; 1 Negative News)</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot warning" title="Market signal"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot danger" title="Negative news detected"></span>
+              <span class="status-dot active" style="outline:2px solid var(--text);outline-offset:2px"></span>
+            </div>
+            <button class="pill-btn" style="border:1px solid var(--text);margin-top:6px;font-weight:600" onclick="triggerManualWatchdog()">
+              Trigger Emergency Watchdog Sweep Now
+            </button>
+          </div>
+
+          <div class="card" style="flex:1 1 320px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">Active Watchdog Alerts</div>
+            <div style="border:1px solid var(--red);border-radius:10px;padding:12px;background:var(--red-bg);display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong>e-CNY MMF &bull; Negative News</strong>
+                <span class="badge badge-blue">Re-evaluating</span>
+              </div>
+              <div style="font-size:12px;color:var(--text)">Brain triggered proposal to de-risk 10% into USDC collateral.</div>
+              <div style="font-size:11px;color:var(--muted)">Detected 22 min ago via News Risk Sentinel</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 4: MORNING REVIEW & ADAPTIVE LEARNING -->
+      <!-- ======================================================== -->
+      <section id="panel-review" class="view-panel">
+        <div>
+          <h1 class="page-title">Morning Review &amp; Learning</h1>
+          <p class="page-subtitle">Spend 15 seconds reviewing what the AI traded while you were asleep. Reward accuracy, flag mistakes, or teach the Brain.</p>
+        </div>
+
+        <div style="max-width:780px;display:flex;flex-direction:column;gap:18px;">
+          <!-- Summary Bar -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;">
+              <div><div style="font-size:12px;color:var(--muted)">Overnight Trades</div><div style="font-size:22px;font-weight:800">5</div></div>
+              <div><div style="font-size:12px;color:var(--muted)">Capital Moved</div><div style="font-size:22px;font-weight:800">$1,240</div></div>
+              <div><div style="font-size:12px;color:var(--muted)">Reviewed</div><div style="font-size:22px;font-weight:800" id="review-progress">2 of 5</div></div>
+              <div style="flex:1"></div>
+              <button class="pill-btn" style="border:1px solid var(--text);font-weight:700" onclick="ratifyAllRemaining()">Ratify the Rest</button>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+                <span>Like streak toward a radius increase</span>
+                <span>3 of 5 &bull; Eligible for +10% step-up</span>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:6px;" id="streak-bar">
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--green)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--green)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--green)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--border-subtle)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--border-subtle)"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Trade Card 1 (Expanded) -->
+          <div class="card" id="trade-card-1" style="border:2px solid var(--text);display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:800;font-size:16px;">Stake 0.4 ETH on Lido</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Executed at 02:14 UTC &bull; Crypto &bull; $964 Value</div>
+              </div>
+              <span class="badge badge-amber" id="trade-1-status">Pending Review</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;">
+              <span class="badge" style="border:1px solid var(--border)">News +0.71</span>
+              <span class="badge" style="border:1px solid var(--border)">Econ 0.64</span>
+              <span class="badge" style="border:1px solid var(--border)">Slippage 0.08% (est. 0.10%)</span>
+              <span class="badge badge-green">P&amp;L: +$3.20</span>
+              <span style="color:var(--muted);font-family:monospace">tx: 0x9a4f...e1c8</span>
+            </div>
+
+            <!-- Review Actions -->
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <button class="pill-btn" style="flex:1 1 140px;background:var(--green-bg);color:var(--green-dark);border-color:var(--green);font-weight:700" onclick="handleLikeAndRatify(1)">
+                &plus; Like &amp; Ratify
+              </button>
+              <button class="pill-btn" style="flex:1 1 140px;color:var(--red);border-color:var(--red);font-weight:700" onclick="handleFlagRevert(1)">
+                &times; Flag for Revert (-20%)
+              </button>
+              <button class="pill-btn" style="flex:1 1 140px;background:var(--text);color:#fff;font-weight:700" onclick="toggleNoteBox(1)">
+                &para; Note &amp; Educate
+              </button>
+            </div>
+
+            <!-- Yellow Comment Box -->
+            <div id="note-box-1" style="background:var(--yellow-note);border:2px solid var(--yellow-border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+              <div style="font-size:12px;font-weight:700;color:#5C4A00;">Your Note to the Brain</div>
+              <textarea id="note-text-1" rows="2" style="width:100%;border:0;border-radius:8px;padding:10px;background:var(--yellow-input);font-family:inherit;color:var(--text);resize:none;" oninput="updateWordCount(this, 1)">Lido staking is approved, but prefer rocket pool (rETH) when yield difference is under 0.2%.</textarea>
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                <div style="font-size:12px;color:#5C4A00;" id="word-count-1">14 / 25 words</div>
+                <div style="display:flex;gap:12px;align-items:center;">
+                  <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#5C4A00;cursor:pointer;">
+                    <input type="checkbox" id="penalize-check-1"> Penalize Brain autonomy (-10%)
+                  </label>
+                  <button class="pill-btn" style="background:var(--text);color:#fff;border:0;padding:6px 14px;font-weight:600" onclick="submitNoteToBrain(1)">
+                    Send Note
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Trade Card 2 -->
+          <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="showToast('Expanded Trade #2 details')">
+            <div>
+              <div style="font-weight:700;">Swap 500 USDC to PAXG</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;">03:40 UTC &bull; Commodities &bull; $500</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span class="badge badge-amber">Pending Review</span>
+              <span style="font-size:16px;color:var(--muted)">&or;</span>
+            </div>
+          </div>
+
+          <!-- Trade Card 3 -->
+          <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-weight:700;">Supply 1 ETH to Aave v3</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;">01:02 UTC &bull; Crypto &bull; $2,410</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span class="badge badge-green">&check; Ratified &bull; Allowance Restored</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 5: VIRTUAL SESSIONS & REMOTE GATEWAY -->
+      <!-- ======================================================== -->
+      <section id="panel-virtual-session" class="view-panel">
+        <div>
+          <h1 class="page-title">Mobile Virtual Sessions</h1>
+          <p class="page-subtitle">Section 8.1: Encrypted Cloudflare Quick-Tunnel connecting your smartphone to the local agent wallet via WebAuthn NIST P-256 Passkeys.</p>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          <div class="card" style="flex:1 1 360px;display:flex;flex-direction:column;gap:14px;">
+            <div class="card-title">Active Gateway Status</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+              <div style="display:flex;justify-content:space-between"><span>Local Gateway Port:</span><strong>8001 (Isolated)</strong></div>
+              <div style="display:flex;justify-content:space-between"><span>Tunnel Status:</span><span class="badge badge-green">Connected</span></div>
+              <div style="display:flex;justify-content:space-between"><span>Biometric Elevation:</span><strong>WebAuthn P-256</strong></div>
+            </div>
+            <div style="background:var(--bg);border-radius:8px;padding:12px;font-size:12px;">
+              <strong>Coffee Shop Scenario:</strong> Monitor positions and approve breakout trades with FaceID from your phone browser without opening firewall ports.
+            </div>
+            <button class="btn-primary" onclick="window.open('/virtual-sessions', '_blank')">
+              Open Laptop Admin Dashboard &rarr;
+            </button>
+          </div>
+
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;">
+            <div class="card-title" style="width:100%">Scan to Connect Phone</div>
+            <div style="width:140px;height:140px;border:1px solid var(--border);border-radius:12px;padding:8px;background:#fff;display:flex;align-items:center;justify-content:center;">
+              <!-- Simulated QR SVG -->
+              <svg width="120" height="120" viewBox="0 0 100 100">
+                <rect width="100" height="100" fill="#fff"/>
+                <path d="M10 10 h30 v30 h-30 z M50 10 h40 v20 h-40 z M10 50 h20 v40 h-20 z M40 40 h20 v20 h-20 z M70 50 h20 v20 h-20 z M50 80 h40 v10 h-40 z" fill="#1E1E1C"/>
+              </svg>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Direct mobile link: <code>http://127.0.0.1:8001/s/demo</code></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 6: SAFETY & SETTINGS -->
+      <!-- ======================================================== -->
+      <section id="panel-settings" class="view-panel">
+        <div>
+          <h1 class="page-title">Safety &amp; Dynamic Elasticity Settings</h1>
+          <p class="page-subtitle">Configure your daily mathematical leash, trust multipliers, and emergency killswitch.</p>
+        </div>
+
+        <div class="card" style="max-width:600px;display:flex;flex-direction:column;gap:18px;">
+          <div>
+            <div class="section-label">Daily Tether Allowance</div>
+            <div style="display:flex;gap:12px;align-items:center;">
+              <input type="text" value="$1,000" id="setting-tether" style="padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:16px;font-weight:700;width:140px;">
+              <span style="font-size:12px;color:var(--muted)">Converted to 8-decimal USD via Chainlink</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">Dynamic Elasticity (Accuracy Feedback Loop)</div>
+            <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;cursor:pointer;">
+              <input type="checkbox" checked style="margin-top:3px;">
+              <div>
+                <strong>Enable Adaptive Elasticity</strong>
+                <div style="color:var(--muted);font-size:12px;margin-top:2px;">
+                  AI earns up to +10%/day step-ups on ratified streaks. Mistakes incur immediate -20% penalty.
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div>
+            <div class="section-label">Hard Ceiling</div>
+            <input type="text" value="$2,500" style="padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:14px;width:140px;">
+          </div>
+
+          <div style="border-top:1px solid var(--border-subtle);padding-top:16px;">
+            <div class="section-label" style="color:var(--red)">Emergency Circuit Breaker</div>
+            <button class="pill-btn" style="color:var(--red);border-color:var(--red);font-weight:700;" onclick="showToast('EMERGENCY: AI Session key immediately revoked on-chain.')">
+              Revoke AI Session Key (Killswitch)
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Script for Interactivity -->
+  <script>
+    // State
+    const state = {
+      action: 'Stake',
+      market: 'Crypto',
+      network: 'Ethereum',
+      assets: ['ETH', 'stETH'],
+      capitalPercent: 10,
+      riskTier: 'Tier 2',
+      vaultBalance: 48210,
+      tetherUsed: 420,
+      tetherTotal: 1000,
+      biometricUnlocked: false,
+      biometricTimer: null,
+      pegGuardEnabled: true
+    };
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.view-panel').forEach(el => el.classList.remove('active'));
+      
+      const targetNav = document.querySelector(`a[href="#${tabId}"]`);
+      if (targetNav) targetNav.classList.add('active');
+
+      const panel = document.getElementById(`panel-${tabId}`);
+      if (panel) panel.classList.add('active');
+    }
+
+    function selectAction(btn, action) {
+      document.querySelectorAll('#action-pills .pill-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.action = action;
+      updatePrompt();
+    }
+
+    function selectMarket(card, name, sub) {
+      document.querySelectorAll('.market-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      state.market = name;
+      state.network = sub;
+      updatePrompt();
+    }
+
+    function selectAsset(btn, asset) {
+      btn.classList.toggle('active');
+      if (state.assets.includes(asset)) {
+        state.assets = state.assets.filter(a => a !== asset);
+      } else {
+        state.assets.push(asset);
+      }
+      updatePrompt();
+    }
+
+    function setSliderPercent(pct) {
+      state.capitalPercent = pct;
+      document.querySelectorAll('.pill-group button').forEach(b => {
+        if (b.textContent === `${pct}%`) b.classList.add('active');
+      });
+      document.getElementById('slider-fill').style.width = `${pct}%`;
+      document.getElementById('slider-thumb').style.left = `${pct}%`;
+      
+      const dollars = Math.round(state.vaultBalance * (pct / 100));
+      const tetherNeeded = Math.round(dollars * 0.1);
+      document.getElementById('slider-caption').innerHTML = 
+        `${pct}% = $${dollars.toLocaleString()} &bull; uses $${tetherNeeded} of the $580 left in today's Tether Radius`;
+      updatePrompt();
+    }
+
+    function handleSliderClick(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = Math.min(100, Math.max(5, Math.round((clickX / rect.width) * 100)));
+      setSliderPercent(pct);
+    }
+
+    function selectTier(btn, tier) {
+      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.riskTier = tier;
+      updatePrompt();
+    }
+
+    function updatePrompt() {
+      const assetsText = state.assets.length > 0 ? state.assets.join(' and ') : 'assets';
+      const prompt = `&ldquo;${state.action} ${assetsText} in ${state.market}, using ${state.capitalPercent}% of capital, ${state.riskTier}.&rdquo;`;
+      document.getElementById('prompt-preview').innerHTML = prompt;
+    }
+
+    function submitCommandToBrain() {
+      showToast('Command submitted: Brain analyzing market pools...');
+      setTimeout(() => {
+        switchTab('opportunities');
+        showToast('Brain discovered 3 candidate routes (Lido, Aave, DEX).');
+      }, 700);
+    }
+
+    function selectCandidateCard(card, optionLetter) {
+      document.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('chosen'));
+      card.classList.add('chosen');
+      showToast(`Selected Option ${optionLetter} for deep inspection.`);
+    }
+
+    function executeAutonomousTrade() {
+      state.tetherUsed += 482;
+      document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+      showToast('Approved: $4,821 signed via session key within daily leash!');
+    }
+
+    function toggleBiometricWindow() {
+      state.biometricUnlocked = !state.biometricUnlocked;
+      const dot = document.getElementById('bio-dot');
+      const text = document.getElementById('bio-status-text');
+      if (state.biometricUnlocked) {
+        dot.style.background = 'var(--green)';
+        text.innerText = 'Unlocked (5m)';
+        showToast('FaceID Verified: 5-minute breakout window active.');
+      } else {
+        dot.style.background = '#B9B7AE';
+        text.innerText = 'Locked';
+        showToast('Biometric window locked.');
+      }
+    }
+
+    function togglePegGuardArbitrage() {
+      state.pegGuardEnabled = !state.pegGuardEnabled;
+      const badge = document.getElementById('arb-status-badge');
+      const text = document.getElementById('arb-state-text');
+      const btn = document.getElementById('arb-toggle-btn');
+      if (state.pegGuardEnabled) {
+        badge.className = 'badge badge-amber';
+        badge.innerText = 'Active';
+        text.innerText = 'Enabled';
+        text.style.color = 'var(--green)';
+        btn.innerText = 'Turn Off';
+        showToast('PegGuard Arbitrage: Enabled (monitoring 25 assets).');
+      } else {
+        badge.className = 'badge badge-red';
+        badge.innerText = 'Disabled';
+        text.innerText = 'Idle';
+        text.style.color = 'var(--muted)';
+        btn.innerText = 'Turn On';
+        showToast('PegGuard Arbitrage: Stopped.');
+      }
+    }
+
+    function handleLikeAndRatify(id) {
+      document.getElementById(`trade-${id}-status`).className = 'badge badge-green';
+      document.getElementById(`trade-${id}-status`).innerText = 'Ratified';
+      showToast('Trade ratified! +1 toward daily +10% limit step-up.');
+    }
+
+    function handleFlagRevert(id) {
+      document.getElementById(`trade-${id}-status`).className = 'badge badge-red';
+      document.getElementById(`trade-${id}-status`).innerText = 'Flagged (-20%)';
+      state.tetherTotal = Math.round(state.tetherTotal * 0.8);
+      document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+      showToast('Flagged for revert: Daily Tether radius contracted by -20% on-chain.');
+    }
+
+    function toggleNoteBox(id) {
+      const box = document.getElementById(`note-box-${id}`);
+      box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function updateWordCount(textarea, id) {
+      const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+      document.getElementById(`word-count-${id}`).innerText = `${words} / 25 words`;
+    }
+
+    function submitNoteToBrain(id) {
+      const penalize = document.getElementById(`penalize-check-${id}`).checked;
+      if (penalize) {
+        state.tetherTotal = Math.round(state.tetherTotal * 0.9);
+        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+      }
+      showToast(penalize ? 'Note learned! -10% autonomy penalty applied on-chain.' : 'Note learned! Protocol affinity updated.');
+    }
+
+    function ratifyAllRemaining() {
+      document.getElementById('review-progress').innerText = '5 of 5';
+      document.getElementById('review-badge').innerText = '0';
+      showToast('All 5 trades ratified! Streak complete: Daily limit increased by +10% ($1,100).');
+    }
+
+    function triggerManualWatchdog() {
+      showToast('Watchdog sweep started across all held assets...');
+      setTimeout(() => {
+        showToast('Watchdog sweep complete: Oracle parity confirmed.');
+      }, 1200);
+    }
+
+    function showToast(msg) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.innerText = msg;
+      c.appendChild(t);
+      setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transition = 'opacity 0.3s';
+        setTimeout(() => t.remove(), 300);
+      }, 3500);
+    }
+
+    // Countdown loop for watchdog timer
+    let secondsLeft = 38 * 60 + 10;
+    setInterval(() => {
+      if (secondsLeft > 0) secondsLeft--;
+      const m = Math.floor(secondsLeft / 60);
+      const s = secondsLeft % 60;
+      const el = document.getElementById('watchdog-timer');
+      if (el) el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+    }, 1000);
+  </script>
+</body>
+</html>
