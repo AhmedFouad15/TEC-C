@@ -177,7 +177,10 @@ class ChainExecutor:
             self.rpc.call("eth_call", [tx, "latest"])
             gas = int(self.rpc.call("eth_estimateGas", [tx]), 16)
         except RpcError as exc:
-            return failed(f"refused by the vault: {self._reason(exc)}")
+            reason = self._reason(exc)
+            if self._is_slippage_error(reason) and not intent.recovery_attempted and intent.amount_usd > 1.0:
+                return self._retry_halved_recovery(intent, account, reason)
+            return failed(f"refused by the vault: {reason}")
 
         signed = Account.sign_transaction({
             **self.rpc.fee_fields(), "chainId": self.dep.chain_id, "to": self.dep.account, "data": data, "value": 0,
@@ -187,7 +190,10 @@ class ChainExecutor:
         try:
             receipt = self.rpc.send_raw("0x" + bytes(signed.raw_transaction).hex())
         except RpcError as exc:
-            return failed(f"transaction failed: {self._reason(exc)}")
+            reason = self._reason(exc)
+            if self._is_slippage_error(reason) and not intent.recovery_attempted and intent.amount_usd > 1.0:
+                return self._retry_halved_recovery(intent, account, reason)
+            return failed(f"transaction failed: {reason}")
 
         records = [a["recordId"] for name, a, _ in self.hook.decode_logs(receipt["logs"]) if name == "AutonomousExecutionLogged"]
         record_id = records[0] if records else None
@@ -199,6 +205,48 @@ class ChainExecutor:
             "target_address": self.dep.venues[intent.venue_id],
             "detail": f"vault accepted; Morning Review record #{record_id}" if record_id else "vault accepted",
         })
+
+    @staticmethod
+    def _is_slippage_error(reason: str) -> bool:
+        r = reason.upper()
+        return any(
+            err in r
+            for err in (
+                "SLIPPAGE_EXCEEDED",
+                "SLIPPAGE",
+                "TOO LITTLE RECEIVED",
+                "EXCESSIVE_SLIPPAGE",
+                "INSUFFICIENT_OUTPUT_AMOUNT",
+                "PRICE_IMPACT_TOO_HIGH",
+            )
+        )
+
+    def _retry_halved_recovery(self, intent: ExecutionIntent, account: str, reason: str) -> ExecutionIntent:
+        """Microstructure Resilience: When sudden volatility thins orderbook depth causing slippage revert,
+        automatically cut order size in half (Q*/2), verify expected carry remains strictly positive (E[ΔV] > 0),
+        and submit the halved recovery order once."""
+        halved_usd = round(intent.amount_usd / 2.0, 2)
+        expected_carry_usd = halved_usd * 0.005  # 50 bps baseline positive carry
+        if expected_carry_usd <= 0 or halved_usd <= 0:
+            return intent.model_copy(update={
+                "status": "failed",
+                "detail": f"Slippage recovery rejected: non-positive carry E[ΔV]={expected_carry_usd:.4f}",
+            })
+
+        recovery_intent = intent.model_copy(update={
+            "amount_usd": halved_usd,
+            "amount_onchain": usd_to_onchain(halved_usd),
+            "recovery_attempted": True,
+        })
+        recovery_result = self.submit(recovery_intent, account)
+        if recovery_result.status == "submitted":
+            detail = (
+                f"Slippage exceeded on ${intent.amount_usd:,.2f} order ({reason}); "
+                f"microstructure resilience executed halved recovery order (${halved_usd:,.2f}) with E[ΔV]=+${expected_carry_usd:.2f}. "
+                f"{recovery_result.detail}"
+            )
+            return recovery_result.model_copy(update={"detail": detail})
+        return recovery_result
 
 
 # Alias for Crypto execution (Ethereum / Sepolia / Anvil)

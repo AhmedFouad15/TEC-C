@@ -22,6 +22,11 @@ from tecc_brain.onchain.oracle import (
     ChainlinkRoundData,
     get_chainlink_oracle,
 )
+from tecc_brain.onchain.audit_anchor import (
+    AuditRecordType,
+    PrivacyAuditAnchorClient,
+    compute_audit_record_hash,
+)
 from tecc_brain.onchain.relayer import (
     CrossChainBridgeRelayer,
     CrossChainSpendProof,
@@ -32,6 +37,7 @@ from tecc_brain.onchain.relayer import (
 
 __all__ = [
     "ArbitrumCommoditiesExecutor",
+    "AuditRecordType",
     "ChainExecutor",
     "ChainlinkFeedConfig",
     "ChainlinkNetworkConfig",
@@ -45,6 +51,8 @@ __all__ = [
     "MarketRouter",
     "PeerChainConfig",
     "PegGuardArbitrageExecutor",
+    "PrivacyAuditAnchorClient",
+    "compute_audit_record_hash",
     "compute_proof_message_hash",
     "ensure_fisco_node_running",
     "fisco_node_scope",

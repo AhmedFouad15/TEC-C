@@ -446,4 +446,8 @@ class ExecutionIntent(BaseModel):
         description="True when no transaction was actually sent (FISCO BCOS, Arbitrum and PegGuard executors are "
                     "demo abstractions that generate the hash locally); `tx_hash` is then not on any chain",
     )
+    recovery_attempted: bool = Field(
+        False,
+        description="True if this intent is an automated recovery retry (e.g. halved order on slippage exceeded)",
+    )
     detail: str = ""

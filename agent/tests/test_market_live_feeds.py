@@ -29,6 +29,16 @@ def test_free_and_paid_feed_catalogs():
     assert PAID_ENTERPRISE_FEEDS["bloomberg"]["requires_key"] is True
     assert PAID_ENTERPRISE_FEEDS["kaiko"]["requires_key"] is True
 
+    # Free alternatives catalog
+    from tecc_brain.market.live_feed import FREE_ALTERNATIVES_FOR_PAID
+
+    for feed_id, alt in FREE_ALTERNATIVES_FOR_PAID.items():
+        assert feed_id in PAID_ENTERPRISE_FEEDS
+        assert alt["cost"] == "$0.00 / Free"
+        assert alt["requires_key"] is False
+        assert len(alt["endpoint"]) > 0
+        assert len(alt["tradeoff"]) > 0
+
 
 def test_live_market_data_source_offline_fallback():
     source = LiveMarketDataSource(fallback_snapshot="demo")
