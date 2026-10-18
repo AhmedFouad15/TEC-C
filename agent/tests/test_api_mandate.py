@@ -54,7 +54,9 @@ def test_scene_1_end_to_end(client):
     assert body["status"] == "decided" and body["proposal_id"]
     assert body["decision"]["mode"] == "AUTO"
     assert body["decision"]["auto_amount_usd"] == pytest.approx(400)
-    assert body["intent"]["status"] == "pending_signature"
+    # N2: the AUTO slice is routed for real; with no live Ethereum vault on this machine it is an honest dry run
+    assert body["intent"]["status"] == "simulated" and body["intent"]["simulated"] is True
+    assert body["intent"]["market"] == "crypto" and body["intent"]["tx_hash"] is None
     assert [a["agent"] for a in body["agents"]][0] == "gatekeeper_intake"
 
 
@@ -83,13 +85,20 @@ def execute(client, proposal_id, label, **extra):
     return client.post("/api/mandate/execute", json={"proposal_id": proposal_id, "label": label, **extra})
 
 
-def test_execute_better_within_the_radius_returns_an_intent(client):
-    pid = propose(client, "Deposit 300 USDC into Aave")["proposal_id"]
-    r = execute(client, pid, "BEST")
+def test_execute_runs_only_what_did_not_already_run_automatically(client):
+    body = propose(client, "Deposit 450 USDC into Aave")  # $400 runs inside the soft tether, $50 awaits approval
+    assert body["intent"]["amount_usd"] == pytest.approx(400)
+    r = execute(client, body["proposal_id"], "BEST")
     assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["intent"]["status"] == "pending_signature"
-    assert body["intent"]["amount_onchain"] == 300 * 10**8
+    out = r.json()
+    assert out["intent"]["amount_onchain"] == 50 * 10**8  # never the full $450 again
+    assert out["intent"]["status"] == "simulated" and out["intent"]["market"] == "crypto"
+
+
+def test_execute_refuses_an_option_that_already_ran_in_full(client):
+    pid = propose(client, "Deposit 300 USDC into Aave")["proposal_id"]  # fits the soft tether: ran automatically
+    r = execute(client, pid, "BEST")
+    assert r.status_code == 409 and "already ran" in r.json()["detail"]
 
 
 def test_execute_above_the_radius_needs_faceid(client):
@@ -107,7 +116,7 @@ def test_picking_the_safe_card_teaches_loss_aversion(client, store):
 
 
 def test_a_proposal_executes_once(client):
-    pid = propose(client, "Deposit 300 USDC into Aave")["proposal_id"]
+    pid = propose(client, "Deposit 450 USDC into Aave")["proposal_id"]
     assert execute(client, pid, "BEST").status_code == 200
     assert execute(client, pid, "BEST").status_code == 409
 

@@ -26,6 +26,7 @@ None
 - [x] **Phase 5.1: Sharpe & CVaR (INSERTED)** - Classic risk metrics on every card from the regime model's return distribution
 - [x] **Phase 6: API Layer** - FastAPI pipeline + all endpoints + OpenAPI spec for Member 3
 - [x] **Phase 6.1: Intake Loop & AI Brain (INSERTED)** - /draft→/confirm loop, single-pass tighten-only AI Brain, one decision loop for free text and the options list
+- [x] **Phase 6.2: System Flow Audit Resolution (INSERTED)** - Brain verdicts binding at execution, PegGuard through the Brain, HOLD on model failure, real routing, anchoring, live phone gateway
 - [ ] **Phase 7: On-Chain Integration** - Anvil deploy, EIP-712 mandate, session-key signing, execute, event → learning
 - [ ] **Phase 8: Live Data, Demo Page & Freeze** - Public data adapters, Brain demo page, README, requirements freeze
 
@@ -125,6 +126,20 @@ Plans:
   sentinel, AI REJECT keeps options for manual approval, `simulated: true` on FISCO/Arbitrum/PegGuard executors,
   demo fixtures `agent/demo/brain/*.json` + `python -m scripts.brain_demo`, `agent/.env.example`
 
+### Phase 6.2: System Flow Audit Resolution (INSERTED)
+**Goal**: Close every gap the read-only System Flow Audit (2026-10-18) found between the documented Math > AI
+hierarchy and the running code, so the frontend builds against one honest decision and execution path
+**Depends on**: Phase 6.1
+**Plans**: 3 plans
+
+Plans:
+- [x] 06.2-01: Blockers — `/execute` honours AI vetoes and BREAKOUT; PegGuard scans go through soft tether → AI Brain →
+  MarketRouter; HOLD on model timeout/error; `tunnel.py` import fix
+- [x] 06.2-02: Execution — venue markets, router wired into `/propose`, `/execute`, options and arbitrage; options and
+  arbitrage `proposal_id`s; slippage recovery metered by what ran; audit anchoring service (de-pegs, arbitrage, notes)
+- [x] 06.2-03: Privacy and surfaces — quoted notes masked before the cloud model; live phone gateway (state + allow-listed
+  actions); API spec, env template, planning docs; `tests/test_audit_resolution.py`
+
 ### Phase 7: On-Chain Integration
 **Goal**: The Brain's decisions become real, vault-checked transactions on a local Anvil chain, and on-chain reviews feed learning
 **Depends on**: Phase 6
@@ -153,7 +168,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 5.1 → 6 → 6.1 → 7 → 8
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 5.1 → 6 → 6.1 → 6.2 → 7 → 8
 (Phase 4 depends only on Phase 1 and may be pulled earlier if the API is needed sooner.)
 
 | Phase | Plans Complete | Status | Completed |
@@ -165,6 +180,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 5.1 → 6 → 6.1
 | 5. Adaptive Learning | 3/3 | Complete | 2026-10-16 |
 | 5.1 Sharpe & CVaR | 1/1 | Complete | 2026-10-16 |
 | 6. API Layer | 3/3 | Complete | 2026-10-16 |
-| 6.1 Intake Loop & AI Brain | 3/3 | Complete (uncommitted) | 2026-10-17 |
+| 6.1 Intake Loop & AI Brain | 3/3 | Complete | 2026-10-17 |
+| 6.2 System Flow Audit Resolution | 3/3 | Complete (branch `fix/audit-resolution`) | 2026-10-18 |
 | 7. On-Chain Integration | 2/3 | In progress | - |
 | 8. Live Data, Demo Page & Freeze | 0/3 | Not started | - |

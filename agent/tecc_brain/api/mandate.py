@@ -31,12 +31,15 @@ from tecc_brain.api.deps import (
     Scenario,
     VaultIn,
     client_key,
+    RouterExecutor,
+    card_key,
     get_brain_llm,
     get_drafts,
     get_limiter,
     get_news_sentinel,
     get_proposals,
     get_ref,
+    get_router,
     get_store,
 )
 from tecc_brain.graph.brain import BrainLLM
@@ -46,6 +49,7 @@ from tecc_brain.intent.rules import ParseOutcome
 from tecc_brain.learning.store import ProfileStore
 from tecc_brain.learning.update import FeedbackEvent, Signal, learn
 from tecc_brain.market import SnapshotSource
+from tecc_brain.onchain.executor import MarketRouter
 from tecc_brain.models import (
     APPROVAL_PRIOR, AutonomyMode, BrainProfile, Card, CardLabel, ExecutionIntent, Mandate, VaultState, usd_to_onchain,
 )
@@ -273,6 +277,7 @@ class ExecuteRequest(BaseModel):
     account: Account = Field("demo", description="Must be the account the proposal was made for")
     label: CardLabel
     venue_id: str | None = Field(None, description="Needed only when several cards share a label")
+    option_id: str | None = Field(None, max_length=64, description="Options-list proposals: the option to approve")
 
 
 class ExecuteResponse(BaseModel):
@@ -297,6 +302,7 @@ def propose(
     ref: Reference = Depends(get_ref),
     brain_llm: BrainLLM | None = Depends(get_brain_llm),
     sentinel: NewsRiskSentinel = Depends(get_news_sentinel),
+    router: MarketRouter = Depends(get_router),
 ) -> ProposeResponse:
     """With `draft_id`: run the confirmed, locked Mandate (never a re-parse; one-shot). With `text`: the original
     free-text path, unchanged."""
@@ -315,8 +321,11 @@ def propose(
         return apply_signal(snap, signal) if signal is not None else snap
 
     result = run_pipeline(text, req.account, mandate=mandate, market=SnapshotSource(req.scenario), store=store,
-                          vault=vault, ref=ref, news_hook=news_hook, brain_llm=brain_llm)
-    pid = proposals.add(req.account, result, vault) if result.decision is not None and result.decision.cards else None
+                          vault=vault, ref=ref, news_hook=news_hook, brain_llm=brain_llm,
+                          executor=RouterExecutor(router, vault.tether_radius_usd))
+    ran = {result.intent.venue_id: result.intent.amount_usd} if result.intent and result.intent.status in ("submitted", "simulated", "signed") else {}
+    pid = (proposals.add(req.account, result, vault, auto_executed_usd=ran)
+           if result.decision is not None and result.decision.cards else None)
     return ProposeResponse(**result.model_dump(), proposal_id=pid)
 
 
@@ -338,7 +347,11 @@ def execute(
     store: ProfileStore = Depends(get_store),
     proposals: ProposalCache = Depends(get_proposals),
     ref: Reference = Depends(get_ref),
+    router: MarketRouter = Depends(get_router),
 ) -> ExecuteResponse:
+    """The user approves one card. The Brain's per-card verdict is binding here: a BLOCKED card (AI veto) is
+    refused, a BREAKOUT card always needs FaceID; only what has not already run automatically is executed, and
+    it goes through the shared MarketRouter (cross-chain tether radius, live vault or honest simulation)."""
     peek = proposals.get(req.proposal_id)
     if peek is None or peek.account != req.account:  # same answer either way: don't reveal other accounts' ids
         raise HTTPException(404, "unknown or expired proposal")
@@ -349,38 +362,56 @@ def execute(
         raise HTTPException(409, "this proposal was already executed")
     decision = proposal.result.decision
     assert decision is not None
-    matches = [c for c in decision.cards if c.label == req.label and (req.venue_id is None or c.candidate.venue_id == req.venue_id)]
+    matches = [c for c in decision.cards if c.label == req.label
+               and (req.venue_id is None or c.candidate.venue_id == req.venue_id)
+               and (req.option_id is None or c.option_id == req.option_id)]
     if decision.mode == AutonomyMode.BLOCKED or len(matches) != 1:
         proposals.release(proposal.id)  # a bad request must not burn the proposal
         if decision.mode == AutonomyMode.BLOCKED:
             raise HTTPException(409, "the Brain blocked this request")
-        raise HTTPException(422, "that card was not offered" if not matches else "several cards share this label; pass venue_id")
+        raise HTTPException(422, "that card was not offered" if not matches
+                            else "several cards share this label; pass venue_id or option_id")
     card = matches[0]
+    if card.mode == AutonomyMode.BLOCKED:
+        proposals.release(proposal.id)  # another card of the same proposal may still be approved
+        raise HTTPException(409, "the AI Brain vetoed this option; it cannot be executed")
+
+    already = proposal.auto_executed_usd.get(card_key(card), 0.0)
+    cand = card.candidate
+    amount = round(cand.amount_usd - already, 2)
+    if amount <= 0:
+        proposals.release(proposal.id)
+        raise HTTPException(409, "this option already ran in full automatically")
 
     learned: list[str] = []
     signal = _pick_signal(card, decision.cards)
     if signal is not None:
         profile = load_or_create_profile(store, proposal.account)
-        event = FeedbackEvent(event_id=f"pick:{proposal.id}", signal=signal, venue_id=card.candidate.venue_id,
-                              amount_usd=card.candidate.amount_usd, at=datetime.now(timezone.utc))
+        event = FeedbackEvent(event_id=f"pick:{proposal.id}", signal=signal, venue_id=cand.venue_id,
+                              amount_usd=cand.amount_usd, at=datetime.now(timezone.utc))
         outcome = learn(profile, event, ref=ref)
         store.save(outcome.profile)
         learned = outcome.changes
 
-    cand = card.candidate
     venue = ref.venues.get(cand.venue_id)
-    amount = cand.amount_usd
-    needs_faceid = amount > proposal.vault.remaining_usd
+    radius_left = max(0.0, proposal.vault.remaining_usd - sum(proposal.auto_executed_usd.values()))
+    needs_faceid = card.mode == AutonomyMode.BREAKOUT or amount > radius_left
     intent = ExecutionIntent(
         card_label=card.label, venue_id=cand.venue_id, action=cand.action, asset_in=cand.asset_in,
         amount_usd=amount, amount_onchain=usd_to_onchain(amount),
-        target_address=venue.target_address if venue else None,
+        target_address=venue.target_address if venue else None, market=card.market,
         status="breakout_required" if needs_faceid else "pending_signature",
-        detail=f"radius left today ${proposal.vault.remaining_usd:,.0f}",
+        detail=f"radius left today ${radius_left:,.0f}",
     )
-    message = (
-        f"${amount:,.0f} exceeds today's ${proposal.vault.remaining_usd:,.0f} radius: confirm with FaceID to break the tether."
-        if needs_faceid
-        else f"Approved: ${amount:,.0f} will be signed with the session key inside the vault's radius."
-    )
-    return ExecuteResponse(mode=card.mode, intent=intent, learned=learned, message=message)
+    if needs_faceid:
+        why = ("the AI Brain requires biometric confirmation for this option" if card.mode == AutonomyMode.BREAKOUT
+               else f"${amount:,.0f} exceeds today's ${radius_left:,.0f} radius")
+        return ExecuteResponse(mode=card.mode, intent=intent, learned=learned,
+                               message=f"{why[0].upper()}{why[1:]}: confirm with FaceID to break the tether.")
+
+    sent = router.submit(intent, proposal.account, limit_usd=proposal.vault.tether_radius_usd)
+    message = {
+        "submitted": f"Executed: ${amount:,.0f} signed with the session key and accepted by the vault.",
+        "simulated": f"Approved: ${amount:,.0f} routed to the {card.market} market (simulated — no live node configured).",
+    }.get(sent.status, f"Not executed: {sent.detail}")
+    return ExecuteResponse(mode=card.mode, intent=sent, learned=learned, message=message)

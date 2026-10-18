@@ -121,6 +121,7 @@ def _card(label: CardLabel, candidate: Candidate, venue: Venue, mode: AutonomyMo
         label=label,
         candidate=candidate,
         mode=mode,
+        market=venue.market,
         headline=f"{venue.name}: {s.total * 100:+.2f}%/yr after expected losses and panic-exit cost",
         explanation=[
             f"Yield {candidate.apy * 100:.2f}% vs 1Y Shibor hurdle → excess {s.excess_yield * 100:+.2f}%.",
