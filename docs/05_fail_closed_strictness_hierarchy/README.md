@@ -78,7 +78,7 @@ $$\text{AUTO (0)} \longrightarrow \text{PROPOSE (1)} \longrightarrow \text{BREAK
 ## 4. Fail-Closed Timeout & Adversarial Isolation
 
 ### A. Pre-LLM Regex Firewall & Privacy Sieve
-Untrusted user text is scanned by [`agent/tecc_brain/intent/firewall.py`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/agent/tecc_brain/intent/firewall.py) for prompt injections, delimiter attacks, and role hijacking **before** any model is invoked. If an attack is suspected:
+Untrusted user text is scanned by [`agent/tecc_brain/intent/firewall.py`](..\../agent/tecc_brain/intent/firewall.py) for prompt injections, delimiter attacks, and role hijacking **before** any model is invoked. If an attack is suspected:
 - The input is immediately rejected with status `refused`.
 - The LLM is never called, saving compute and preventing prompt leakage.
 
@@ -92,7 +92,7 @@ If the external LLM or sentiment API lags or times out ($t > 8.0\text{ seconds}$
 
 ## 5. Formal Verification Test Suite
 
-Tec-C's fail-closed hierarchy is verified by dedicated automated tests in [`agent/tests/test_strictness_hierarchy.py`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/agent/tests/test_strictness_hierarchy.py):
+Tec-C's fail-closed hierarchy is verified by dedicated automated tests in [`agent/tests/test_strictness_hierarchy.py`](..\../agent/tests/test_strictness_hierarchy.py):
 
 | Test Case | Invariant Verified | Result |
 |---|---|---|

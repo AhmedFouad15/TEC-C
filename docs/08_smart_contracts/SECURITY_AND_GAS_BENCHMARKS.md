@@ -20,7 +20,7 @@ The Spurious Dragon hard fork enforces a strict contract bytecode ceiling of **2
 
 ## 2. Security Regression Test Suite (SEC-01 to SEC-08)
 
-The test suite in [`contracts/test/VaultSecurityHardening.t.sol`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/contracts/test/VaultSecurityHardening.t.sol) verifies 8 critical enterprise invariants:
+The test suite in [`contracts/test/VaultSecurityHardening.t.sol`](..\../contracts/test/VaultSecurityHardening.t.sol) verifies 8 critical enterprise invariants:
 
 * **SEC-01: Biometric Signature Replay Defense**:
   Challenge nonces and deadline windows strictly prevent replay attacks across blocks.
@@ -43,7 +43,7 @@ The test suite in [`contracts/test/VaultSecurityHardening.t.sol`](file:///C:/Use
 
 ## 3. Empirical Gas Consumption Matrix
 
-Measured via [`contracts/test/VaultGasBenchmark.t.sol`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/contracts/test/VaultGasBenchmark.t.sol):
+Measured via [`contracts/test/VaultGasBenchmark.t.sol`](..\../contracts/test/VaultGasBenchmark.t.sol):
 
 | Method Name | Gas Used | Fee @ 20 Gwei (USD) | Fee @ 50 Gwei (USD) |
 |---|---|---|---|

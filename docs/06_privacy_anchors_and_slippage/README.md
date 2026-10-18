@@ -20,7 +20,7 @@ Whenever Tec-C detects a de-peg, logs a user Morning Review note, or executes an
 
 $$\text{RecordHash} = \text{SHA256}\Big(\text{account} \;\parallel\; \text{symbol} \;\parallel\; \text{action} \;\parallel\; P_{\text{cons}} \;\parallel\; \text{timestamp} \;\parallel\; \text{salt}\Big)$$
 
-This digest is committed directly to the FISCO BCOS consortium chain via [`contracts/src/audit/PrivacyAuditAnchor.sol`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/contracts/src/audit/PrivacyAuditAnchor.sol):
+This digest is committed directly to the FISCO BCOS consortium chain via [`contracts/src/audit/PrivacyAuditAnchor.sol`](..\../contracts/src/audit/PrivacyAuditAnchor.sol):
 
 ```solidity
 contract PrivacyAuditAnchor {

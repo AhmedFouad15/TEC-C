@@ -28,7 +28,7 @@ Tec-C normalizes all asset values to a unified 8-decimal USD baseline matching t
 
 ## 2. In-Memory Mock Aggregator for Deterministic Local Testing
 
-To enable fast offline testing, [`contracts/test/mocks/MockChainlinkOracle.sol`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/contracts/test/mocks/MockChainlinkOracle.sol) implements the full Chainlink `AggregatorV3Interface`:
+To enable fast offline testing, [`contracts/test/mocks/MockChainlinkOracle.sol`](..\../contracts/test/mocks/MockChainlinkOracle.sol) implements the full Chainlink `AggregatorV3Interface`:
 
 ```solidity
 contract MockChainlinkOracle is AggregatorV3Interface {

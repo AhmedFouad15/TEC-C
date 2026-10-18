@@ -21,18 +21,19 @@
 
 ## 📚 Complete Technical Documentation Index
 
-Detailed architectural breakdowns, run guides, and econometric specifications are available in the dedicated [`docs/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/README.md) folder:
+Detailed architectural breakdowns, run guides, and econometric specifications are available in the dedicated [`docs/`](./docs/README.md) folder:
 
 | Part / Folder | Subject | Description |
 |---|---|---|
-| [`docs/01_system_architecture/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/01_system_architecture/README.md) | Multi-Agent Design | 3-Member execution model, LangGraph cognitive state machine, and dual-server IPC |
-| [`docs/02_prerequisites_and_run_guide/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/02_prerequisites_and_run_guide/README.md) | Run & Deploy Manual | Step-by-step setup (Python, Foundry, WSL 2), test execution, and deployment commands |
-| [`docs/03_market_data_feeds_and_apis/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/03_market_data_feeds_and_apis/README.md) | Feeds & Free Alternatives | $0.00 zero-cost design, free public endpoints, and enterprise feed comparative matrix |
-| [`docs/04_multichain_and_fisco_bcos/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/04_multichain_and_fisco_bcos/README.md) | Multi-Chain & Node Cluster | FISCO BCOS testnet cluster setup, millisecond EVM nuance, and auto-supervisor |
-| [`docs/05_fail_closed_strictness_hierarchy/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/05_fail_closed_strictness_hierarchy/README.md) | Math > AI Hierarchy | Tsinghua academic formulation, asymmetric bounding proofs ($B_{AI} \subseteq B_{math}$), and timeouts |
-| [`docs/06_privacy_anchors_and_slippage/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/06_privacy_anchors_and_slippage/README.md) | Audit & Slippage Engine | SHA-256 anchors on FISCO BCOS, orderbook thinning recovery ($Q^*/2$), and positive carry |
-| [`docs/07_defi_protocols_and_routing/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/07_defi_protocols_and_routing/README.md) | Protocol Registry | Verified contracts, ABIs, function selectors, and risk tiers (Lido, Aave, Curve, Uniswap) |
-| [`docs/08_smart_contracts/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/08_smart_contracts/README.md) | Smart Contracts Vault | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas matrix |
+| [`docs/01_system_architecture/`](./docs/01_system_architecture/README.md) | Multi-Agent Design | 3-Member execution model, LangGraph cognitive state machine, and dual-server IPC |
+| [`docs/02_prerequisites_and_run_guide/`](./docs/02_prerequisites_and_run_guide/README.md) | Run & Deploy Manual | Step-by-step setup (Python, Foundry, WSL 2), test execution, and deployment commands |
+| [`docs/03_market_data_feeds_and_apis/`](./docs/03_market_data_feeds_and_apis/README.md) | Feeds & Free Alternatives | $0.00 zero-cost design, free public endpoints, and enterprise feed comparative matrix |
+| [`docs/04_multichain_and_fisco_bcos/`](./docs/04_multichain_and_fisco_bcos/README.md) | Multi-Chain & Node Cluster | FISCO BCOS testnet cluster setup, millisecond EVM nuance, and auto-supervisor |
+| [`docs/05_fail_closed_strictness_hierarchy/`](./docs/05_fail_closed_strictness_hierarchy/README.md) | Math > AI Hierarchy | Tsinghua academic formulation, asymmetric bounding proofs ($B_{AI} \subseteq B_{math}$), and timeouts |
+| [`docs/06_privacy_anchors_and_slippage/`](./docs/06_privacy_anchors_and_slippage/README.md) | Audit & Slippage Engine | SHA-256 anchors on FISCO BCOS, orderbook thinning recovery ($Q^*/2$), and positive carry |
+| [`docs/07_defi_protocols_and_routing/`](./docs/07_defi_protocols_and_routing/README.md) | Protocol Registry | Verified contracts, ABIs, function selectors, and risk tiers (Lido, Aave, Curve, Uniswap) |
+| [`docs/08_smart_contracts/`](./docs/08_smart_contracts/README.md) | Smart Contracts Vault | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas matrix |
+| [`docs/09_reference_whitepapers/`](./docs/09_reference_whitepapers/README.md) | Reference Whitepapers & Archive | Complete archive of 8 original technical PDF whitepapers, engineering masterplans, and markdown transcripts |
 
 ---
 
@@ -52,7 +53,7 @@ TEC-C/
 │   │   ├── strategy/                        # Autonomous Playbooks & Portfolio Risk Engine
 │   │   ├── virtual_session/                 # Remote Phone Access Gateway & Cloudflare Quick-Tunnel
 │   │   └── app.py                           # FastAPI Application Entrypoint (Port 8000)
-│   └── tests/                               # 622 Unit, Property & Integration Tests (100% Passing)
+│   └── tests/                               # 637 Unit, Property & Integration Tests (100% Passing)
 ├── contracts/                               # Smart Contracts Layer (Foundry)
 │   ├── src/                                 # Production Smart Contracts (100% NatSpec)
 │   │   ├── TecAccount.sol                   # ERC-7579 Modular Smart Account

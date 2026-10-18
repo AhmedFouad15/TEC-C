@@ -23,9 +23,9 @@ Tec-C routes transactions across three distinct production/testnet blockchain en
 
 | Market | Network | Chain ID | RPC Protocol | Gas Model | Deployed State File | Primary Asset / Venues |
 |---|---|---|---|---|---|---|
-| **Crypto** | Ethereum Sepolia / L1 | `11155111` / `1` | HTTPS JSON-RPC | EIP-1559 | [`shared/contracts.sepolia.json`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/shared/contracts.sepolia.json) | ETH, USDC, Lido stETH, Aave v3 |
-| **Commodities** | Arbitrum One / Sepolia | `42161` / `421614` | HTTPS JSON-RPC | Nitro L2 | [`shared/contracts.arbitrum.json`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/shared/contracts.arbitrum.json) | PAXG (Tokenized Gold), USDC |
-| **Onshore** | FISCO BCOS (WeBank) | `20200` (`0x4ee8`) | Web3 JSON-RPC (`:8555`) | Zero-Gas ($0.00) | [`shared/contracts.fisco.json`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/shared/contracts.fisco.json) | Shibor MMF, Privacy Audit Anchors |
+| **Crypto** | Ethereum Sepolia / L1 | `11155111` / `1` | HTTPS JSON-RPC | EIP-1559 | [`shared/contracts.sepolia.json`](..\../shared/contracts.sepolia.json) | ETH, USDC, Lido stETH, Aave v3 |
+| **Commodities** | Arbitrum One / Sepolia | `42161` / `421614` | HTTPS JSON-RPC | Nitro L2 | [`shared/contracts.arbitrum.json`](..\../shared/contracts.arbitrum.json) | PAXG (Tokenized Gold), USDC |
+| **Onshore** | FISCO BCOS (WeBank) | `20200` (`0x4ee8`) | Web3 JSON-RPC (`:8555`) | Zero-Gas ($0.00) | [`shared/contracts.fisco.json`](..\../shared/contracts.fisco.json) | Shibor MMF, Privacy Audit Anchors |
 | **Local Dev** | Anvil Local Node | `31337` | HTTP JSON-RPC (`:8545`) | Instant Mine | `agent/.state/local_deployment.json` | MockERC20, MockFeeds, All Venues |
 
 ---
@@ -82,7 +82,7 @@ Tec-C solves this at both the smart contract and executor layers:
 In Windows 11 WSL 2, background processes launched without an interactive console session are terminated by the Windows hypervisor after a 15-second idle timeout.
 
 ### The Supervisor Architecture
-Tec-C implements an automated lifecycle manager in [`agent/tecc_brain/onchain/fisco_node.py`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/agent/tecc_brain/onchain/fisco_node.py):
+Tec-C implements an automated lifecycle manager in [`agent/tecc_brain/onchain/fisco_node.py`](..\../agent/tecc_brain/onchain/fisco_node.py):
 
 ```
 [Application Startup] (FastAPI lifespan / Runner)

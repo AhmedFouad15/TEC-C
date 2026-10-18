@@ -17,7 +17,7 @@ Tec-C operates under a multi-tier data feed model:
 
 ## 2. Integrated Free Market Data Feeds ($0.00 / No API Key)
 
-These feeds are actively integrated in [`agent/tecc_brain/market/live_feed.py`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/agent/tecc_brain/market/live_feed.py):
+These feeds are actively integrated in [`agent/tecc_brain/market/live_feed.py`](..\../agent/tecc_brain/market/live_feed.py):
 
 | Feed Name | Provider | Cost | Auth Required | Assets / Metrics | Mechanism |
 |---|---|---|---|---|---|

@@ -2,10 +2,10 @@ import json
 import os
 
 def export_artifacts():
-    base_dir = r"C:\Users\Ahmed\OneDrive\Desktop\CHINA"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     out_dir = os.path.join(base_dir, "contracts", "out")
     shared_file = os.path.join(base_dir, "shared", "contracts.json")
-    desktop_file = r"C:\Users\Ahmed\Desktop\contracts.json"
+    desktop_file = os.path.expanduser(r"~\Desktop\contracts.json")
 
     contract_map = {
         "TecAccount": os.path.join(out_dir, "TecAccount.sol", "TecAccount.json"),

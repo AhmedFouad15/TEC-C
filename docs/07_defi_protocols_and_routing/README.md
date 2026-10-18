@@ -2,7 +2,7 @@
 
 This document catalogs the verified DeFi protocols, smart contracts, function selectors, and risk tiers integrated into the Tec-C multi-market executor.
 
-All protocol configurations are stored in [`shared/defi_protocols.json`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/shared/defi_protocols.json).
+All protocol configurations are stored in [`shared/defi_protocols.json`](..\../shared/defi_protocols.json).
 
 ---
 
@@ -23,7 +23,7 @@ All protocol configurations are stored in [`shared/defi_protocols.json`](file://
 
 ## 2. Risk Tier Guardrails & Whitelisting
 
-Every protocol interaction is verified on-chain by [`TetherGuardHook.sol`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/contracts/src/hooks/TetherGuardHook.sol) before execution:
+Every protocol interaction is verified on-chain by [`TetherGuardHook.sol`](..\../contracts/src/hooks/TetherGuardHook.sol) before execution:
 
 1. **Tier 1 (Core Capital Preservation)**:
    - Permitted: Stablecoins (USDC, USDT), native ETH, liquid staking derivatives (stETH), top money market funds (Aave, Compound, Shibor MMF).
