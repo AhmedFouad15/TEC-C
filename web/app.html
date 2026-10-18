@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tec-C · Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css?v=5">
+</head>
+<body>
+
+  <!-- ambient jungle -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg-photo"></div>
+    <div class="bg-moss bg-moss-l"></div>
+    <div class="bg-moss bg-moss-r"></div>
+    <div class="bg-glow"></div>
+    <div class="leaves" id="leaves"></div>
+    <div class="grain"></div>
+  </div>
+  <div class="cursor-glow" id="cursor-glow" aria-hidden="true"></div>
+
+  <!-- ================= TOP BAR ================= -->
+  <header class="topbar">
+    <a class="brand" href="index.html" title="Back to the landing page">
+      <svg viewBox="0 0 40 40" class="brand-mark" aria-hidden="true">
+        <path d="M6 14 Q20 2 34 14 Q30 28 20 34 Q10 28 6 14Z" fill="none" stroke="currentColor" stroke-width="2.2"/>
+        <ellipse cx="14" cy="17" rx="3.2" ry="2" fill="#E8A64B"/><ellipse cx="26" cy="17" rx="3.2" ry="2" fill="#E8A64B"/>
+      </svg>
+      <span>Tec-C</span>
+    </a>
+
+    <nav class="nav-pills" id="nav-pills">
+      <span class="nav-indicator" id="nav-indicator"></span>
+      <a href="#home" class="nav-item active" data-tab="home">Home</a>
+      <a href="#opportunities" class="nav-item" data-tab="opportunities">Opportunities <b class="nav-badge" id="opp-count">3</b></a>
+      <a href="#portfolio" class="nav-item" data-tab="portfolio">Portfolio</a>
+      <a href="#review" class="nav-item" data-tab="review">Review <b class="nav-badge" id="review-badge">2</b></a>
+      <a href="#scenarios" class="nav-item" data-tab="scenarios">Scenarios <b class="nav-badge amber">5</b></a>
+      <a href="#virtual-session" class="nav-item" data-tab="virtual-session">Sessions</a>
+      <a href="#settings" class="nav-item" data-tab="settings">Safety</a>
+    </nav>
+
+    <div class="top-actions">
+      <button class="btn-ghost-sm" onclick="openModal('modal-withdraw')" title="Biometric withdrawal to an external address">Withdraw</button>
+      <button class="btn-white" onclick="openDepositModal()">Deposit <span class="sq">+</span></button>
+    </div>
+  </header>
+
+  <!-- status strip -->
+  <div class="status-strip">
+    <div class="chip-stat"><span class="muted">Vault</span><b id="top-vault-val">$48,210</b><span class="up">+1.2%</span></div>
+    <div class="chip-stat"><span class="ring" id="tether-donut"><i></i></span><span class="muted">Tether</span><b id="top-tether-val">$420 / $1,000</b></div>
+    <div class="chip-stat" id="brain-pill" title="Brain API connection">
+      <span class="dot" id="brain-dot"></span><span class="muted">Brain</span><b id="top-heartbeat-text">connecting…</b>
+    </div>
+    <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Simulate a FaceID unlock">
+      <span class="dot locked" id="bio-dot"></span><span class="muted">Biometric</span><b id="bio-status-text">Locked</b>
+    </button>
+    <button class="chip-stat clickable" onclick="openModal('modal-pillars')"><span class="muted">3 pillars &amp; invariants</span><span class="arrow">↗</span></button>
+    <button class="chip-stat clickable" onclick="switchTab('review')" title="Pending reviews"><span class="muted">Pending</span><b id="top-pending-badge">2</b></button>
+  </div>
+
+  <main class="main">
+
+    <!-- ===================================================== -->
+    <!-- HOME                                                   -->
+    <!-- ===================================================== -->
+    <section id="panel-home" class="view-panel active">
+      <div class="hero-band">
+        <div class="arch" aria-hidden="true"></div>
+        <div class="hero-text">
+          <div class="eyebrow">For the wallets that refuse to sleep</div>
+          <h1 class="page-title">Command <em>Center.</em></h1>
+          <p class="page-subtitle">Set a mandate inside your daily leash. The Brain explores, rates and decides; the vault enforces.</p>
+        </div>
+        <div class="float-card fc-1" aria-hidden="true"><div class="fc-k">Tether left today</div><div class="fc-v" id="fc-tether">$580</div></div>
+        <div class="float-card fc-2" aria-hidden="true"><div class="fc-k">Brain trust τ</div><div class="fc-v">0.60</div><div class="fc-bar"><i style="width:60%"></i></div></div>
+      </div>
+
+      <!-- talk to the brain -->
+      <div class="ask card glass">
+        <div class="ask-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3c4.97 0 9 3.582 9 8 0 4.418-4.03 8-9 8-1.22 0-2.38-.215-3.44-.604L3 20l1.6-4.27C3.6 14.37 3 12.75 3 11c0-4.418 4.03-8 9-8Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        </div>
+        <input id="ask-input" type="text" maxlength="400" placeholder="Tell the Brain in your own words: “deposit 2000 USDC somewhere safe for a month”" autocomplete="off">
+        <button class="btn-white" onclick="askBrain()">Ask <span class="sq">→</span></button>
+      </div>
+
+      <div class="grid-home">
+        <!-- Command Composer -->
+        <div class="card glass composer">
+          <div class="card-title">
+            <span>New command <em>composer</em></span>
+            <span class="badge badge-green" id="active-action-badge">Stake mandate</span>
+          </div>
+
+          <div class="block">
+            <div class="section-label"><i>1</i> Action</div>
+            <div class="pill-group" id="action-pills"></div>
+          </div>
+
+          <div class="block">
+            <div class="section-label"><i>2</i> Market</div>
+            <div class="market-grid" id="market-grid">
+              <button class="market-card active" data-market="Crypto" data-sub="Ethereum L1"><span class="mc-name">Crypto</span><span class="mc-sub">Ethereum L1</span><span class="dot active"></span></button>
+              <button class="market-card" data-market="Chinese market" data-sub="FISCO BCOS"><span class="mc-name">Chinese market</span><span class="mc-sub">FISCO BCOS</span><span class="dot active"></span></button>
+              <button class="market-card" data-market="Commodities" data-sub="Arbitrum One"><span class="mc-name">Commodities</span><span class="mc-sub">Arbitrum One</span><span class="dot active"></span></button>
+              <button class="market-card" data-market="Arbitrage" data-sub="PegGuard 24/7"><span class="mc-name">Arbitrage</span><span class="mc-sub">PegGuard 24/7</span><span class="dot warning"></span></button>
+              <button class="market-card" data-market="Any" data-sub="All enabled"><span class="mc-name">Any</span><span class="mc-sub">All enabled</span></button>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="section-label"><i>3</i> Asset or scope</div>
+            <div class="pill-group" id="asset-pills"></div>
+          </div>
+
+          <div class="block">
+            <div class="section-label"><i>4</i> Capital &amp; tether use</div>
+            <div class="pill-group" id="capital-pills">
+              <button class="pill-btn" data-pct="5">5%</button>
+              <button class="pill-btn active" data-pct="10">10%</button>
+              <button class="pill-btn" data-pct="25">25%</button>
+              <button class="pill-btn" data-pct="50">50%</button>
+            </div>
+            <div class="slider" id="slider">
+              <div class="slider-fill" id="slider-fill"></div>
+              <div class="slider-thumb" id="slider-thumb"><span id="slider-tip">10%</span></div>
+            </div>
+            <div class="caption" id="slider-caption"></div>
+          </div>
+
+          <div class="block">
+            <div class="section-label"><i>5</i> Policy risk tier</div>
+            <div class="pill-group" id="tier-pills">
+              <button class="pill-btn" data-tier="Tier 1">Tier 1 · Preserve</button>
+              <button class="pill-btn active" data-tier="Tier 2">Tier 2 · Grow</button>
+              <button class="pill-btn locked" disabled title="Tier 3 needs a passkey unlock">Tier 3 · Locked 🔒</button>
+            </div>
+          </div>
+
+          <details class="block headline-box">
+            <summary>Optional: a breaking headline for the NLP sentinel</summary>
+            <input id="headline-input" type="text" maxlength="300" placeholder="e.g. “Circle reports exposure to a failed bank; USDC trades at 0.97”">
+          </details>
+
+          <div class="prompt-preview" id="prompt-preview"></div>
+
+          <button class="btn-primary" id="submit-btn" onclick="submitCommandToBrain()">
+            <span>Submit to the Brain</span><span class="btn-shine"></span>
+          </button>
+        </div>
+
+        <!-- Live Pipeline -->
+        <div class="card glass pipeline-card">
+          <div class="card-title">
+            <span>Live <em>pipeline</em></span>
+            <span class="muted small" id="request-id">Request #0412</span>
+          </div>
+          <div class="timeline" id="pipeline-timeline"></div>
+          <button class="pill-btn wide" onclick="switchTab('opportunities')">View evaluated opportunities →</button>
+        </div>
+
+        <!-- Widgets -->
+        <div class="widgets">
+          <div class="card glass widget">
+            <div class="section-label">Tether leash remaining</div>
+            <div class="big-num" id="widget-tether-left">$580 <small>left today</small></div>
+            <div class="bar"><i id="widget-tether-fill" style="width:42%"></i></div>
+            <div class="caption">Epoch resets in <span id="epoch-timer">09h 14m</span></div>
+          </div>
+          <div class="card glass widget">
+            <div class="section-label">Overnight ratifications</div>
+            <div class="big-num" id="widget-pending-reviews">2 <small>pending</small></div>
+            <button class="pill-btn wide" onclick="switchTab('review')">Review morning trades →</button>
+          </div>
+          <div class="card glass widget accent-amber">
+            <div class="row-between">
+              <span class="section-label m0">PegGuard arbitrage</span>
+              <span class="badge badge-amber" id="arb-status-badge">Active</span>
+            </div>
+            <div class="caption">24/7 background de-peg scanner. Buys a discount only when the regime model says the peg holds.</div>
+            <div class="row-between mt12">
+              <span class="small">Status: <b id="arb-state-text" class="txt-green">Enabled</b></span>
+              <label class="switch"><input type="checkbox" id="arb-toggle" checked onchange="togglePegGuardArbitrage()"><span></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- OPPORTUNITIES                                          -->
+    <!-- ===================================================== -->
+    <section id="panel-opportunities" class="view-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">Three minds rate every route</div>
+          <h1 class="page-title">Opportunities &amp; <em>ratings.</em></h1>
+          <p class="page-subtitle" id="opp-request-header"></p>
+        </div>
+        <span class="badge badge-blue big" id="source-badge">Demo data</span>
+      </div>
+
+      <div class="section-label">Zone A · Candidates for this command</div>
+      <div class="cand-grid" id="candidates-container"></div>
+
+      <div class="section-label" id="zone-b-title">Zone B · Deep rating breakdown</div>
+      <div class="grid-3">
+        <div class="card glass">
+          <div class="card-title"><span>News &amp; <em>sentiment</em></span><span class="badge badge-green" id="rating-news-badge">+0.71</span></div>
+          <div class="caption">Sentiment score (−1 panic … +1 euphoria)</div>
+          <div class="gauge"><div class="gauge-needle" id="sentiment-indicator"></div></div>
+          <div class="gauge-labels"><span>−1.0</span><span>0</span><span>+1.0</span></div>
+          <div class="section-label mt16">Headlines analysed</div>
+          <ul class="headlines" id="headlines-list"></ul>
+          <div class="note-line">News can size a trade or stop a new one. It can never freeze the vault.</div>
+        </div>
+
+        <div class="card glass">
+          <div class="card-title"><span>Econometrics &amp; <em>liquidity</em></span><span class="badge badge-green" id="econ-badge">Acceptable</span></div>
+          <div class="metric-row">
+            <div class="metric"><div class="caption">Sharpe vs Shibor</div><div class="metric-v" id="metric-sharpe">0.66</div></div>
+            <div class="metric"><div class="caption">CVaR 95%</div><div class="metric-v" id="metric-cvar95">−3.1%</div></div>
+            <div class="metric"><div class="caption">CVaR 99%</div><div class="metric-v" id="metric-cvar99">−5.4%</div></div>
+          </div>
+          <div class="caption mt12">Loss distribution · the red tail is the worst 5%</div>
+          <svg class="dist" viewBox="0 0 280 80" aria-hidden="true">
+            <defs><linearGradient id="dg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#cde38a" stop-opacity=".35"/><stop offset="1" stop-color="#cde38a" stop-opacity="0"/></linearGradient></defs>
+            <path class="dist-fill" d="M0 75 C40 75 60 60 90 30 C110 10 130 10 150 30 C180 60 200 72 230 75 L280 75 L280 80 L0 80Z" fill="url(#dg)"/>
+            <path class="dist-line" d="M0 75 C40 75 60 60 90 30 C110 10 130 10 150 30 C180 60 200 72 230 75 L280 75" fill="none" stroke="#cde38a" stroke-width="2"/>
+            <path d="M200 72 C215 74 225 75 235 75 L280 75 L280 78 L200 78 Z" fill="#ff6b5e" opacity=".7"/>
+            <line x1="200" y1="10" x2="200" y2="78" stroke="#ff6b5e" stroke-dasharray="4 3"/>
+          </svg>
+          <div class="caption mt8" id="slippage-text"></div>
+          <ul class="explain" id="explain-list"></ul>
+        </div>
+
+        <div class="card glass">
+          <div class="card-title"><span>Injection &amp; <em>policy</em></span><span class="badge badge-green" id="inj-badge">Pass · 0 threats</span></div>
+          <ul class="checks" id="inj-checks">
+            <li>Venue is on the mandate's policy whitelist</li>
+            <li>Honeypot test: clean, verified contract</li>
+            <li>Contract age: battle-tested</li>
+            <li id="inj-amount-text">Amount matches the mandate</li>
+            <li>Instruction scan: zero prompt-override keywords</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Zone C -->
+      <div class="card glass zone-c">
+        <div class="card-title">
+          <span>Zone C · Brain <em>decision</em></span>
+          <span class="badge badge-green" id="synthesis-badge">Autonomous split</span>
+        </div>
+        <div class="weights">
+          <div class="row-between"><span class="section-label m0">Agent weights</span><span class="caption">drag to rebalance</span></div>
+          <div class="weight-grid">
+            <label>News &amp; NLP <b id="weight-news-val">30%</b><input type="range" min="10" max="60" value="30" data-weight="news"></label>
+            <label>Econometrics <b id="weight-econ-val">45%</b><input type="range" min="20" max="70" value="45" data-weight="econ"></label>
+            <label>Injection defence <b id="weight-inj-val">25%</b><input type="range" min="10" max="50" value="25" data-weight="inj"></label>
+          </div>
+        </div>
+        <div>
+          <div class="section-label">Outcome mode</div>
+          <div class="pill-group" id="outcome-modes">
+            <button class="pill-btn active" data-mode="split">Split A 70% · B 30%</button>
+            <button class="pill-btn" data-mode="single">Single best (A 100%)</button>
+            <button class="pill-btn" data-mode="idle">Do nothing (no edge)</button>
+            <button class="pill-btn" data-mode="breakout">Needs FaceID breakout</button>
+          </div>
+        </div>
+        <div class="rationale" id="synthesis-rationale"></div>
+        <ol class="trace" id="trace-list"></ol>
+        <div class="row-wrap">
+          <button class="btn-primary grow" id="btn-execute-trade" onclick="executeAutonomousTrade()"><span>Execute</span><span class="btn-shine"></span></button>
+          <button class="pill-btn" onclick="showToast('Candidate vetoed: trade discarded.')">Discard</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- PORTFOLIO                                              -->
+    <!-- ===================================================== -->
+    <section id="panel-portfolio" class="view-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">Multi-chain treasury · hourly watchdog</div>
+          <h1 class="page-title">Portfolio &amp; <em>watchdog.</em></h1>
+          <p class="page-subtitle">Every holding normalized to USD, every peg watched by the regime model.</p>
+        </div>
+      </div>
+
+      <div class="grid-2-1">
+        <div class="card glass">
+          <div class="row-between">
+            <div>
+              <div class="caption">Total portfolio value</div>
+              <div class="huge" id="portfolio-total-val">$48,210</div>
+              <div class="up small">+$574 (+1.2%) in 24h</div>
+            </div>
+            <div class="seg" id="range-seg">
+              <button class="active" data-range="24h">24h</button><button data-range="7d">7d</button><button data-range="30d">30d</button>
+            </div>
+          </div>
+          <svg class="trend" viewBox="0 0 500 120" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="tg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#cde38a" stop-opacity=".35"/><stop offset="1" stop-color="#cde38a" stop-opacity="0"/></linearGradient></defs>
+            <path id="trend-fill" fill="url(#tg)"/>
+            <path id="trend-line" fill="none" stroke="#cde38a" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <div class="card glass alloc">
+          <div class="donut" style="--a:52;--b:22;--c:16"><div class="donut-hole"><b>4</b><span>markets</span></div></div>
+          <ul class="legend">
+            <li><i style="background:#cde38a"></i>Crypto<b>52%</b></li>
+            <li><i style="background:#7fb3ff"></i>Chinese mkt<b>22%</b></li>
+            <li><i style="background:#e8a64b"></i>Commodities<b>16%</b></li>
+            <li><i style="background:#8a9a86"></i>Arbitrage<b>10%</b></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card glass">
+        <div class="card-title">
+          <span>Treasury <em>holdings</em></span>
+          <input class="search" type="search" id="holding-search" placeholder="Search asset…">
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="holdings-table">
+            <thead><tr><th>Asset</th><th>Market</th><th>Amount</th><th>USD value</th><th>Share</th><th>24h P&amp;L</th><th>Sentiment</th><th>Health</th></tr></thead>
+            <tbody>
+              <tr><td><b>stETH</b></td><td>Crypto (Ethereum)</td><td>6.20</td><td>$14,933</td><td>31%</td><td class="txt-green">+4.1%</td><td>Positive (+0.71)</td><td><span class="badge badge-green">OK</span></td></tr>
+              <tr><td><b>USDC</b></td><td>Crypto (Arbitrum)</td><td>10,200</td><td>$10,200</td><td>21%</td><td class="muted">0.0%</td><td>Neutral (0.00)</td><td><span class="badge badge-green">OK</span></td></tr>
+              <tr><td><b>PAXG</b></td><td>Commodities (Arbitrum)</td><td>3.10</td><td>$7,720</td><td>16%</td><td class="txt-green">+1.8%</td><td>Neutral (+0.12)</td><td><span class="badge badge-amber">Watch</span></td></tr>
+              <tr class="row-alert"><td><b>e-CNY MMF</b></td><td>Chinese mkt (FISCO BCOS)</td><td>10,600</td><td>$10,600</td><td>22%</td><td class="txt-red">−0.6%</td><td class="txt-red">Negative (−0.45)</td><td><span class="badge badge-red">Re-evaluate</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- regime radar: live from /api/risk/regimes -->
+      <div class="grid-2">
+        <div class="card glass">
+          <div class="card-title">
+            <span>Regime <em>radar</em></span>
+            <div class="seg" id="scenario-seg"><button class="active" data-scenario="demo">Calm day</button><button data-scenario="usdc_distress">USDC distress</button></div>
+          </div>
+          <div class="caption" id="regime-source">P(normal) · P(distress) · P(failure) per asset</div>
+          <div class="regimes" id="regimes"></div>
+        </div>
+        <div class="card glass">
+          <div class="card-title"><span>Headline <em>sandbox</em></span><span class="badge badge-blue">NLP sentinel</span></div>
+          <div class="caption">Type a headline and watch that asset's regime move. Instructions hidden in the text are ignored.</div>
+          <div class="ask mini">
+            <input id="sandbox-input" autocomplete="off" type="text" maxlength="300" value="Lido exploit: withdrawals paused as stETH de-pegs and outflows surge">
+            <button class="btn-white" onclick="testHeadline()">Score <span class="sq">→</span></button>
+          </div>
+          <div id="sandbox-out" class="sandbox-out"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card glass">
+          <div class="card-title"><span>Hourly <em>watchdog</em></span><span class="caption">Next scan in <b id="watchdog-timer">38:10</b></span></div>
+          <div class="caption">Last 24 scans · 22 clean · 1 signal · 1 negative news</div>
+          <div class="scan-dots" id="scan-dots"></div>
+          <button class="pill-btn wide" onclick="triggerManualWatchdog()">Trigger an emergency sweep now</button>
+        </div>
+        <div class="card glass">
+          <div class="card-title"><span>Active <em>alerts</em></span></div>
+          <div class="alert" id="watchdog-alert-card">
+            <div class="row-between"><b>e-CNY MMF · negative news</b><span class="badge badge-red" id="watchdog-alert-badge">Re-evaluating</span></div>
+            <div class="small" id="watchdog-alert-desc">The Brain proposes moving 10% into USDC collateral.</div>
+            <div class="caption">Detected 22 min ago by the News Risk Sentinel</div>
+            <div class="row-wrap" id="watchdog-alert-actions">
+              <button class="pill-btn danger" onclick="executeWatchdogDerisk()">De-risk (swap 10% to USDC)</button>
+              <button class="pill-btn" onclick="dismissWatchdogAlert()">Dismiss</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- REVIEW                                                 -->
+    <!-- ===================================================== -->
+    <section id="panel-review" class="view-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">Fifteen seconds over coffee</div>
+          <h1 class="page-title">Morning <em>review.</em></h1>
+          <p class="page-subtitle">See what the AI did while you slept. Ratify, flag, or teach it with a note.</p>
+        </div>
+      </div>
+      <div class="review-wrap">
+        <div class="card glass">
+          <div class="review-stats">
+            <div><div class="caption">Overnight trades</div><div class="big-num" id="review-total-trades">3</div></div>
+            <div><div class="caption">Capital moved</div><div class="big-num" id="review-capital-moved">$3,874</div></div>
+            <div><div class="caption">Reviewed</div><div class="big-num" id="review-progress">1 of 3</div></div>
+            <button class="pill-btn strong" onclick="ratifyAllRemaining()">Ratify the rest</button>
+          </div>
+          <div class="row-between caption mt12"><span>Like streak toward a radius increase</span><span id="streak-text">3 of 5</span></div>
+          <div class="streak" id="streak-bar"></div>
+        </div>
+        <div class="trades" id="trades-list"></div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- VIRTUAL SESSIONS                                       -->
+    <!-- ===================================================== -->
+    <section id="panel-virtual-session" class="view-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">Your phone is the key</div>
+          <h1 class="page-title">Virtual <em>sessions.</em></h1>
+          <p class="page-subtitle">An encrypted tunnel links your phone to the local agent wallet; WebAuthn P-256 passkeys approve breakouts.</p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card glass">
+          <div class="card-title"><span>Gateway <em>status</em></span><span class="badge badge-green">Connected</span></div>
+          <dl class="kv">
+            <dt>Local gateway port</dt><dd>8001 (isolated)</dd>
+            <dt>Tunnel</dt><dd>Cloudflare quick tunnel</dd>
+            <dt>Biometric elevation</dt><dd>WebAuthn P-256</dd>
+            <dt>Open firewall ports</dt><dd>0</dd>
+          </dl>
+          <div class="note-line">Coffee-shop scenario: watch positions and approve a breakout with FaceID from your phone, without opening a single port.</div>
+        </div>
+        <div class="card glass center">
+          <div class="card-title"><span>Scan to <em>connect</em></span></div>
+          <div class="qr" id="qr"></div>
+          <div class="caption">Direct link: <code>http://127.0.0.1:8001/s/demo</code></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- SETTINGS                                               -->
+    <!-- ===================================================== -->
+    <section id="panel-settings" class="view-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">The leash, in numbers</div>
+          <h1 class="page-title">Safety &amp; <em>elasticity.</em></h1>
+          <p class="page-subtitle">Your daily radius, how trust grows, and the killswitch.</p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card glass settings">
+          <label class="field"><span class="section-label">Daily tether allowance</span><input type="text" value="$1,000" id="setting-tether"><span class="caption">Metered in 8-decimal USD on-chain</span></label>
+          <label class="field"><span class="section-label">Hard ceiling</span><input type="text" value="$2,500" id="setting-ceiling"></label>
+          <label class="toggle-row">
+            <span class="switch"><input type="checkbox" checked><span></span></span>
+            <span><b>Adaptive elasticity</b><br><span class="caption">Ratified streaks earn up to +10% a day; a flagged mistake costs −20% at once.</span></span>
+          </label>
+          <div class="danger-zone">
+            <div class="section-label txt-red">Emergency circuit breaker</div>
+            <button class="pill-btn danger hold" id="killswitch"><span class="hold-fill"></span><span class="hold-label">Hold to revoke the AI session key</span></button>
+          </div>
+        </div>
+        <div class="card glass">
+          <div class="card-title"><span>Learned <em>profile</em></span><span class="badge badge-blue" id="profile-source">demo</span></div>
+          <div class="profile-grid" id="profile-grid"></div>
+          <div class="note-line">λ is loss aversion, τ is the trust the Brain has earned from your reviews. Both move only through feedback, never through a note's wording.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <!-- SCENARIOS                                              -->
+    <!-- ===================================================== -->
+    <section id="panel-scenarios" class="view-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">Ordinary days, crises and everything between</div>
+          <h1 class="page-title">Live <em>scenarios.</em></h1>
+          <p class="page-subtitle">Play out how Tec-C behaves in five situations.</p>
+        </div>
+      </div>
+      <div class="scen-grid">
+        <article class="card glass scen" data-tilt>
+          <div class="row-between"><span class="scen-n">A</span><span class="badge badge-green">100% autonomous</span></div>
+          <h3>Silent daily yield harvest</h3>
+          <p>A $1,000 leash; the Brain spots 11.2% on Compound v3 USDC and deposits $800. It fits inside the leash, so it simply happens.</p>
+          <button class="pill-btn strong" onclick="runScenarioA()">Simulate the $800 harvest →</button>
+        </article>
+        <article class="card glass scen" data-tilt>
+          <div class="row-between"><span class="scen-n">B</span><span class="badge badge-amber">FaceID breakout</span></div>
+          <h3>High-value breakout trade</h3>
+          <p>A $4,500 flash arbitrage worth $120 in 30 seconds. The hook sees $4,500 &gt; $1,000 and blocks it until your phone's FaceID says yes.</p>
+          <button class="pill-btn amber" onclick="openBreakoutModal(4500, 120)">Trigger the $4,500 alert →</button>
+        </article>
+        <article class="card glass scen" data-tilt>
+          <div class="row-between"><span class="scen-n">C</span><span class="badge badge-blue">Adaptive learning</span></div>
+          <h3>Elasticity in action</h3>
+          <p>Ratified wins step the leash up 10% a day toward the ceiling; a flagged mistake contracts it 20%. Trust is lost faster than it's gained.</p>
+          <div class="row-wrap"><button class="pill-btn good grow" onclick="simulateElasticityStep('reward')">+10% reward</button><button class="pill-btn danger grow" onclick="simulateElasticityStep('penalty')">−20% penalty</button></div>
+        </article>
+        <article class="card glass scen" data-tilt>
+          <div class="row-between"><span class="scen-n">D</span><span class="badge badge-red">De-peg defence</span></div>
+          <h3>PegGuard circuit breaker</h3>
+          <p>6,000 units of a synthetic dollar slip to $0.982 as backing distress spreads. PegGuard exits into native USDC before the collapse.</p>
+          <button class="pill-btn danger" onclick="runScenarioD()">Trigger the circuit breaker →</button>
+        </article>
+        <article class="card glass scen" data-tilt>
+          <div class="row-between"><span class="scen-n">E</span><span class="badge badge-green">Zero open ports</span></div>
+          <h3>Remote coffee-shop access</h3>
+          <p>An encrypted tunnel links your phone to the local wallet. FaceID, steer risk, approve breakouts from any public Wi-Fi.</p>
+          <button class="pill-btn strong" onclick="switchTab('virtual-session')">Open virtual sessions →</button>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= MODALS ================= -->
+  <div class="modal-overlay" id="modal-deposit">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">Multi-chain <em>deposit</em></div><button class="modal-close" onclick="closeModal('modal-deposit')">×</button></div>
+      <p class="caption">Deposit on any connected chain; it credits your USD-normalized vault balance.</p>
+      <label class="field"><span class="section-label">Network &amp; asset</span>
+        <select id="deposit-network" onchange="updateDepositAssetOptions()">
+          <option value="Ethereum">Ethereum (ETH, USDC, USDT)</option>
+          <option value="Arbitrum">Arbitrum (ETH, USDC, PAXG)</option>
+          <option value="FISCO">FISCO BCOS (e-CNY)</option>
+          <option value="Optimism">Optimism (USDC)</option>
+        </select>
+      </label>
+      <label class="field"><span class="section-label">Amount</span>
+        <span class="amount-row"><input type="number" id="deposit-amount" value="1.0" step="0.1" min="0" oninput="updateDepositUSDConversion()"><b id="deposit-asset-symbol">ETH</b></span>
+        <span class="caption" id="deposit-usd-conversion"></span>
+      </label>
+      <div class="note-line">Recipient: your Tec-C smart account (ERC-7579)</div>
+      <div class="row-wrap"><button class="btn-primary grow" onclick="confirmDeposit()"><span>Deposit to the vault</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-deposit')">Cancel</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-withdraw">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">Biometric <em>withdrawal</em></div><button class="modal-close" onclick="closeModal('modal-withdraw')">×</button></div>
+      <div class="alert">The AI session key has <b>zero</b> authority to send funds out. External transfers need your hardware passkey (FaceID / TouchID, WebAuthn P-256).</div>
+      <label class="field"><span class="section-label">Recipient address</span><input type="text" id="withdraw-addr" value="0x71C…a891 (cold wallet)"></label>
+      <label class="field"><span class="section-label">Amount (USD)</span><input type="number" id="withdraw-amount" value="5000" step="500" min="0"></label>
+      <div class="faceid" id="faceid-w"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg><span class="scanline"></span></div>
+      <div class="row-wrap"><button class="btn-primary grow" id="btn-withdraw-faceid" onclick="authenticateAndWithdraw()"><span>Scan FaceID &amp; transfer</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-withdraw')">Cancel</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-breakout">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">Breakout <em>request</em></div><button class="modal-close" onclick="closeModal('modal-breakout')">×</button></div>
+      <div class="alert amber">The Brain found a <b id="breakout-trade-val">$4,500</b> opportunity worth <b id="breakout-trade-profit">+$120</b>. It exceeds your daily leash, so autonomous execution is blocked.</div>
+      <dl class="kv">
+        <dt>Strategy</dt><dd>PegGuard cross-DEX arbitrage</dd>
+        <dt>Window</dt><dd><span id="breakout-countdown">30</span> s remaining</dd>
+        <dt>Needs</dt><dd><span class="badge badge-amber">Hardware biometric</span></dd>
+      </dl>
+      <div class="faceid"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg><span class="scanline"></span></div>
+      <div class="row-wrap"><button class="btn-primary grow" onclick="approveBreakoutTrade()"><span>Approve with FaceID</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-breakout')">Reject</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-note">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">A note to the <em>Brain</em></div><button class="modal-close" onclick="closeModal('modal-note')">×</button></div>
+      <p class="caption">Teach preferences and protocol affinities. Notes are data, never instructions: the firewall reads them first.</p>
+      <label class="field"><span class="row-between"><span class="section-label m0">Your note</span><span class="caption" id="note-word-count">0 / 25 words</span></span>
+        <textarea id="note-text-input" rows="4" oninput="updateNoteWordCount(this.value)"></textarea>
+      </label>
+      <label class="toggle-row">
+        <span class="switch"><input type="checkbox" id="note-penalty-check"><span></span></span>
+        <span><b class="txt-red">Penalize autonomy (−10%)</b><br><span class="caption">Use when the note corrects a bad call. Shrinks today's leash by 10%.</span></span>
+      </label>
+      <div class="row-wrap"><button class="btn-primary grow" onclick="submitNoteToBrain()"><span>Send the note</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-note')">Cancel</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-pillars">
+    <div class="modal wide">
+      <div class="modal-head"><div class="modal-title">Three pillars &amp; four <em>invariants</em></div><button class="modal-close" onclick="closeModal('modal-pillars')">×</button></div>
+      <div class="pillars">
+        <div class="pillar"><span class="badge badge-green">Pillar 1</span><b>Non-custodial agent wallet</b><p>ERC-7579 smart account. The AI holds a session key bound to one mandate.</p></div>
+        <div class="pillar"><span class="badge badge-blue">Pillar 2</span><b>Mathematical leash</b><p>TetherGuardHook meters every call in 8-decimal USD and reverts past the radius.</p></div>
+        <div class="pillar"><span class="badge badge-amber">Pillar 3</span><b>Mobile virtual session</b><p>Phone tunnel and FaceID passkeys for breakouts and withdrawals.</p></div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table small">
+          <thead><tr><th>Feature / risk</th><th>Trading bots</th><th>Hardware wallet</th><th>Tec-C</th></tr></thead>
+          <tbody>
+            <tr><td>24/7 autonomy</td><td class="txt-green">✓ full</td><td class="txt-red">✗ manual</td><td class="txt-green"><b>✓ inside the leash</b></td></tr>
+            <tr><td>Hack blast radius</td><td class="txt-red">✗ everything</td><td class="txt-green">✓ low</td><td class="txt-green"><b>✓ capped by the leash</b></td></tr>
+            <tr><td>Daily limit tuning</td><td>unbounded</td><td>n/a</td><td class="txt-green"><b>✓ limit + elasticity</b></td></tr>
+            <tr><td>Biometric security</td><td>none</td><td>button</td><td class="txt-green"><b>✓ FaceID passkey</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ol class="invariants">
+        <li><b>The AI can never withdraw.</b> External transfers need your passkey.</li>
+        <li><b>The AI can never exceed the radius.</b> Enforced on-chain, in USD.</li>
+        <li><b>The AI can never touch unlisted venues.</b> The mandate's policy hash pins them.</li>
+        <li><b>Trust is lost faster than it is gained.</b> −20% on a flag vs. at most +10% a day.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="assets/js/app.js?v=5"></script>
+</body>
+</html>

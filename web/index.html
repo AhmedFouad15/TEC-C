@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tec-C · Instinct on a Leash</title>
+  <meta name="description" content="Tec-C: an autonomous agent wallet that hunts yield like a jaguar, and never leaves its leash.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/landing.css?v=21">
+</head>
+<body class="is-loading">
+
+  <!-- ============ PRELOADER ============ -->
+  <div class="preloader" id="preloader" aria-hidden="true">
+    <div class="pre-eyes">
+      <span class="pre-eye"></span><span class="pre-eye"></span>
+    </div>
+    <div class="pre-brand">TEC<span>—</span>C</div>
+    <div class="pre-count"><span id="pre-num">0</span>%</div>
+    <div class="pre-bar"><i id="pre-bar"></i></div>
+    <div class="pre-note">tracking the market…</div>
+  </div>
+
+  <canvas id="fireflies" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="cursor-dot" id="cursor-dot" aria-hidden="true"></div>
+  <div class="cursor-ring" id="cursor-ring" aria-hidden="true"></div>
+
+  <!-- the forest the jaguar disappears into: one light, airy background for everything after the hero -->
+  <div class="nature" id="nature" aria-hidden="true">
+    <div class="nature-photo"></div>
+    <div class="nature-moss nature-moss-l"></div>
+    <div class="nature-moss nature-moss-r"></div>
+    <div class="nature-haze"></div>
+    <div class="nature-leaves" id="nature-leaves"></div>
+  </div>
+
+  <!-- ============ HEADER ============ -->
+  <header class="site-header" id="site-header">
+    <a class="logo" href="#top" aria-label="Tec-C home">
+      <svg viewBox="0 0 40 40" class="logo-mark" aria-hidden="true">
+        <path d="M6 14 Q20 2 34 14 Q30 28 20 34 Q10 28 6 14Z" fill="none" stroke="currentColor" stroke-width="2"/>
+        <ellipse cx="14" cy="17" rx="3.2" ry="2" fill="#E8A64B"/><ellipse cx="26" cy="17" rx="3.2" ry="2" fill="#E8A64B"/>
+        <circle cx="14" cy="17" r=".9" fill="#0b0d0a"/><circle cx="26" cy="17" r=".9" fill="#0b0d0a"/>
+      </svg>
+      <span>TEC-C</span>
+    </a>
+    <nav class="main-nav">
+      <a href="#hunt" data-magnetic>About</a>
+      <a href="#senses" data-magnetic>Brain</a>
+      <a href="#territories" data-magnetic>Markets</a>
+      <a href="#oath" data-magnetic>Safety</a>
+    </nav>
+    <a class="circle-btn" href="app.html" aria-label="Enter the Command Center" data-magnetic>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </header>
+
+  <main id="top">
+
+    <!-- ============ HERO SLIDER ============ -->
+    <div class="hero-track" id="hero-track">
+    <div class="stage" id="stage">
+    <section class="hero" id="hero">
+      <div class="slides" id="slides">
+
+        <article class="slide is-active" data-index="0">
+          <div class="slide-media"><img src="assets/img/jaguar-hero.jpg" alt="A jaguar in profile, watching the dark forest"></div>
+          <div class="slide-copy">
+            <div class="eyebrow"><span class="eyebrow-line"></span>Autonomous agent wallet</div>
+            <h1 class="headline" data-split>Instinct<br>on a leash</h1>
+            <div class="copy-cols">
+              <p>Tec-C hunts yield across four markets while you sleep: it reads the news, prices the tail risk and moves only when the edge is real.</p>
+              <p>Every move it makes happens inside a daily radius your vault enforces on-chain. Bigger leaps wait for your FaceID.</p>
+            </div>
+            <div class="cta-row">
+              <a class="btn-pill" href="app.html" data-magnetic>Enter the vault <span class="sq"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
+              <a class="btn-ghost" href="#hunt">How it hunts</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="slide" data-index="1">
+          <div class="slide-media"><img src="assets/img/jaguar-gaze.jpg" alt="Close-up of a jaguar's eyes"></div>
+          <div class="slide-copy">
+            <div class="eyebrow"><span class="eyebrow-line"></span>NLP risk sentinel</div>
+            <h1 class="headline" data-split>Eyes in<br>the dark</h1>
+            <div class="copy-cols">
+              <p>FinBERT-grade news scoring, Fear &amp; Greed velocity and on-chain stress feed one probability: how likely is this asset to break?</p>
+              <p>Backtested on UST 2022, USDC/SVB 2023 and the stETH discount of 2022. It warns before the crowd panics.</p>
+            </div>
+            <div class="cta-row">
+              <a class="btn-pill" href="app.html#opportunities" data-magnetic>See the ratings <span class="sq"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
+              <a class="btn-ghost" href="#senses">Meet the six senses</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="slide" data-index="2">
+          <div class="slide-media"><img src="assets/img/jaguar-jungle.jpg" alt="A jaguar moving through green jungle"></div>
+          <div class="slide-copy">
+            <div class="eyebrow"><span class="eyebrow-line"></span>Econometrics &amp; liquidity</div>
+            <h1 class="headline" data-split>Strike only<br>with edge</h1>
+            <div class="copy-cols">
+              <p>Yield is nothing until it beats the 1Y Shibor hurdle after expected losses, panic-exit cost and your own loss aversion.</p>
+              <p>Every candidate carries its Sharpe and CVaR 95%. No edge, no trade: doing nothing is a decision too.</p>
+            </div>
+            <div class="cta-row">
+              <a class="btn-pill" href="app.html" data-magnetic>Ask the Brain <span class="sq"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
+              <a class="btn-ghost" href="#territories">Four territories</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="slide" data-index="3">
+          <div class="slide-media"><img src="assets/img/jaguar-roar.jpg" alt="A jaguar roaring"></div>
+          <div class="slide-copy">
+            <div class="eyebrow"><span class="eyebrow-line"></span>Vault sovereignty</div>
+            <h1 class="headline" data-split>The vault<br>never blinks</h1>
+            <div class="copy-cols">
+              <p>The AI holds a session key, never your funds. A TetherGuardHook meters every move in USD and refuses anything outside the mandate.</p>
+              <p>It can never withdraw, never exceed the radius, never touch an unlisted token. Trust is earned slowly and lost fast.</p>
+            </div>
+            <div class="cta-row">
+              <a class="btn-pill" href="app.html#settings" data-magnetic>Set your leash <span class="sq"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
+              <a class="btn-ghost" href="#oath">The four oaths</a>
+            </div>
+          </div>
+        </article>
+
+      </div>
+
+      <div class="spotlight" id="spotlight" aria-hidden="true"></div>
+
+      <!-- vertical index like the reference: 01 — 02 03 04 -->
+      <nav class="slide-index" id="slide-index" aria-label="Slides">
+        <button class="si is-active" data-go="0"><span class="si-num">01</span><span class="si-track"><i></i></span></button>
+        <button class="si" data-go="1"><span class="si-num">02</span><span class="si-track"><i></i></span></button>
+        <button class="si" data-go="2"><span class="si-num">03</span><span class="si-track"><i></i></span></button>
+        <button class="si" data-go="3"><span class="si-num">04</span><span class="si-track"><i></i></span></button>
+      </nav>
+
+      <div class="socials">
+        <a href="https://github.com/AhmedFouad15/TEC-C" target="_blank" rel="noopener">GitHub</a>
+        <a href="app.html">Command Center</a>
+        <a href="#credits">Credits</a>
+        <button class="run-toggle" id="run-toggle" title="Switch the run animation">Run: photo</button>
+      </div>
+
+      <div class="scroll-hint" aria-hidden="true"><span>Scroll into the forest</span><i></i></div>
+    </section>
+
+    <!-- the run: night jungle, a cave mouth, the jaguar charging the camera (photo or 1887 gallop sprite) -->
+    <div class="scene-night" id="scene-night" aria-hidden="true">
+      <div class="night-bg"></div>
+      <svg class="cave-mouth" id="cave-mouth" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <filter id="rocky" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency=".018" numOctaves="4" seed="7" result="n"/>
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="70" xChannelSelector="R" yChannelSelector="G"/>
+          </filter>
+          <filter id="grit"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="g"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .35"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter>
+          <radialGradient id="rock" cx="50%" cy="60%" r="65%"><stop offset=".45" stop-color="#2b3326"/><stop offset=".8" stop-color="#1a2016"/><stop offset="1" stop-color="#0d110b" stop-opacity="0"/></radialGradient>
+          <radialGradient id="mouth" cx="50%" cy="58%" r="55%"><stop offset="0" stop-color="#000"/><stop offset=".75" stop-color="#030403"/><stop offset="1" stop-color="#0b0e09"/></radialGradient>
+          <linearGradient id="moss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5f7d45" stop-opacity=".9"/><stop offset="1" stop-color="#2d3b22" stop-opacity="0"/></linearGradient>
+        </defs>
+        <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+        <ellipse cx="505" cy="470" rx="330" ry="260" fill="#000" opacity=".55" filter="url(#soft)"/>
+        <path d="M300 700 C270 520 320 360 420 300 C470 272 545 270 600 292 C705 340 750 500 720 700 Z" fill="url(#mouth)" filter="url(#rocky)"/>
+        <path d="M300 700 C270 520 320 360 420 300 C470 272 545 270 600 292 C705 340 750 500 720 700 Z" fill="none" stroke="#6f8f52" stroke-opacity=".14" stroke-width="5" filter="url(#rocky)"/>
+      </svg>
+      <div class="runner" id="runner">
+        <img class="runner-photo" src="assets/img/jaguar-run.webp" alt="">
+        <div class="runner-sprite"></div>
+      </div>
+      <div class="seq-caption" id="seq-caption"><span>Into the dark</span></div>
+    </div>
+
+    <!-- inside the cave, looking out at the light -->
+    <div class="scene-cave" id="scene-cave" aria-hidden="true"><div class="cave-img"></div><div class="seq-caption light"><span>…and out into the forest</span></div></div>
+    <div class="flash" id="flash" aria-hidden="true"></div>
+    </div>
+    </div>
+
+    <!-- ============ INTRO (first light after the jaguar) ============ -->
+    <section class="intro" id="intro">
+      <div class="intro-arch" aria-hidden="true"></div>
+      <div class="intro-inner">
+        <div class="kicker">For the wallets that refuse to sleep</div>
+        <h2 class="intro-title">Become the calmest<br><em>version of your wallet.</em></h2>
+        <a class="btn-pill" href="app.html" data-magnetic>Get started <span class="sq"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
+      </div>
+      <div class="intro-card ic-1"><div class="ic-k">Tether left today</div><div class="ic-v">$580</div><div class="ic-bar"><i></i></div></div>
+      <div class="intro-card ic-2"><div class="ic-k">You will never watch</div><div class="ic-t">your wallet the same way again.</div></div>
+      <div class="intro-card ic-3 dark"><div class="ic-k">Risk-adjusted edge</div><div class="ic-v">+1.72%</div><span class="ic-btn">Explore the vault ▪</span></div>
+      <p class="intro-foot">There are two kinds of wallets: those that react, and those that predict. Tec-C reads the news, prices the tail and moves only inside your leash.</p>
+    </section>
+
+    <!-- ============ MARQUEE ============ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>USDC</span><b>✦</b><span>stETH</span><b>✦</b><span>PAXG</span><b>✦</b><span>e-CNY MMF</span><b>✦</b><span>1Y Shibor 2.15%</span><b>✦</b><span>Sharpe</span><b>✦</b><span>CVaR 95%</span><b>✦</b><span>ERC-7579</span><b>✦</b><span>FISCO BCOS</span><b>✦</b><span>Arbitrum</span><b>✦</b><span>PegGuard</span><b>✦</b>
+        <span>USDC</span><b>✦</b><span>stETH</span><b>✦</b><span>PAXG</span><b>✦</b><span>e-CNY MMF</span><b>✦</b><span>1Y Shibor 2.15%</span><b>✦</b><span>Sharpe</span><b>✦</b><span>CVaR 95%</span><b>✦</b><span>ERC-7579</span><b>✦</b><span>FISCO BCOS</span><b>✦</b><span>Arbitrum</span><b>✦</b><span>PegGuard</span><b>✦</b>
+      </div>
+    </div>
+
+    <!-- ============ THE HUNT (numbers) ============ -->
+    <section class="section hunt" id="hunt">
+      <div class="section-head reveal">
+        <div class="kicker">01 — The hunt</div>
+        <h2>Patient by design. <em>Calm</em><br>by default.</h2>
+      </div>
+      <div class="stats">
+        <div class="stat reveal"><div class="stat-num"><span data-count="500" data-prefix="$">0</span></div><div class="stat-label">daily tether radius, metered in USD on-chain</div></div>
+        <div class="stat reveal"><div class="stat-num"><span data-count="6">0</span></div><div class="stat-label">agents in one LangGraph pipeline, every request</div></div>
+        <div class="stat reveal"><div class="stat-num"><span data-count="4">0</span></div><div class="stat-label">markets: crypto, China, commodities, arbitrage</div></div>
+        <div class="stat reveal"><div class="stat-num"><span data-count="0">0</span></div><div class="stat-label">withdrawal rights for the AI. Ever.</div></div>
+      </div>
+    </section>
+
+    <!-- ============ STATEMENT (scroll-lit words) ============ -->
+    <section class="statement" id="statement">
+      <div class="statement-ring" aria-hidden="true"></div>
+      <p class="lit-text" id="lit-text">A good hunter doesn't chase everything that moves. It reads the forest, measures the distance, and strikes once, when the odds are already on its side. Tec-C trades the same way.</p>
+    </section>
+
+    <!-- ============ SIX SENSES (pipeline) ============ -->
+    <section class="section senses" id="senses">
+      <div class="section-head reveal">
+        <div class="kicker">02 — Six senses</div>
+        <h2>Every command passes<br>through <em>six minds.</em></h2>
+      </div>
+      <div class="pipeline">
+        <div class="nodes">
+          <div class="node reveal"><div class="node-dot">1</div><h3>Gatekeeper · intake</h3><p>Prompt-injection firewall and a privacy sieve: notes are data, never instructions.</p></div>
+          <div class="node reveal"><div class="node-dot">2</div><h3>Profile</h3><p>Your learned self: risk tier, loss aversion λ and the trust τ the Brain has earned.</p></div>
+          <div class="node reveal"><div class="node-dot">3</div><h3>NLP risk sentinel</h3><p>Headlines, Fear &amp; Greed and peg stress become a probability of trouble.</p></div>
+          <div class="node reveal"><div class="node-dot">4</div><h3>Econometric &amp; liquidity</h3><p>Excess yield over Shibor, expected loss, exit cost, Sharpe and CVaR 95%.</p></div>
+          <div class="node reveal"><div class="node-dot">5</div><h3>Gatekeeper · aggregator</h3><p>Weighs it all: proceed, split, wait, or ask you for a FaceID breakout.</p></div>
+          <div class="node reveal"><div class="node-dot">6</div><h3>Web3 executor</h3><p>Signs with a session key; the vault's hook checks the radius before anything moves.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TERRITORIES (bridge into the green app theme) ============ -->
+    <section class="section territories" id="territories">
+      <div class="terr-band" aria-hidden="true"></div>
+      <div class="section-head reveal">
+        <div class="kicker">03 — Four territories</div>
+        <h2>One brain. <em>Four forests</em><br>to hunt in.</h2>
+      </div>
+      <div class="terr-grid">
+        <a class="terr reveal" href="app.html" data-tilt>
+          <div class="terr-top"><span class="terr-n">I</span><span class="chip">Live on-chain</span></div>
+          <h3>Crypto</h3><div class="terr-chain">Ethereum · ERC-7579 vault</div>
+          <p>Lending, staking and LST pools scored against the Shibor hurdle.</p>
+        </a>
+        <a class="terr reveal" href="app.html" data-tilt>
+          <div class="terr-top"><span class="terr-n">II</span><span class="chip">Consortium</span></div>
+          <h3>Chinese market</h3><div class="terr-chain">FISCO BCOS · WeBank</div>
+          <p>e-CNY money-market parking on a zero-gas consortium chain.</p>
+        </a>
+        <a class="terr reveal" href="app.html" data-tilt>
+          <div class="terr-top"><span class="terr-n">III</span><span class="chip">L2</span></div>
+          <h3>Commodities</h3><div class="terr-chain">Arbitrum · PAXG</div>
+          <p>Tokenized gold as the hedge when crypto clusters turn stressed.</p>
+        </a>
+        <a class="terr reveal" href="app.html" data-tilt>
+          <div class="terr-top"><span class="terr-n">IV</span><span class="chip chip-amber">24 / 7</span></div>
+          <h3>Arbitrage</h3><div class="terr-chain">PegGuard · de-peg scanner</div>
+          <p>Buys the discount only when the regime model says the peg holds.</p>
+        </a>
+      </div>
+    </section>
+
+    <!-- ============ THE OATH ============ -->
+    <section class="section oath" id="oath">
+      <div class="section-head reveal">
+        <div class="kicker">04 — The oath</div>
+        <h2>Four things the AI<br><em>can never do.</em></h2>
+      </div>
+      <ol class="oath-list">
+        <li class="reveal"><span>01</span><div><h3>Withdraw your money</h3><p>External transfers need your hardware passkey. The session key has no such power.</p></div></li>
+        <li class="reveal"><span>02</span><div><h3>Exceed the radius</h3><p>The hook meters every call in USD and reverts anything past today's leash.</p></div></li>
+        <li class="reveal"><span>03</span><div><h3>Touch unlisted venues</h3><p>The mandate's policy hash pins the exact venues you approved.</p></div></li>
+        <li class="reveal"><span>04</span><div><h3>Earn trust quickly</h3><p>Trust grows at most +0.05 a day; one flagged mistake shrinks the leash at once.</p></div></li>
+      </ol>
+    </section>
+
+    <!-- ============ CTA ============ -->
+    <section class="cta" id="cta">
+      <div class="cta-arch" aria-hidden="true"></div>
+      <div class="cta-inner reveal">
+        <div class="kicker">Ready when you are</div>
+        <h2 class="cta-title">Into the <em>forest.</em></h2>
+        <a class="btn-pill btn-xl" href="app.html" data-magnetic>Open the Command Center <span class="sq"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer" id="credits">
+    <div class="foot-brand">TEC-C <span>FinTechathon 2026 · Topic F</span></div>
+    <div class="foot-credits">
+      Photos via Wikimedia Commons:
+      <a href="https://commons.wikimedia.org/wiki/File:Portrait_of_a_jaguar_(52303287835).jpg" target="_blank" rel="noopener">Kandukuru Nagarjun</a> (CC BY 2.0),
+      <a href="https://commons.wikimedia.org/wiki/File:Jaguar_Closeup_Portrait_(22933753555).jpg" target="_blank" rel="noopener">Eric Kilby</a> (CC BY-SA 2.0),
+      <a href="https://commons.wikimedia.org/wiki/File:Jaguar_portrait,_Tiergarten_Sch%C3%B6nbrunn.jpg" target="_blank" rel="noopener">Alexander Leisser</a> (CC BY-SA 4.0),
+      <a href="https://commons.wikimedia.org/wiki/File:Smiling_Jaguar_Portrait_(8231275312).jpg" target="_blank" rel="noopener">Eric Kilby</a> (CC BY-SA 2.0),
+      <a href="https://commons.wikimedia.org/wiki/File:Mystic_Layers_of_Agumbe.jpg" target="_blank" rel="noopener">Pradyumnakp</a> (CC0),
+      <a href="https://commons.wikimedia.org/wiki/File:Moss-covered_tree_trunks_in_a_dense_forest_understory.jpg" target="_blank" rel="noopener">Krishna k. sahh</a> (CC0),
+      <a href="https://commons.wikimedia.org/wiki/File:Jaguar_(Panthera_onca_palustris)_male_Three_Brothers_River_2.jpg" target="_blank" rel="noopener">Charles J. Sharp</a> (CC BY-SA 4.0, cut out),
+      <a href="https://commons.wikimedia.org/wiki/File:KITUM_-_View_from_inside_Kitum_Cave_towards_the_entrance,_Kenya,_2012.jpg" target="_blank" rel="noopener">Josep M. Gracia</a> (CC BY-SA 4.0);
+      gallop sprite from Eadweard Muybridge, <a href="https://commons.wikimedia.org/wiki/File:Cat_galloping_(rbm-QP301M8-1887-719).jpg" target="_blank" rel="noopener">Animal Locomotion plate 719</a> (1887, public domain), filled with jaguar fur.
+      Images are cropped and color-graded.
+    </div>
+  </footer>
+
+  <script src="assets/js/landing.js?v=21"></script>
+</body>
+</html>
