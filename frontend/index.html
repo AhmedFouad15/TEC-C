@@ -96,6 +96,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: background 0.3s;
     }
     .donut-inner {
       width: 14px;
@@ -318,7 +319,7 @@
       border-radius: 4px;
       background: var(--text);
       width: 10%;
-      transition: width 0.1s;
+      transition: width 0.15s ease-out;
     }
     .slider-thumb {
       position: absolute;
@@ -330,7 +331,7 @@
       background: #fff;
       border: 2px solid var(--text);
       box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-      transition: left 0.1s;
+      transition: left 0.15s ease-out;
     }
 
     /* Live Pipeline Timeline */
@@ -469,21 +470,21 @@
       <span style="color:var(--green);font-weight:600">+1.2%</span>
     </div>
     <div class="top-pill">
-      <div class="donut-chart"><div class="donut-inner"></div></div>
+      <div class="donut-chart" id="tether-donut"><div class="donut-inner"></div></div>
       <span style="color:var(--muted)">Tether</span>
       <b id="top-tether-val">$420 / $1,000</b>
     </div>
     <div class="top-pill">
       <span class="status-dot active"></span>
       <span style="color:var(--muted)">Brain heartbeat</span>
-      <b>Live</b>
+      <b id="top-heartbeat-text">Live</b>
     </div>
     <div class="top-pill top-pill-btn" onclick="toggleBiometricWindow()" title="Click to simulate biometric FaceID unlock">
       <span class="status-dot" id="bio-dot" style="background:#B9B7AE"></span>
       <span style="color:var(--muted)">Biometric window</span>
       <b id="bio-status-text">Locked</b>
     </div>
-    <div class="avatar-btn" title="Pending Reviews: 3">3</div>
+    <div class="avatar-btn" id="top-pending-badge" title="Pending Reviews">3</div>
     <div class="avatar-btn" style="background:var(--border-subtle);cursor:pointer;" onclick="switchTab('settings')" title="Vault Settings">⚙</div>
   </header>
 
@@ -536,49 +537,49 @@
           <div class="card" style="flex:1.4 1 420px;display:flex;flex-direction:column;gap:18px;">
             <div class="card-title">
               <span>New Command Composer</span>
-              <span class="badge badge-green">Mathematical Leash</span>
+              <span class="badge badge-green" id="active-action-badge">Stake Mandate</span>
             </div>
 
             <!-- Block 1: Action -->
             <div>
               <div class="section-label">1 &bull; Action</div>
               <div class="pill-group" id="action-pills">
-                <button class="pill-btn" onclick="selectAction(this, 'Find opportunities')">Find opportunities</button>
-                <button class="pill-btn" onclick="selectAction(this, 'Invest')">Invest</button>
-                <button class="pill-btn active" onclick="selectAction(this, 'Stake')">Stake</button>
-                <button class="pill-btn" onclick="selectAction(this, 'Swap')">Swap</button>
-                <button class="pill-btn" onclick="selectAction(this, 'Rebalance')">Rebalance</button>
-                <button class="pill-btn" onclick="selectAction(this, 'Reduce risk')">Reduce risk</button>
-                <button class="pill-btn" onclick="selectAction(this, 'Exit position')">Exit position</button>
-                <button class="pill-btn" onclick="selectAction(this, 'Park idle cash')">Park idle cash</button>
+                <button class="pill-btn" onclick="selectAction('Find opportunities')">Find opportunities</button>
+                <button class="pill-btn" onclick="selectAction('Invest')">Invest</button>
+                <button class="pill-btn active" onclick="selectAction('Stake')">Stake</button>
+                <button class="pill-btn" onclick="selectAction('Swap')">Swap</button>
+                <button class="pill-btn" onclick="selectAction('Rebalance')">Rebalance</button>
+                <button class="pill-btn" onclick="selectAction('Reduce risk')">Reduce risk</button>
+                <button class="pill-btn" onclick="selectAction('Exit position')">Exit position</button>
+                <button class="pill-btn" onclick="selectAction('Park idle cash')">Park idle cash</button>
               </div>
             </div>
 
             <!-- Block 2: Market -->
             <div>
               <div class="section-label">2 &bull; Market</div>
-              <div class="market-grid">
-                <div class="market-card active" onclick="selectMarket(this, 'Crypto', 'Ethereum')">
+              <div class="market-grid" id="market-grid">
+                <div class="market-card active" data-market="Crypto" onclick="selectMarket('Crypto', 'Ethereum L1')">
                   <div class="market-name">Crypto</div>
                   <div class="market-sub">Ethereum L1</div>
                   <span class="status-dot active" style="margin-top:6px"></span>
                 </div>
-                <div class="market-card" onclick="selectMarket(this, 'Chinese market', 'FISCO BCOS')">
+                <div class="market-card" data-market="Chinese market" onclick="selectMarket('Chinese market', 'FISCO BCOS')">
                   <div class="market-name">Chinese market</div>
                   <div class="market-sub">FISCO BCOS</div>
                   <span class="status-dot active" style="margin-top:6px"></span>
                 </div>
-                <div class="market-card" onclick="selectMarket(this, 'Commodities', 'Arbitrum One')">
+                <div class="market-card" data-market="Commodities" onclick="selectMarket('Commodities', 'Arbitrum One')">
                   <div class="market-name">Commodities</div>
                   <div class="market-sub">Arbitrum One</div>
                   <span class="status-dot active" style="margin-top:6px"></span>
                 </div>
-                <div class="market-card" onclick="selectMarket(this, 'Arbitrage', 'PegGuard')">
+                <div class="market-card" data-market="Arbitrage" onclick="selectMarket('Arbitrage', 'PegGuard 24/7')">
                   <div class="market-name">Arbitrage</div>
                   <div class="market-sub">PegGuard 24/7</div>
                   <span class="status-dot warning" style="margin-top:6px"></span>
                 </div>
-                <div class="market-card" onclick="selectMarket(this, 'Any', 'All enabled')">
+                <div class="market-card" data-market="Any" onclick="selectMarket('Any', 'All enabled')">
                   <div class="market-name">Any</div>
                   <div class="market-sub">All enabled</div>
                 </div>
@@ -587,20 +588,16 @@
 
             <!-- Block 3: Asset or Scope -->
             <div>
-              <div class="section-label">3 &bull; Asset or Scope</div>
+              <div class="section-label">3 &bull; Asset or Scope (Dynamically Adaptive)</div>
               <div class="pill-group" id="asset-pills">
-                <button class="pill-btn active" onclick="selectAsset(this, 'ETH')">ETH</button>
-                <button class="pill-btn active" onclick="selectAsset(this, 'stETH')">stETH</button>
-                <button class="pill-btn" onclick="selectAsset(this, 'rETH')">rETH</button>
-                <button class="pill-btn" onclick="selectAsset(this, 'USDC')">USDC</button>
-                <button class="pill-btn" onclick="selectAsset(this, 'All in market')">All in market</button>
+                <!-- Dynamically generated based on Action -->
               </div>
             </div>
 
             <!-- Block 4: Capital Amount -->
             <div>
               <div class="section-label">4 &bull; Capital Amount &amp; Tether Utilization</div>
-              <div class="pill-group">
+              <div class="pill-group" id="capital-pills">
                 <button class="pill-btn" onclick="setSliderPercent(5)">5%</button>
                 <button class="pill-btn active" id="btn-pct-10" onclick="setSliderPercent(10)">10%</button>
                 <button class="pill-btn" onclick="setSliderPercent(25)">25%</button>
@@ -618,9 +615,9 @@
             <!-- Block 5: Risk Tier -->
             <div>
               <div class="section-label">5 &bull; Policy Risk Tier</div>
-              <div class="pill-group">
-                <button class="pill-btn" onclick="selectTier(this, 'Tier 1')">Tier 1 (Core Preservation)</button>
-                <button class="pill-btn active" onclick="selectTier(this, 'Tier 2')">Tier 2 (Growth Yield)</button>
+              <div class="pill-group" id="tier-pills">
+                <button class="pill-btn" onclick="selectTier('Tier 1')">Tier 1 (Core Preservation)</button>
+                <button class="pill-btn active" onclick="selectTier('Tier 2')">Tier 2 (Growth Yield)</button>
                 <button class="pill-btn" disabled title="Tier 3 requires hardware Passkey biometric unlock">Tier 3 (Unrestricted &bull; Locked)</button>
               </div>
             </div>
@@ -645,26 +642,26 @@
             <div class="timeline" id="pipeline-timeline">
               <div class="timeline-step">
                 <div class="timeline-dot done">&check;</div>
-                <div style="font-weight:600">Command Intake</div>
+                <div style="font-weight:600" id="pipe-step-1">Command Intake</div>
                 <div style="font-size:12px;color:var(--muted)">Submitted &bull; 0.2s</div>
               </div>
               <div class="timeline-step">
                 <div class="timeline-dot done">&check;</div>
-                <div style="font-weight:600">Brain Analysis</div>
+                <div style="font-weight:600" id="pipe-step-2">Brain Analysis</div>
                 <div style="font-size:12px;color:var(--muted)">3 options discovered &bull; 1.4s</div>
               </div>
               <div class="timeline-step">
                 <div class="timeline-dot running"></div>
-                <div style="font-weight:600">Multi-Agent Ratings</div>
+                <div style="font-weight:600" id="pipe-step-3">Multi-Agent Ratings</div>
                 <div style="margin-top:6px;display:flex;flex-direction:column;gap:5px;font-size:12px;">
-                  <div style="display:flex;justify-content:space-between"><span>News &amp; NLP</span><span style="color:var(--green);font-weight:600">done (+0.71)</span></div>
-                  <div style="display:flex;justify-content:space-between"><span>Econometrics &amp; Liquidity</span><span style="color:var(--blue);font-weight:600">running (CVaR -3.1%)</span></div>
+                  <div style="display:flex;justify-content:space-between"><span>News &amp; NLP</span><span style="color:var(--green);font-weight:600" id="pipe-news-val">done (+0.71)</span></div>
+                  <div style="display:flex;justify-content:space-between"><span>Econometrics</span><span style="color:var(--blue);font-weight:600" id="pipe-econ-val">running (CVaR -3.1%)</span></div>
                   <div style="display:flex;justify-content:space-between"><span>Injection Defense</span><span style="color:var(--green);font-weight:600">pass (0 threats)</span></div>
                 </div>
               </div>
               <div class="timeline-step">
                 <div class="timeline-dot waiting">&bull;</div>
-                <div style="font-weight:600;color:var(--muted)">Brain Decision Synthesis</div>
+                <div style="font-weight:600;color:var(--muted)" id="pipe-step-4">Brain Decision Synthesis</div>
               </div>
               <div class="timeline-step">
                 <div class="timeline-dot waiting">&bull;</div>
@@ -685,16 +682,16 @@
           <div style="flex:0.8 1 240px;display:flex;flex-direction:column;gap:16px;">
             <div class="card">
               <div class="section-label">Tether Leash Remaining</div>
-              <div style="font-size:26px;font-weight:800;margin-top:4px;">$580 <span style="font-size:13px;font-weight:400;color:var(--muted)">left today</span></div>
+              <div style="font-size:26px;font-weight:800;margin-top:4px;" id="widget-tether-left">$580 <span style="font-size:13px;font-weight:400;color:var(--muted)">left today</span></div>
               <div style="height:8px;border-radius:4px;background:var(--border-subtle);margin-top:10px;">
-                <div style="width:42%;height:8px;border-radius:4px;background:var(--green);"></div>
+                <div style="width:42%;height:8px;border-radius:4px;background:var(--green);" id="widget-tether-fill"></div>
               </div>
               <div style="font-size:11px;color:var(--muted);margin-top:8px;">Epoch resets in 09h 14m</div>
             </div>
 
             <div class="card">
               <div class="section-label">Overnight Ratifications</div>
-              <div style="font-size:26px;font-weight:800;margin-top:4px;">3 <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span></div>
+              <div style="font-size:26px;font-weight:800;margin-top:4px;" id="widget-pending-reviews">3 <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span></div>
               <button class="pill-btn" style="width:100%;margin-top:12px;border:1px solid var(--text);font-weight:600" onclick="switchTab('review')">
                 Review Morning Trades &rarr;
               </button>
@@ -726,7 +723,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
           <div>
             <h1 class="page-title">Opportunities &amp; AI Ratings</h1>
-            <p class="page-subtitle">Request #0412 &bull; Stake ETH &amp; stETH in Crypto, 10% Capital, Tier 2</p>
+            <p class="page-subtitle" id="opp-request-header">Request #0412 &bull; Stake ETH &amp; stETH in Crypto, 10% Capital, Tier 2</p>
           </div>
           <div style="display:flex;gap:8px;">
             <span class="badge badge-blue" style="font-size:13px;padding:6px 14px;">Evaluated &bull; 3 Options</span>
@@ -734,76 +731,25 @@
         </div>
 
         <!-- Zone A: Candidates -->
-        <div class="section-label">Zone A &bull; Candidate Comparison for Request #0412</div>
-        <div style="display:flex;flex-wrap:wrap;gap:16px;">
-          
-          <!-- Option A -->
-          <div class="candidate-card chosen" onclick="selectCandidateCard(this, 'A')">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <b>A &bull; Stake ETH on Lido</b>
-              <span class="badge badge-green">Chosen 70%</span>
-            </div>
-            <div style="font-size:12px;color:var(--muted)">Crypto &bull; Staking &bull; 2.0 ETH &bull; $4,821</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
-              <span class="badge" style="border:1px solid var(--border)">News +0.71</span>
-              <span class="badge" style="border:1px solid var(--border)">Econ 0.64</span>
-              <span class="badge" style="border:1px solid var(--border)">Injection Pass</span>
-            </div>
-            <div style="font-size:22px;font-weight:800;margin-top:6px;">
-              0.68 <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
-            </div>
-          </div>
-
-          <!-- Option B -->
-          <div class="candidate-card" onclick="selectCandidateCard(this, 'B')">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <b>B &bull; Supply ETH on Aave v3</b>
-              <span class="badge badge-green">Chosen 30%</span>
-            </div>
-            <div style="font-size:12px;color:var(--muted)">Crypto &bull; Lending &bull; 2.0 ETH &bull; $4,821</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
-              <span class="badge" style="border:1px solid var(--border)">News +0.55</span>
-              <span class="badge" style="border:1px solid var(--border)">Econ 0.70</span>
-              <span class="badge" style="border:1px solid var(--border)">Injection Pass</span>
-            </div>
-            <div style="font-size:22px;font-weight:800;margin-top:6px;">
-              0.61 <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
-            </div>
-          </div>
-
-          <!-- Option C -->
-          <div class="candidate-card" onclick="selectCandidateCard(this, 'C')">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <b>C &bull; Buy stETH on DEX</b>
-              <span class="badge badge-red">Rejected</span>
-            </div>
-            <div style="font-size:12px;color:var(--muted)">Crypto &bull; Swap &bull; 2.0 ETH &bull; $4,821</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
-              <span class="badge" style="border:1px solid var(--border)">News +0.71</span>
-              <span class="badge" style="border:1px solid var(--border)">Econ 0.41</span>
-              <span class="badge badge-amber">Injection Warn</span>
-            </div>
-            <div style="font-size:22px;font-weight:800;margin-top:6px;">
-              0.44 <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
-            </div>
-          </div>
-
+        <div class="section-label">Zone A &bull; Candidate Comparison for Current Command</div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;" id="candidates-container">
+          <!-- Dynamically Rendered by RenderCandidates() -->
         </div>
 
         <!-- Zone B: Deep Rating Breakdown -->
-        <div class="section-label">Zone B &bull; Deep Rating Breakdown for Selected Option (Lido Staking)</div>
+        <div class="section-label" id="zone-b-title">Zone B &bull; Deep Rating Breakdown for Selected Option</div>
         <div style="display:flex;flex-wrap:wrap;gap:18px;">
           
           <!-- 1. News & Sentiment -->
           <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;gap:12px;">
             <div class="card-title">
               <span>1. News &amp; NLP Sentiment</span>
-              <span class="badge badge-green">+0.71 Positive</span>
+              <span class="badge badge-green" id="rating-news-badge">+0.71 Positive</span>
             </div>
             <div>
               <div style="font-size:12px;color:var(--muted)">FinBERT Confidence Score (-1.0 to +1.0)</div>
               <div style="position:relative;height:10px;border-radius:5px;margin-top:8px;background:linear-gradient(90deg,#E7B4AD,#E7E5DE,#B4DBC4)">
-                <div style="position:absolute;left:85%;top:-4px;width:6px;height:18px;margin-left:-3px;background:var(--text);border-radius:3px"></div>
+                <div id="sentiment-indicator" style="position:absolute;left:85%;top:-4px;width:6px;height:18px;margin-left:-3px;background:var(--text);border-radius:3px;transition:left 0.3s"></div>
               </div>
               <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px">
                 <span>-1.0 Panic</span><span>0 Neutral</span><span>+1.0 Euphoria</span>
@@ -811,7 +757,7 @@
             </div>
             <div style="font-size:12px;color:var(--muted);margin-top:4px;">
               <strong>Recent Headlines Analyzed:</strong>
-              <ul style="margin:6px 0 0 16px;line-height:1.6">
+              <ul style="margin:6px 0 0 16px;line-height:1.6" id="headlines-list">
                 <li>Lido staking deposits hit record high (2h ago &bull; Positive)</li>
                 <li>Ethereum validator queue clears (5h ago &bull; Positive)</li>
                 <li>Staking rewards APY stable at 3.4% (7h ago &bull; Neutral)</li>
@@ -831,11 +777,11 @@
             <div style="display:flex;gap:10px;">
               <div style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;">
                 <div style="font-size:11px;color:var(--muted)">Tail Risk (CVaR 95%)</div>
-                <div style="font-size:20px;font-weight:700">-3.1%</div>
+                <div style="font-size:20px;font-weight:700" id="metric-cvar95">-3.1%</div>
               </div>
               <div style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;">
                 <div style="font-size:11px;color:var(--muted)">Extreme (CVaR 99%)</div>
-                <div style="font-size:20px;font-weight:700">-5.4%</div>
+                <div style="font-size:20px;font-weight:700" id="metric-cvar99">-5.4%</div>
               </div>
             </div>
             <div>
@@ -846,7 +792,7 @@
                 <line x1="200" y1="10" x2="200" y2="78" stroke="#C0392B" stroke-dasharray="4 3"/>
               </svg>
             </div>
-            <div style="font-size:12px;color:var(--muted)">
+            <div style="font-size:12px;color:var(--muted)" id="slippage-text">
               Modeled slippage for $4,821 execution: <strong>0.08%</strong> (Liquidity depth $240M).
             </div>
           </div>
@@ -872,7 +818,7 @@
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="color:var(--green);font-weight:700">&check;</span>
-                <span>Amount check: Exactly matches mandate ($4,821)</span>
+                <span id="inj-amount-text">Amount check: Exactly matches mandate ($4,821)</span>
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="color:var(--green);font-weight:700">&check;</span>
@@ -889,11 +835,11 @@
             <span>Zone C &bull; Brain Decision &amp; Autonomous Synthesis</span>
             <span class="badge badge-green">Autonomous Execution</span>
           </div>
-          <div style="font-size:14px;color:var(--text);line-height:1.6;">
-            <strong>Synthesis Rationale:</strong> Options A (Lido) and B (Aave) both pass hard safety filters with close composite scores (0.68 vs 0.61). The Brain chooses a portfolio diversification split: <strong>70% Lido Staking ($3,375)</strong> &bull; <strong>30% Aave Lending ($1,446)</strong>.
+          <div style="font-size:14px;color:var(--text);line-height:1.6;" id="synthesis-rationale">
+            <strong>Synthesis Rationale:</strong> Options A and B both pass hard safety filters with close composite scores. The Brain chooses a portfolio diversification split.
           </div>
           <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-            <button class="btn-primary" style="flex:1 1 200px" onclick="executeAutonomousTrade()">
+            <button class="btn-primary" style="flex:1 1 200px" id="btn-execute-trade" onclick="executeAutonomousTrade()">
               Execute Autonomous Split Inside Tether ($482 of $580 Left)
             </button>
             <button class="pill-btn" onclick="showToast('Candidate vetoed: trade discarded.')">Discard</button>
@@ -917,7 +863,7 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div>
                 <div style="font-size:12px;color:var(--muted)">Total Portfolio Valuation</div>
-                <div style="font-size:32px;font-weight:800;letter-spacing:-0.02em;">$48,210</div>
+                <div style="font-size:32px;font-weight:800;letter-spacing:-0.02em;" id="portfolio-total-val">$48,210</div>
                 <div style="color:var(--green);font-size:13px;font-weight:600;">+$574 (+1.2%) in 24h</div>
               </div>
               <div class="pill-group">
@@ -1031,6 +977,7 @@
               <span class="status-dot active"></span><span class="status-dot active"></span>
               <span class="status-dot active"></span><span class="status-dot active"></span>
               <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
               <span class="status-dot danger" title="Negative news detected"></span>
               <span class="status-dot active" style="outline:2px solid var(--text);outline-offset:2px"></span>
             </div>
@@ -1066,8 +1013,8 @@
           <!-- Summary Bar -->
           <div class="card" style="display:flex;flex-direction:column;gap:12px;">
             <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;">
-              <div><div style="font-size:12px;color:var(--muted)">Overnight Trades</div><div style="font-size:22px;font-weight:800">5</div></div>
-              <div><div style="font-size:12px;color:var(--muted)">Capital Moved</div><div style="font-size:22px;font-weight:800">$1,240</div></div>
+              <div><div style="font-size:12px;color:var(--muted)">Overnight Trades</div><div style="font-size:22px;font-weight:800" id="review-total-trades">5</div></div>
+              <div><div style="font-size:12px;color:var(--muted)">Capital Moved</div><div style="font-size:22px;font-weight:800" id="review-capital-moved">$1,240</div></div>
               <div><div style="font-size:12px;color:var(--muted)">Reviewed</div><div style="font-size:22px;font-weight:800" id="review-progress">2 of 5</div></div>
               <div style="flex:1"></div>
               <button class="pill-btn" style="border:1px solid var(--text);font-weight:700" onclick="ratifyAllRemaining()">Ratify the Rest</button>
@@ -1075,7 +1022,7 @@
             <div>
               <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
                 <span>Like streak toward a radius increase</span>
-                <span>3 of 5 &bull; Eligible for +10% step-up</span>
+                <span id="streak-text">3 of 5 &bull; Eligible for +10% step-up</span>
               </div>
               <div style="display:flex;gap:6px;margin-top:6px;" id="streak-bar">
                 <div style="flex:1;height:8px;border-radius:4px;background:var(--green)"></div>
@@ -1087,75 +1034,9 @@
             </div>
           </div>
 
-          <!-- Trade Card 1 (Expanded) -->
-          <div class="card" id="trade-card-1" style="border:2px solid var(--text);display:flex;flex-direction:column;gap:14px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-              <div>
-                <div style="font-weight:800;font-size:16px;">Stake 0.4 ETH on Lido</div>
-                <div style="font-size:12px;color:var(--muted);margin-top:2px;">Executed at 02:14 UTC &bull; Crypto &bull; $964 Value</div>
-              </div>
-              <span class="badge badge-amber" id="trade-1-status">Pending Review</span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;">
-              <span class="badge" style="border:1px solid var(--border)">News +0.71</span>
-              <span class="badge" style="border:1px solid var(--border)">Econ 0.64</span>
-              <span class="badge" style="border:1px solid var(--border)">Slippage 0.08% (est. 0.10%)</span>
-              <span class="badge badge-green">P&amp;L: +$3.20</span>
-              <span style="color:var(--muted);font-family:monospace">tx: 0x9a4f...e1c8</span>
-            </div>
-
-            <!-- Review Actions -->
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-              <button class="pill-btn" style="flex:1 1 140px;background:var(--green-bg);color:var(--green-dark);border-color:var(--green);font-weight:700" onclick="handleLikeAndRatify(1)">
-                &plus; Like &amp; Ratify
-              </button>
-              <button class="pill-btn" style="flex:1 1 140px;color:var(--red);border-color:var(--red);font-weight:700" onclick="handleFlagRevert(1)">
-                &times; Flag for Revert (-20%)
-              </button>
-              <button class="pill-btn" style="flex:1 1 140px;background:var(--text);color:#fff;font-weight:700" onclick="toggleNoteBox(1)">
-                &para; Note &amp; Educate
-              </button>
-            </div>
-
-            <!-- Yellow Comment Box -->
-            <div id="note-box-1" style="background:var(--yellow-note);border:2px solid var(--yellow-border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">
-              <div style="font-size:12px;font-weight:700;color:#5C4A00;">Your Note to the Brain</div>
-              <textarea id="note-text-1" rows="2" style="width:100%;border:0;border-radius:8px;padding:10px;background:var(--yellow-input);font-family:inherit;color:var(--text);resize:none;" oninput="updateWordCount(this, 1)">Lido staking is approved, but prefer rocket pool (rETH) when yield difference is under 0.2%.</textarea>
-              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-                <div style="font-size:12px;color:#5C4A00;" id="word-count-1">14 / 25 words</div>
-                <div style="display:flex;gap:12px;align-items:center;">
-                  <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#5C4A00;cursor:pointer;">
-                    <input type="checkbox" id="penalize-check-1"> Penalize Brain autonomy (-10%)
-                  </label>
-                  <button class="pill-btn" style="background:var(--text);color:#fff;border:0;padding:6px 14px;font-weight:600" onclick="submitNoteToBrain(1)">
-                    Send Note
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Trade Card 2 -->
-          <div class="card" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="showToast('Expanded Trade #2 details')">
-            <div>
-              <div style="font-weight:700;">Swap 500 USDC to PAXG</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px;">03:40 UTC &bull; Commodities &bull; $500</div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <span class="badge badge-amber">Pending Review</span>
-              <span style="font-size:16px;color:var(--muted)">&or;</span>
-            </div>
-          </div>
-
-          <!-- Trade Card 3 -->
-          <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
-            <div>
-              <div style="font-weight:700;">Supply 1 ETH to Aave v3</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px;">01:02 UTC &bull; Crypto &bull; $2,410</div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <span class="badge badge-green">&check; Ratified &bull; Allowance Restored</span>
-            </div>
+          <!-- Dynamic Trades List Container -->
+          <div id="trades-list" style="display:flex;flex-direction:column;gap:14px;">
+            <!-- Rendered by renderTrades() -->
           </div>
 
         </div>
@@ -1189,7 +1070,6 @@
           <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;">
             <div class="card-title" style="width:100%">Scan to Connect Phone</div>
             <div style="width:140px;height:140px;border:1px solid var(--border);border-radius:12px;padding:8px;background:#fff;display:flex;align-items:center;justify-content:center;">
-              <!-- Simulated QR SVG -->
               <svg width="120" height="120" viewBox="0 0 100 100">
                 <rect width="100" height="100" fill="#fff"/>
                 <path d="M10 10 h30 v30 h-30 z M50 10 h40 v20 h-40 z M10 50 h20 v40 h-20 z M40 40 h20 v20 h-20 z M70 50 h20 v20 h-20 z M50 80 h40 v10 h-40 z" fill="#1E1E1C"/>
@@ -1251,13 +1131,505 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <!-- Script for Interactivity -->
+  <!-- Dynamic Logic & State Machine -->
   <script>
-    // State
+    // Action Presets Data Engine
+    const ACTION_PRESETS = {
+      'Stake': {
+        assets: ['ETH', 'stETH', 'rETH', 'cbETH'],
+        defaultAssets: ['ETH', 'stETH'],
+        market: 'Crypto',
+        network: 'Ethereum L1',
+        pct: 10,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Staking Mandate Submitted',
+          step2: 'Scanning Validator Queues',
+          step3Name: 'News & Econometrics',
+          news: 'done (+0.71)',
+          econ: 'running (CVaR -3.1%)'
+        },
+        headlines: [
+          'Lido staking deposits hit record peak (2h ago &bull; Positive)',
+          'Ethereum validator exit queue clears completely (5h ago &bull; Positive)',
+          'Staking yield benchmark holds steady at 3.4% APY (7h ago &bull; Neutral)'
+        ],
+        newsScore: 0.71,
+        cvar95: '-3.1%',
+        cvar99: '-5.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Stake ETH on Lido',
+            badge: 'Chosen 70%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Staking &bull; 3.4% APY',
+            newsScore: '+0.71',
+            econScore: '0.64',
+            inj: 'Pass',
+            score: '0.68',
+            rationale: 'Liquid staking on Lido provides 3.4% APY with deep secondary curve liquidity and insured validator operators.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Supply ETH on Aave v3',
+            badge: 'Chosen 30%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Lending &bull; 2.6% APY',
+            newsScore: '+0.55',
+            econScore: '0.70',
+            inj: 'Pass',
+            score: '0.61',
+            rationale: 'Supplying collateral to Aave provides defensive lending yield with instant unbonding liquidity.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Buy stETH on DEX Secondary Pool',
+            badge: 'Rejected',
+            badgeClass: 'badge-red',
+            info: 'Crypto &bull; Curve Swap &bull; 0.9982 stETH/ETH',
+            newsScore: '+0.71',
+            econScore: '0.41',
+            inj: 'Warn',
+            score: '0.44',
+            rationale: 'Secondary discount margin (18 bps) is eroded by gas cost and DEX slippage. Direct staking preferred.'
+          }
+        ]
+      },
+      'Swap': {
+        assets: ['USDC', 'ETH', 'USDT', 'PAXG', 'stETH'],
+        defaultAssets: ['USDC', 'ETH'],
+        market: 'Crypto',
+        network: 'Ethereum / Arbitrum',
+        pct: 5,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'Swap Intent Verified',
+          step2: 'Scanning DEX Pool Orderbooks',
+          step3Name: 'Orderbook Depth & Slippage',
+          news: 'done (+0.62)',
+          econ: 'running (Slippage 0.03%)'
+        },
+        headlines: [
+          'Uniswap v3 concentrated liquidity pool depth exceeds $180M (1h ago &bull; Positive)',
+          'Gas fees drop below 12 gwei on Ethereum mainnet (3h ago &bull; Positive)',
+          'Stablecoin trading volumes surge across decentralized exchanges (6h ago &bull; Neutral)'
+        ],
+        newsScore: 0.62,
+        cvar95: '-1.8%',
+        cvar99: '-3.2%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Swap USDC to ETH via Uniswap v3',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Concentrated Liquidity &bull; 0.05% Fee Tier',
+            newsScore: '+0.62',
+            econScore: '0.84',
+            inj: 'Pass',
+            score: '0.78',
+            rationale: 'Highest concentrated pool depth ensures minimal slippage (0.03%) for the requested order size.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Swap via Curve TriCrypto Pool',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Crypto &bull; Dynamic Peg Invariant Pool',
+            newsScore: '+0.58',
+            econScore: '0.72',
+            inj: 'Pass',
+            score: '0.67',
+            rationale: 'Curve v2 dynamic fee model produces 0.05% slippage, slightly higher than Uniswap v3.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Batch Auction via CoW Protocol',
+            badge: 'Higher Latency',
+            badgeClass: 'badge-amber',
+            info: 'Crypto &bull; MEV Protected Batch Auction',
+            newsScore: '+0.65',
+            econScore: '0.59',
+            inj: 'Pass',
+            score: '0.61',
+            rationale: 'Batch auction eliminates frontrunning MEV but incurs 1-block delay in volatile regimes.'
+          }
+        ]
+      },
+      'Park idle cash': {
+        assets: ['USDC', 'e-CNY MMF', 'USDT', 'USDY'],
+        defaultAssets: ['USDC', 'e-CNY MMF'],
+        market: 'Chinese market',
+        network: 'FISCO BCOS / Arbitrum',
+        pct: 25,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'Cash Deployment Mandate',
+          step2: 'Scanning Sovereign & DeFi Hurdles',
+          step3Name: 'Shibor & Variable Yield Check',
+          news: 'done (+0.48)',
+          econ: 'running (Riskless Hurdle 2.85%)'
+        },
+        headlines: [
+          'PBOC liquidity open market operations support 1Y Shibor benchmark (2h ago &bull; Positive)',
+          'Money market funds on consortium chain report zero duration risk (4h ago &bull; Positive)',
+          'USDC lending rates on Arbitrum normalize to 4.8% APY (8h ago &bull; Neutral)'
+        ],
+        newsScore: 0.48,
+        cvar95: '-0.2%',
+        cvar99: '-0.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Park in Shibor 1Y MMF on FISCO BCOS',
+            badge: 'Chosen 60%',
+            badgeClass: 'badge-green',
+            info: 'Chinese Mkt &bull; WeBank Consortium &bull; 2.85% Shibor Yield',
+            newsScore: '+0.45',
+            econScore: '0.92',
+            inj: 'Pass',
+            score: '0.82',
+            rationale: 'Consortium zero-gas sovereign treasury MMF provides zero-volatility yield benchmarked to 1Y Shibor.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Deposit USDC into Aave v3 Lending Reserve',
+            badge: 'Chosen 40%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Arbitrum L2 &bull; 4.80% Variable Supply APY',
+            newsScore: '+0.52',
+            econScore: '0.78',
+            inj: 'Pass',
+            score: '0.72',
+            rationale: 'L2 native lending yield with over-collateralized liquidation buffers and instant withdrawal liquidity.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Compound v3 USDC Comet Vault',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Crypto &bull; Ethereum L1 &bull; 4.25% Net APY',
+            newsScore: '+0.50',
+            econScore: '0.69',
+            inj: 'Pass',
+            score: '0.65',
+            rationale: 'Solid base yield on L1, but gas fees slightly reduce net returns for allocations under $10,000.'
+          }
+        ]
+      },
+      'Reduce risk': {
+        assets: ['e-CNY MMF', 'stETH', 'PAXG'],
+        defaultAssets: ['e-CNY MMF'],
+        market: 'Chinese market',
+        network: 'FISCO BCOS',
+        pct: 15,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'De-Risking Directive Registered',
+          step2: 'Evaluating Stressed Collateral Nodes',
+          step3Name: 'Value-at-Risk Stress Simulation',
+          news: 'done (-0.45)',
+          econ: 'running (VaR Reduction -82%)'
+        },
+        headlines: [
+          'News Risk Sentinel detected distress signals on synthetic e-CNY note (22m ago &bull; Negative)',
+          'Consortium audit anchor confirmed off-chain exposure (1h ago &bull; Watch)',
+          'Collateral redemption windows remain liquid and operational (3h ago &bull; Neutral)'
+        ],
+        newsScore: -0.45,
+        cvar95: '-0.1%',
+        cvar99: '-0.2%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; De-Risk e-CNY MMF into Native USDC Collateral',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Cross-Chain De-Risking &bull; Eliminates Negative Headline Exposure',
+            newsScore: '-0.45',
+            econScore: '0.88',
+            inj: 'Pass',
+            score: '0.85',
+            rationale: 'Proactively shifting from stressed synthetic paper into native dollar collateral cuts 95% CVaR from -5.4% to -0.2%.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Rebalance into PAXG Gold Commodity Hedge',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Commodities &bull; Arbitrum &bull; Allocated Physical Gold',
+            newsScore: '+0.25',
+            econScore: '0.74',
+            inj: 'Pass',
+            score: '0.71',
+            rationale: 'Gold offers negative cross-correlation against crypto drawdowns, improving overall portfolio Sharpe.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Emergency Complete Vault Lockout',
+            badge: 'Overkill',
+            badgeClass: 'badge-amber',
+            info: 'Full Vault Lockout &bull; Halts all AI session activity',
+            newsScore: '-0.45',
+            econScore: '0.30',
+            inj: 'Pass',
+            score: '0.38',
+            rationale: 'Disproportionate response: only e-CNY MMF is stressed. Targeted de-risking preserves portfolio yield.'
+          }
+        ]
+      },
+      'Invest': {
+        assets: ['ETH', 'stETH', 'USDC', 'PAXG'],
+        defaultAssets: ['ETH', 'USDC'],
+        market: 'Crypto',
+        network: 'Ethereum / Arbitrum',
+        pct: 10,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Growth Investment Mandate',
+          step2: 'Scanning Multi-Chain Yield Venues',
+          step3Name: 'Sharpe & Hurdle Calibration',
+          news: 'done (+0.71)',
+          econ: 'running (Sharpe 1.84)'
+        },
+        headlines: [
+          'Ethereum network activity reaches 6-month high in DeFi transactions (2h ago &bull; Positive)',
+          'Tokenized physical gold demand rises among institutional treasuries (4h ago &bull; Positive)',
+          'Cross-chain bridges report record liquidity depth (7h ago &bull; Neutral)'
+        ],
+        newsScore: 0.71,
+        cvar95: '-3.1%',
+        cvar99: '-5.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Invest in Lido Staked ETH (stETH)',
+            badge: 'Chosen 70%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Staking &bull; 3.4% APY + ETH Exposure',
+            newsScore: '+0.71',
+            econScore: '0.64',
+            inj: 'Pass',
+            score: '0.68',
+            rationale: 'Core Ethereum staking yield combined with blue-chip balance sheet security.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Invest in PAXG Tokenized Gold',
+            badge: 'Chosen 30%',
+            badgeClass: 'badge-green',
+            info: 'Commodities &bull; Arbitrum &bull; LBMA London Good Delivery Gold',
+            newsScore: '+0.35',
+            econScore: '0.75',
+            inj: 'Pass',
+            score: '0.65',
+            rationale: 'Tokenized gold provides real-world asset collateralization and low correlation to equities.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Invest in High-Yield Speculative LP Farm',
+            badge: 'Rejected',
+            badgeClass: 'badge-red',
+            info: 'DeFi &bull; Microcap LP Pool &bull; 24.5% APY',
+            newsScore: '+0.10',
+            econScore: '0.22',
+            inj: 'Warn',
+            score: '0.28',
+            rationale: 'Fails Invariant 2: Permanent loss risk (PD 45% × LGD 80%) far exceeds the acceptable risk tolerance.'
+          }
+        ]
+      },
+      'Rebalance': {
+        assets: ['All in market', 'ETH', 'USDC', 'PAXG'],
+        defaultAssets: ['All in market'],
+        market: 'Any',
+        network: 'Multi-Chain',
+        pct: 20,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Portfolio Rebalance Requested',
+          step2: 'Solving Quadratic Covariance Matrix',
+          step3Name: 'Markowitz Efficient Frontier',
+          news: 'done (+0.58)',
+          econ: 'running (Target 52/22/16/10)'
+        },
+        headlines: [
+          'Cross-asset covariance matrix stable across 30-day window (2h ago &bull; Positive)',
+          'Gold commodity correlation to equities drops to -0.14 (5h ago &bull; Positive)',
+          'Consortium chain money market rate anchors lower portfolio variance (8h ago &bull; Neutral)'
+        ],
+        newsScore: 0.58,
+        cvar95: '-2.1%',
+        cvar99: '-4.1%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Markowitz Max-Sharpe Rebalance',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Multi-Chain &bull; Target Weights 52/22/16/10',
+            newsScore: '+0.58',
+            econScore: '0.91',
+            inj: 'Pass',
+            score: '0.84',
+            rationale: 'Restores policy target weights, reducing idiosyncratic volatility while maximizing risk-adjusted return.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Equal-Weighted 25% Allocation',
+            badge: 'Sub-Optimal',
+            badgeClass: 'badge-blue',
+            info: 'Naive 1/N Allocation across 4 sectors',
+            newsScore: '+0.50',
+            econScore: '0.62',
+            inj: 'Pass',
+            score: '0.58',
+            rationale: '1/N allocation increases tail risk by over-allocating to volatile assets without risk weighting.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Volatility-Parity Allocation',
+            badge: 'Conservative',
+            badgeClass: 'badge-amber',
+            info: 'Inverse Volatility Weighted Allocation',
+            newsScore: '+0.54',
+            econScore: '0.79',
+            inj: 'Pass',
+            score: '0.73',
+            rationale: 'Minimizes portfolio drawdown variance but reduces staking yield below the Shibor hurdle.'
+          }
+        ]
+      },
+      'Exit position': {
+        assets: ['e-CNY MMF', 'stETH', 'PAXG'],
+        defaultAssets: ['e-CNY MMF'],
+        market: 'Chinese market',
+        network: 'FISCO BCOS',
+        pct: 22,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'Position Liquidation Mandate',
+          step2: 'Checking Orderbook Redemption Queues',
+          step3Name: 'Zero-Slippage Exit Liquidity',
+          news: 'done (-0.45)',
+          econ: 'running (Unwind $10,600)'
+        },
+        headlines: [
+          'Redemption gateway open on FISCO BCOS with immediate settlement (1h ago &bull; Positive)',
+          'Consortium clearinghouse confirms 1:1 par redemption liquidity (3h ago &bull; Positive)',
+          'Synthetic note negative sentiment persists in market news (5h ago &bull; Watch)'
+        ],
+        newsScore: -0.45,
+        cvar95: '0.0%',
+        cvar99: '0.0%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Full Redemption into Liquid Cash Reserve',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Consortium Liquidation &bull; $10,600 Full Capital Recovery',
+            newsScore: '-0.45',
+            econScore: '0.95',
+            inj: 'Pass',
+            score: '0.89',
+            rationale: 'Completely removes distressed asset exposure, restoring $10,600 unencumbered cash buffer.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Partial 50% Step-Down Exit',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Unwinds $5,300 while keeping half position active',
+            newsScore: '-0.45',
+            econScore: '0.65',
+            inj: 'Pass',
+            score: '0.60',
+            rationale: 'Leaves $5,300 vulnerable to ongoing news deterioration.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Swap for High-Beta Recovery Token',
+            badge: 'Rejected',
+            badgeClass: 'badge-red',
+            info: 'Speculative swap on secondary DEX',
+            newsScore: '+0.15',
+            econScore: '0.25',
+            inj: 'Warn',
+            score: '0.31',
+            rationale: 'Replaces one risk with an even higher unvetted risk.'
+          }
+        ]
+      },
+      'Find opportunities': {
+        assets: ['All in market', 'ETH', 'stETH', 'USDC', 'PAXG'],
+        defaultAssets: ['All in market'],
+        market: 'Any',
+        network: 'All Connected Chains',
+        pct: 10,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Multi-Chain Scan Initiated',
+          step2: 'Filtering 25 Assets Across 4 Chains',
+          step3Name: 'Risk-Adjusted Alpha Ranking',
+          news: 'done (+0.71)',
+          econ: 'running (Scanning 14 Protocols)'
+        },
+        headlines: [
+          'Cross-chain arbitrage spread widens on LST secondary pairs (1h ago &bull; Positive)',
+          'Shibor MMF offers attractive hurdle for low-volatility parking (3h ago &bull; Positive)',
+          'Ethereum staking rewards exceed lending rates by 80 bps (6h ago &bull; Neutral)'
+        ],
+        newsScore: 0.71,
+        cvar95: '-3.1%',
+        cvar99: '-5.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Stake ETH on Lido (3.4% APY)',
+            badge: 'Rank 1',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Staking &bull; Highest risk-adjusted excess yield',
+            newsScore: '+0.71',
+            econScore: '0.64',
+            inj: 'Pass',
+            score: '0.68',
+            rationale: 'Leading blue-chip yield with optimal liquidity and minimal counterparty spread.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; PegGuard De-Peg Arbitrage on Class A Wrapped BTC',
+            badge: 'Rank 2',
+            badgeClass: 'badge-green',
+            info: 'Arbitrage &bull; 18 bps de-peg discount capturing +$84 profit',
+            newsScore: '+0.55',
+            econScore: '0.80',
+            inj: 'Pass',
+            score: '0.66',
+            rationale: 'Stateful watermark memory confirmed strictly lower de-peg price with positive expected carry.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Aave v3 USDC Supply on Arbitrum (4.8% APY)',
+            badge: 'Rank 3',
+            badgeClass: 'badge-blue',
+            info: 'Crypto &bull; Lending &bull; Variable borrow demand spike',
+            newsScore: '+0.52',
+            econScore: '0.78',
+            inj: 'Pass',
+            score: '0.63',
+            rationale: 'Safe collateralized lending yield with no directional price beta.'
+          }
+        ]
+      }
+    };
+
+    // Global Interactive State
     const state = {
       action: 'Stake',
       market: 'Crypto',
-      network: 'Ethereum',
+      network: 'Ethereum L1',
       assets: ['ETH', 'stETH'],
       capitalPercent: 10,
       riskTier: 'Tier 2',
@@ -1265,8 +1637,64 @@
       tetherUsed: 420,
       tetherTotal: 1000,
       biometricUnlocked: false,
-      biometricTimer: null,
-      pegGuardEnabled: true
+      pegGuardEnabled: true,
+      selectedCandidate: 'A',
+      trades: [
+        {
+          id: 1,
+          title: 'Stake 0.4 ETH on Lido',
+          time: '02:14 UTC',
+          market: 'Crypto',
+          val: '$964',
+          slippage: '0.08%',
+          estSlippage: '0.10%',
+          pnl: '+$3.20',
+          tx: '0x9a4f...e1c8',
+          status: 'pending',
+          statusText: 'Pending Review',
+          statusBadge: 'badge-amber',
+          news: '+0.71',
+          econ: '0.64',
+          inj: 'Pass',
+          note: 'Lido staking is approved, but prefer rocket pool (rETH) when yield difference is under 0.2%.'
+        },
+        {
+          id: 2,
+          title: 'Swap 500 USDC to PAXG',
+          time: '03:40 UTC',
+          market: 'Commodities',
+          val: '$500',
+          slippage: '0.04%',
+          estSlippage: '0.05%',
+          pnl: '+$1.80',
+          tx: '0x3c7b...41a2',
+          status: 'pending',
+          statusText: 'Pending Review',
+          statusBadge: 'badge-amber',
+          news: '+0.35',
+          econ: '0.72',
+          inj: 'Pass',
+          note: 'Allocated gold hedge during weekend volatility.'
+        },
+        {
+          id: 3,
+          title: 'Supply 1 ETH to Aave v3',
+          time: '01:02 UTC',
+          market: 'Crypto',
+          val: '$2,410',
+          slippage: '0.01%',
+          estSlippage: '0.02%',
+          pnl: '+$4.50',
+          tx: '0x88f1...b902',
+          status: 'ratified',
+          statusText: 'Ratified &bull; Allowance Restored',
+          statusBadge: 'badge-green',
+          news: '+0.55',
+          econ: '0.70',
+          inj: 'Pass',
+          note: ''
+        }
+      ]
     };
 
     function switchTab(tabId) {
@@ -1280,44 +1708,101 @@
       if (panel) panel.classList.add('active');
     }
 
-    function selectAction(btn, action) {
-      document.querySelectorAll('#action-pills .pill-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.action = action;
+    // MAIN DYNAMIC TRIGGER: Action Selection
+    function selectAction(actionName) {
+      state.action = actionName;
+      const preset = ACTION_PRESETS[actionName];
+      if (!preset) return;
+
+      // 1. Update action button states
+      document.querySelectorAll('#action-pills .pill-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent === actionName);
+      });
+
+      // 2. Adjust Action Badge in Composer Card Title
+      document.getElementById('active-action-badge').innerText = `${actionName} Mandate`;
+
+      // 3. Dynamically rebuild the Asset Scope pills
+      renderAssetPills(preset.assets, preset.defaultAssets);
+      state.assets = [...preset.defaultAssets];
+
+      // 4. Dynamically select the optimal Market
+      selectMarket(preset.market, preset.network, false);
+
+      // 5. Adjust Capital Percent Slider
+      setSliderPercent(preset.pct);
+
+      // 6. Adjust Risk Tier
+      selectTier(preset.tier, false);
+
+      // 7. Update Prompt Preview
       updatePrompt();
+
+      // 8. Update Live Pipeline Tracker labels
+      document.getElementById('pipe-step-1').innerText = preset.pipeline.step1;
+      document.getElementById('pipe-step-2').innerText = preset.pipeline.step2;
+      document.getElementById('pipe-step-3').innerText = preset.pipeline.step3Name;
+      document.getElementById('pipe-news-val').innerText = preset.pipeline.news;
+      document.getElementById('pipe-econ-val').innerText = preset.pipeline.econ;
+
+      // 9. Dynamically re-render Screen 2 (Opportunities)
+      renderOpportunities();
+
+      showToast(`Action adjusted to "${actionName}": Assets, market & risk curves updated.`);
     }
 
-    function selectMarket(card, name, sub) {
-      document.querySelectorAll('.market-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-      state.market = name;
-      state.network = sub;
-      updatePrompt();
+    function renderAssetPills(allowedAssets, defaultAssets) {
+      const container = document.getElementById('asset-pills');
+      container.innerHTML = '';
+      allowedAssets.forEach(sym => {
+        const btn = document.createElement('button');
+        btn.className = `pill-btn ${defaultAssets.includes(sym) ? 'active' : ''}`;
+        btn.innerText = sym;
+        btn.onclick = () => toggleAsset(btn, sym);
+        container.appendChild(btn);
+      });
     }
 
-    function selectAsset(btn, asset) {
+    function toggleAsset(btn, sym) {
       btn.classList.toggle('active');
-      if (state.assets.includes(asset)) {
-        state.assets = state.assets.filter(a => a !== asset);
+      if (state.assets.includes(sym)) {
+        state.assets = state.assets.filter(a => a !== sym);
       } else {
-        state.assets.push(asset);
+        state.assets.push(sym);
       }
       updatePrompt();
+      renderOpportunities();
+    }
+
+    function selectMarket(name, sub, triggerToast = true) {
+      state.market = name;
+      state.network = sub;
+      document.querySelectorAll('#market-grid .market-card').forEach(c => {
+        c.classList.toggle('active', c.getAttribute('data-market') === name);
+      });
+      updatePrompt();
+      renderOpportunities();
+      if (triggerToast) showToast(`Market set to ${name} (${sub})`);
     }
 
     function setSliderPercent(pct) {
       state.capitalPercent = pct;
-      document.querySelectorAll('.pill-group button').forEach(b => {
-        if (b.textContent === `${pct}%`) b.classList.add('active');
+      document.querySelectorAll('#capital-pills .pill-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent === `${pct}%`);
       });
       document.getElementById('slider-fill').style.width = `${pct}%`;
       document.getElementById('slider-thumb').style.left = `${pct}%`;
       
       const dollars = Math.round(state.vaultBalance * (pct / 100));
-      const tetherNeeded = Math.round(dollars * 0.1);
+      const tetherRemaining = state.tetherTotal - state.tetherUsed;
+      const tetherUsage = Math.min(dollars, tetherRemaining);
+      
       document.getElementById('slider-caption').innerHTML = 
-        `${pct}% = $${dollars.toLocaleString()} &bull; uses $${tetherNeeded} of the $580 left in today's Tether Radius`;
+        `${pct}% = $${dollars.toLocaleString()} &bull; uses $${tetherUsage.toLocaleString()} of the $${tetherRemaining.toLocaleString()} left in today's Tether Radius`;
+      
       updatePrompt();
+      updateSlippageForSize(dollars);
+      renderOpportunities();
     }
 
     function handleSliderClick(e) {
@@ -1327,11 +1812,14 @@
       setSliderPercent(pct);
     }
 
-    function selectTier(btn, tier) {
-      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+    function selectTier(tier, triggerToast = true) {
       state.riskTier = tier;
+      document.querySelectorAll('#tier-pills .pill-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.includes(tier));
+      });
       updatePrompt();
+      renderOpportunities();
+      if (triggerToast) showToast(`Risk policy configured to ${tier}`);
     }
 
     function updatePrompt() {
@@ -1340,24 +1828,280 @@
       document.getElementById('prompt-preview').innerHTML = prompt;
     }
 
-    function submitCommandToBrain() {
-      showToast('Command submitted: Brain analyzing market pools...');
-      setTimeout(() => {
-        switchTab('opportunities');
-        showToast('Brain discovered 3 candidate routes (Lido, Aave, DEX).');
-      }, 700);
+    function updateSlippageForSize(dollars) {
+      let slipPct = '0.03%';
+      if (dollars > 10000) slipPct = '0.35%';
+      else if (dollars > 4000) slipPct = '0.08%';
+      else if (dollars > 1000) slipPct = '0.04%';
+      else slipPct = '0.01%';
+      
+      const el = document.getElementById('slippage-text');
+      if (el) {
+        el.innerHTML = `Modeled slippage for $${dollars.toLocaleString()} execution: <strong>${slipPct}</strong> (Liquidity depth $240M).`;
+      }
     }
 
-    function selectCandidateCard(card, optionLetter) {
-      document.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('chosen'));
-      card.classList.add('chosen');
-      showToast(`Selected Option ${optionLetter} for deep inspection.`);
+    // Dynamic Screen 2 (Opportunities) Rendering
+    function renderOpportunities() {
+      const preset = ACTION_PRESETS[state.action] || ACTION_PRESETS['Stake'];
+      const dollars = Math.round(state.vaultBalance * (state.capitalPercent / 100));
+      const tetherRemaining = state.tetherTotal - state.tetherUsed;
+      const tetherToUse = Math.min(dollars, tetherRemaining);
+
+      // 1. Header
+      document.getElementById('opp-request-header').innerText = 
+        `Request #0412 &bull; ${state.action} ${state.assets.join(' and ')} in ${state.market}, ${state.capitalPercent}% Capital ($${dollars.toLocaleString()}), ${state.riskTier}`;
+
+      // 2. Candidates
+      const container = document.getElementById('candidates-container');
+      container.innerHTML = '';
+      preset.candidates.forEach((cand, idx) => {
+        const isSelected = cand.id === state.selectedCandidate || (idx === 0 && !['A','B','C'].includes(state.selectedCandidate));
+        const div = document.createElement('div');
+        div.className = `candidate-card ${isSelected ? 'chosen' : ''}`;
+        div.onclick = () => selectCandidateCard(div, cand.id);
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <b>${cand.title}</b>
+            <span class="badge ${cand.badgeClass}">${cand.badge}</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">${cand.info} &bull; $${dollars.toLocaleString()}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
+            <span class="badge" style="border:1px solid var(--border)">News ${cand.newsScore}</span>
+            <span class="badge" style="border:1px solid var(--border)">Econ ${cand.econScore}</span>
+            <span class="badge ${cand.inj === 'Warn' ? 'badge-amber' : ''}" style="border:1px solid var(--border)">Injection ${cand.inj}</span>
+          </div>
+          <div style="font-size:22px;font-weight:800;margin-top:6px;">
+            ${cand.score} <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+
+      // 3. Deep Rating Breakdown
+      const activeCand = preset.candidates.find(c => c.id === state.selectedCandidate) || preset.candidates[0];
+      document.getElementById('zone-b-title').innerText = `Zone B &bull; Deep Rating Breakdown for ${activeCand.title}`;
+      document.getElementById('rating-news-badge').innerText = `${activeCand.newsScore} ${preset.newsScore > 0 ? 'Positive' : 'Cautious'}`;
+      document.getElementById('metric-cvar95').innerText = preset.cvar95;
+      document.getElementById('metric-cvar99').innerText = preset.cvar99;
+
+      // News gauge position
+      const sentimentPct = Math.round(((preset.newsScore + 1.0) / 2.0) * 100);
+      document.getElementById('sentiment-indicator').style.left = `${sentimentPct}%`;
+
+      // Headlines
+      const hList = document.getElementById('headlines-list');
+      hList.innerHTML = preset.headlines.map(h => `<li>${h}</li>`).join('');
+
+      // Amount check text
+      document.getElementById('inj-amount-text').innerText = `Amount check: Exactly matches mandate ($${dollars.toLocaleString()})`;
+
+      // Synthesis Rationale
+      const splitA = Math.round(dollars * 0.7);
+      const splitB = Math.round(dollars * 0.3);
+      document.getElementById('synthesis-rationale').innerHTML = `
+        <strong>Synthesis Rationale:</strong> ${activeCand.rationale}<br>
+        <strong>Autonomous Execution Plan:</strong> Allocates <strong>$${dollars.toLocaleString()}</strong> inside today's Tether leash ($${tetherToUse.toLocaleString()} used of $${tetherRemaining.toLocaleString()} left).
+      `;
+
+      // Execution Button
+      document.getElementById('btn-execute-trade').innerText = 
+        `Execute Autonomous ${state.action} ($${dollars.toLocaleString()} &bull; $${tetherToUse.toLocaleString()} Tether Leash)`;
+    }
+
+    function selectCandidateCard(cardEl, candId) {
+      state.selectedCandidate = candId;
+      document.querySelectorAll('#candidates-container .candidate-card').forEach(c => c.classList.remove('chosen'));
+      cardEl.classList.add('chosen');
+      renderOpportunities();
+      showToast(`Inspecting deep ratings for Option ${candId}`);
+    }
+
+    function submitCommandToBrain() {
+      showToast(`Submitting ${state.action} mandate to the Brain...`);
+      setTimeout(() => {
+        switchTab('opportunities');
+        showToast(`Brain evaluated 3 candidate routes for ${state.action} in ${state.market}.`);
+      }, 500);
     }
 
     function executeAutonomousTrade() {
-      state.tetherUsed += 482;
-      document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
-      showToast('Approved: $4,821 signed via session key within daily leash!');
+      const dollars = Math.round(state.vaultBalance * (state.capitalPercent / 100));
+      const tetherRemaining = state.tetherTotal - state.tetherUsed;
+      const tetherToUse = Math.min(dollars, tetherRemaining);
+
+      state.tetherUsed += tetherToUse;
+      document.getElementById('top-tether-val').innerText = `$${state.tetherUsed.toLocaleString()} / $${state.tetherTotal.toLocaleString()}`;
+      document.getElementById('widget-tether-left').innerHTML = `$${(state.tetherTotal - state.tetherUsed).toLocaleString()} <span style="font-size:13px;font-weight:400;color:var(--muted)">left today</span>`;
+      
+      const pctUsed = Math.min(100, Math.round((state.tetherUsed / state.tetherTotal) * 100));
+      document.getElementById('widget-tether-fill').style.width = `${pctUsed}%`;
+      document.getElementById('tether-donut').style.background = `conic-gradient(var(--green) 0 ${pctUsed}%, var(--border-subtle) 0)`;
+
+      // Add to Morning Review Trades
+      const newTrade = {
+        id: state.trades.length + 1,
+        title: `${state.action} ${state.assets.join('/')} on ${state.market}`,
+        time: 'Just now',
+        market: state.market,
+        val: `$${dollars.toLocaleString()}`,
+        slippage: '0.04%',
+        estSlippage: '0.05%',
+        pnl: '+$0.00',
+        tx: '0x' + Math.random().toString(16).slice(2, 10) + '...' + Math.random().toString(16).slice(2, 6),
+        status: 'pending',
+        statusText: 'Pending Review',
+        statusBadge: 'badge-amber',
+        news: '+0.70',
+        econ: '0.75',
+        inj: 'Pass',
+        note: `Autonomous ${state.action} executed inside leash.`
+      };
+
+      state.trades.unshift(newTrade);
+      renderTrades();
+
+      // Update badge counts
+      const pendingCount = state.trades.filter(t => t.status === 'pending').length;
+      document.getElementById('review-badge').innerText = pendingCount;
+      document.getElementById('top-pending-badge').innerText = pendingCount;
+      document.getElementById('widget-pending-reviews').innerHTML = `${pendingCount} <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span>`;
+
+      showToast(`Executed: $${dollars.toLocaleString()} ${state.action} signed on-chain with session key!`);
+    }
+
+    function renderTrades() {
+      const container = document.getElementById('trades-list');
+      container.innerHTML = '';
+      state.trades.forEach(trade => {
+        const isFirst = trade.id === state.trades[0].id;
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.style.border = isFirst ? '2px solid var(--text)' : '1px solid var(--border)';
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.gap = '12px';
+
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:800;font-size:16px;">${trade.title}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;">Executed at ${trade.time} &bull; ${trade.market} &bull; ${trade.val} Value</div>
+            </div>
+            <span class="badge ${trade.statusBadge}" id="trade-status-${trade.id}">${trade.statusText}</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;">
+            <span class="badge" style="border:1px solid var(--border)">News ${trade.news}</span>
+            <span class="badge" style="border:1px solid var(--border)">Econ ${trade.econ}</span>
+            <span class="badge" style="border:1px solid var(--border)">Slippage ${trade.slippage}</span>
+            <span class="badge badge-green">P&amp;L: ${trade.pnl}</span>
+            <span style="color:var(--muted);font-family:monospace">tx: ${trade.tx}</span>
+          </div>
+          ${trade.status === 'pending' ? `
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+              <button class="pill-btn" style="flex:1 1 140px;background:var(--green-bg);color:var(--green-dark);border-color:var(--green);font-weight:700" onclick="handleLikeAndRatify(${trade.id})">
+                &plus; Like &amp; Ratify
+              </button>
+              <button class="pill-btn" style="flex:1 1 140px;color:var(--red);border-color:var(--red);font-weight:700" onclick="handleFlagRevert(${trade.id})">
+                &times; Flag for Revert (-20%)
+              </button>
+              <button class="pill-btn" style="flex:1 1 140px;background:var(--text);color:#fff;font-weight:700" onclick="toggleNoteBox(${trade.id})">
+                &para; Note &amp; Educate
+              </button>
+            </div>
+            <div id="note-box-${trade.id}" style="display:none;background:var(--yellow-note);border:2px solid var(--yellow-border);border-radius:12px;padding:14px;flex-direction:column;gap:8px;margin-top:6px;">
+              <div style="font-size:12px;font-weight:700;color:#5C4A00;">Your Note to the Brain</div>
+              <textarea id="note-text-${trade.id}" rows="2" style="width:100%;border:0;border-radius:8px;padding:10px;background:var(--yellow-input);font-family:inherit;color:var(--text);resize:none;" oninput="updateWordCount(this, ${trade.id})">${trade.note}</textarea>
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                <div style="font-size:12px;color:#5C4A00;" id="word-count-${trade.id}">14 / 25 words</div>
+                <div style="display:flex;gap:12px;align-items:center;">
+                  <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#5C4A00;cursor:pointer;">
+                    <input type="checkbox" id="penalize-check-${trade.id}"> Penalize Brain autonomy (-10%)
+                  </label>
+                  <button class="pill-btn" style="background:var(--text);color:#fff;border:0;padding:6px 14px;font-weight:600" onclick="submitNoteToBrain(${trade.id})">
+                    Send Note
+                  </button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+        `;
+        container.appendChild(div);
+      });
+
+      // Update Summary Bar
+      const totalTrades = state.trades.length;
+      const reviewedCount = state.trades.filter(t => t.status !== 'pending').length;
+      document.getElementById('review-total-trades').innerText = totalTrades;
+      document.getElementById('review-progress').innerText = `${reviewedCount} of ${totalTrades}`;
+    }
+
+    function handleLikeAndRatify(id) {
+      const trade = state.trades.find(t => t.id === id);
+      if (trade) {
+        trade.status = 'ratified';
+        trade.statusText = 'Ratified';
+        trade.statusBadge = 'badge-green';
+        renderTrades();
+        showToast('Trade ratified! +1 toward daily +10% limit step-up.');
+      }
+    }
+
+    function handleFlagRevert(id) {
+      const trade = state.trades.find(t => t.id === id);
+      if (trade) {
+        trade.status = 'flagged';
+        trade.statusText = 'Flagged (-20%)';
+        trade.statusBadge = 'badge-red';
+        state.tetherTotal = Math.round(state.tetherTotal * 0.8);
+        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+        renderTrades();
+        showToast('Flagged for revert: Daily Tether radius contracted by -20% on-chain.');
+      }
+    }
+
+    function toggleNoteBox(id) {
+      const box = document.getElementById(`note-box-${id}`);
+      if (box) {
+        box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+      }
+    }
+
+    function updateWordCount(textarea, id) {
+      const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+      const el = document.getElementById(`word-count-${id}`);
+      if (el) el.innerText = `${words} / 25 words`;
+    }
+
+    function submitNoteToBrain(id) {
+      const trade = state.trades.find(t => t.id === id);
+      const penalize = document.getElementById(`penalize-check-${id}`).checked;
+      if (penalize) {
+        state.tetherTotal = Math.round(state.tetherTotal * 0.9);
+        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+      }
+      if (trade) {
+        trade.status = 'reviewed';
+        trade.statusText = penalize ? 'Reviewed (-10% Penalty)' : 'Reviewed';
+        trade.statusBadge = penalize ? 'badge-amber' : 'badge-green';
+        renderTrades();
+      }
+      showToast(penalize ? 'Note learned! -10% autonomy penalty applied on-chain.' : 'Note learned! Protocol affinity updated.');
+    }
+
+    function ratifyAllRemaining() {
+      state.trades.forEach(t => {
+        if (t.status === 'pending') {
+          t.status = 'ratified';
+          t.statusText = 'Ratified';
+          t.statusBadge = 'badge-green';
+        }
+      });
+      renderTrades();
+      document.getElementById('review-badge').innerText = '0';
+      document.getElementById('top-pending-badge').innerText = '0';
+      document.getElementById('widget-pending-reviews').innerHTML = `0 <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span>`;
+      showToast('All trades ratified! Streak complete: Daily limit increased by +10% ($1,100).');
     }
 
     function toggleBiometricWindow() {
@@ -1397,45 +2141,6 @@
       }
     }
 
-    function handleLikeAndRatify(id) {
-      document.getElementById(`trade-${id}-status`).className = 'badge badge-green';
-      document.getElementById(`trade-${id}-status`).innerText = 'Ratified';
-      showToast('Trade ratified! +1 toward daily +10% limit step-up.');
-    }
-
-    function handleFlagRevert(id) {
-      document.getElementById(`trade-${id}-status`).className = 'badge badge-red';
-      document.getElementById(`trade-${id}-status`).innerText = 'Flagged (-20%)';
-      state.tetherTotal = Math.round(state.tetherTotal * 0.8);
-      document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
-      showToast('Flagged for revert: Daily Tether radius contracted by -20% on-chain.');
-    }
-
-    function toggleNoteBox(id) {
-      const box = document.getElementById(`note-box-${id}`);
-      box.style.display = box.style.display === 'none' ? 'flex' : 'none';
-    }
-
-    function updateWordCount(textarea, id) {
-      const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0).length;
-      document.getElementById(`word-count-${id}`).innerText = `${words} / 25 words`;
-    }
-
-    function submitNoteToBrain(id) {
-      const penalize = document.getElementById(`penalize-check-${id}`).checked;
-      if (penalize) {
-        state.tetherTotal = Math.round(state.tetherTotal * 0.9);
-        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
-      }
-      showToast(penalize ? 'Note learned! -10% autonomy penalty applied on-chain.' : 'Note learned! Protocol affinity updated.');
-    }
-
-    function ratifyAllRemaining() {
-      document.getElementById('review-progress').innerText = '5 of 5';
-      document.getElementById('review-badge').innerText = '0';
-      showToast('All 5 trades ratified! Streak complete: Daily limit increased by +10% ($1,100).');
-    }
-
     function triggerManualWatchdog() {
       showToast('Watchdog sweep started across all held assets...');
       setTimeout(() => {
@@ -1465,6 +2170,12 @@
       const el = document.getElementById('watchdog-timer');
       if (el) el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
     }, 1000);
+
+    // Initial Setup on Page Load
+    document.addEventListener('DOMContentLoaded', () => {
+      selectAction('Stake');
+      renderTrades();
+    });
   </script>
 </body>
 </html>
