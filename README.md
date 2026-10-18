@@ -32,6 +32,7 @@ Detailed architectural breakdowns, run guides, and econometric specifications ar
 | [`docs/05_fail_closed_strictness_hierarchy/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/05_fail_closed_strictness_hierarchy/README.md) | Math > AI Hierarchy | Tsinghua academic formulation, asymmetric bounding proofs ($B_{AI} \subseteq B_{math}$), and timeouts |
 | [`docs/06_privacy_anchors_and_slippage/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/06_privacy_anchors_and_slippage/README.md) | Audit & Slippage Engine | SHA-256 anchors on FISCO BCOS, orderbook thinning recovery ($Q^*/2$), and positive carry |
 | [`docs/07_defi_protocols_and_routing/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/07_defi_protocols_and_routing/README.md) | Protocol Registry | Verified contracts, ABIs, function selectors, and risk tiers (Lido, Aave, Curve, Uniswap) |
+| [`docs/08_smart_contracts/`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/docs/08_smart_contracts/README.md) | Smart Contracts Vault | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas matrix |
 
 ---
 
