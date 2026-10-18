@@ -908,10 +908,7 @@ contract TetherGuardHook is IERC7579Hook {
         }
         uint256 curTime = block.timestamp > 1e11 ? block.timestamp / 1000 : block.timestamp;
         uint256 updTime = updatedAt > 1e11 ? updatedAt / 1000 : updatedAt;
-        if (
-            updatedAt == 0 || answeredInRound < roundId
-                || (curTime > updTime && curTime - updTime > 1 days)
-        ) {
+        if (updatedAt == 0 || answeredInRound < roundId || (curTime > updTime && curTime - updTime > 1 days)) {
             revert StaleOraclePrice(token, updatedAt);
         }
 

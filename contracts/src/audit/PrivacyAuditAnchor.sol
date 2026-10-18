@@ -12,16 +12,13 @@ pragma solidity ^0.8.24;
  */
 contract PrivacyAuditAnchor {
     enum RecordType {
-        DEPEG_DETECTED,      // 0: PegGuard de-peg regime detected & hedge calculated
+        DEPEG_DETECTED, // 0: PegGuard de-peg regime detected & hedge calculated
         MORNING_REVIEW_NOTE, // 1: User Morning Review note / biometric ratification
-        ARBITRAGE_EXECUTED   // 2: Two-leg cross-market arbitrage execution commitment
+        ARBITRAGE_EXECUTED // 2: Two-leg cross-market arbitrage execution commitment
     }
 
     event AuditRecordAnchored(
-        bytes32 indexed recordHash,
-        address indexed account,
-        RecordType indexed recordType,
-        uint256 timestamp
+        bytes32 indexed recordHash, address indexed account, RecordType indexed recordType, uint256 timestamp
     );
 
     /// @notice recordHash => block.timestamp of commitment
