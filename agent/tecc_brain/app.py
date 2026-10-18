@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 from tecc_brain import __version__
-from tecc_brain.api import arbitrage, biometrics, insight, mandate, options, profile, risk
+from tecc_brain.api import arbitrage, biometrics, insight, mandate, options, profile, risk, settings
 from tecc_brain.api.deps import allowed_origins, require_client
 from tecc_brain.monitor.hourly import start_scheduler, stop_scheduler
 
@@ -43,12 +43,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins(),
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["Content-Type", "Authorization"],
 )
 from tecc_brain.virtual_session.admin_router import router as virtual_session_admin_router
 
-for module in (mandate, risk, profile, insight, options, arbitrage, biometrics):
+for module in (mandate, risk, profile, insight, options, arbitrage, biometrics, settings):
     app.include_router(module.router, dependencies=[Depends(require_client)])
 
 app.include_router(virtual_session_admin_router, dependencies=[Depends(require_client)])

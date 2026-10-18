@@ -165,6 +165,12 @@ Plans:
 - [ ] 08-02: Brain demo page served by FastAPI: intent box, Good/Better/Best with score breakdown, regime radar, learning panel, backtest replay
 - [ ] 08-03: `/agent/README.md`, frozen `requirements.txt`, one-command run script, demo rehearsal checklist, team handoff notes
 
+Production-scale optimizations (after the demo):
+- [ ] **Market-wide Sentinel Shared Caching**: market mood and per-token crowd checks depend on the market, not the
+  user, yet today every order runs its own 6 sequential Grok calls (up to 6 × 8 s before the Brain starts). One
+  shared, TTL-cached refresh (e.g. every 15 min) serves every request: ~95% lower Sentinel cost at 1,000 DAU
+  (X Search from ~$900/day per-order to ~$29/day), and order latency no longer waits on Grok.
+
 ## Progress
 
 **Execution Order:**
