@@ -527,21 +527,6 @@
       70% { box-shadow: 0 0 0 18px rgba(47, 91, 234, 0); }
       100% { box-shadow: 0 0 0 0 rgba(47, 91, 234, 0); }
     }
-    .scenario-card {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px;
-      background: #fff;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: all 0.2s;
-    }
-    .scenario-card:hover {
-      border-color: var(--text);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    }
   </style>
 </head>
 <body>
@@ -600,15 +585,8 @@
         <span>Morning Review</span>
         <span class="nav-badge" id="review-badge">3</span>
       </a>
-      <a href="#scenarios" class="nav-item" onclick="switchTab('scenarios')">
-        <span>Live Scenarios</span>
-        <span class="nav-badge" style="background:var(--amber-bg);color:var(--amber)">5</span>
-      </a>
       <a href="#virtual-session" class="nav-item" onclick="switchTab('virtual-session')">
         <span>Virtual Sessions</span>
-      </a>
-      <a href="#pillars" class="nav-item" onclick="openPillarsModal()">
-        <span>3 Pillars &amp; Invariants</span>
       </a>
       <a href="#settings" class="nav-item" onclick="switchTab('settings')">
         <span>Safety &amp; Settings</span>
@@ -1291,110 +1269,6 @@
         </div>
       </section>
 
-      <!-- ======================================================== -->
-      <!-- SCREEN 7: REAL-WORLD SCENARIOS & EVERYDAY LIFE -->
-      <!-- ======================================================== -->
-      <section id="panel-scenarios" class="view-panel">
-        <div>
-          <h1 class="page-title">Live Scenarios &amp; Operational Flows</h1>
-          <p class="page-subtitle">Guide Page 6 &bull; Test how Tec-C operates during regular days, high-value opportunities, market crises, and remote access.</p>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:18px;">
-          
-          <!-- Scenario A -->
-          <div class="scenario-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span class="section-label" style="margin:0">Scenario A</span>
-              <span class="badge badge-green">100% Autonomous</span>
-            </div>
-            <div style="font-size:16px;font-weight:700">Silent Daily Yield Harvesting</div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.5">
-              <strong>Situation:</strong> User sets a $1,000 daily leash. AI Brain spots Compound v3 offering an 11.2% lending yield on USDC.
-              <br><br>
-              <strong>Execution:</strong> AI deposits $800 into Compound. Because $800 &le; $1,000 leash, it executes silently on-chain without human interruption.
-            </div>
-            <button class="pill-btn" style="border:1px solid var(--text);font-weight:700;margin-top:auto" onclick="runScenarioA()">
-              Simulate Silent $800 Harvesting &rarr;
-            </button>
-          </div>
-
-          <!-- Scenario B -->
-          <div class="scenario-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span class="section-label" style="margin:0">Scenario B</span>
-              <span class="badge badge-amber">FaceID Breakout</span>
-            </div>
-            <div style="font-size:16px;font-weight:700">High-Value Breakout Trade</div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.5">
-              <strong>Situation:</strong> AI Brain spots a flash $4,500 stablecoin arbitrage capturing $120 net profit in 30 seconds.
-              <br><br>
-              <strong>Safety Guard:</strong> Smart contract detects $4,500 &gt; $1,000 leash. Autonomous execution is blocked and buzzes smartphone for Passkey FaceID approval.
-            </div>
-            <button class="pill-btn" style="border:1px solid var(--amber);background:var(--amber-bg);font-weight:700;margin-top:auto" onclick="openBreakoutModal(4500, 120)">
-              Trigger $4,500 Breakout Alert &rarr;
-            </button>
-          </div>
-
-          <!-- Scenario C -->
-          <div class="scenario-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span class="section-label" style="margin:0">Scenario C</span>
-              <span class="badge badge-blue">Adaptive Learning</span>
-            </div>
-            <div style="font-size:16px;font-weight:700">Dynamic Elasticity in Action</div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.5">
-              <strong>Accuracy Feedback Loop:</strong> Ratified winning trades award +10%/day step-ups towards the $2,500 ceiling ($1,000 &rarr; $1,460).
-              <br><br>
-              <strong>Mistake Asymmetry:</strong> Flagging a mistake contracts daily limit by -20%. Trust is lost 7x faster than it is gained!
-            </div>
-            <div style="display:flex;gap:8px;margin-top:auto">
-              <button class="pill-btn" style="flex:1;border-color:var(--green);color:var(--green-dark);font-weight:700" onclick="simulateElasticityStep('reward')">
-                +10% Reward
-              </button>
-              <button class="pill-btn" style="flex:1;border-color:var(--red);color:var(--red);font-weight:700" onclick="simulateElasticityStep('penalty')">
-                -20% Penalty
-              </button>
-            </div>
-          </div>
-
-          <!-- Scenario D -->
-          <div class="scenario-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span class="section-label" style="margin:0">Scenario D</span>
-              <span class="badge badge-red">Depeg Defense</span>
-            </div>
-            <div style="font-size:16px;font-weight:700">PegGuard Crisis Circuit-Breaker</div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.5">
-              <strong>Distress Event:</strong> Holding 6,000 units of a synthetic token. Backing distress causes price to slip to $0.982.
-              <br><br>
-              <strong>Automated Rescue:</strong> PegGuard circuit-breaker swaps all 6,000 coins into native USDC before collapse to $0.40. Treasury saved!
-            </div>
-            <button class="pill-btn" style="border:1px solid var(--red);color:var(--red);font-weight:700;margin-top:auto" onclick="runScenarioD()">
-              Trigger PegGuard Circuit-Breaker &rarr;
-            </button>
-          </div>
-
-          <!-- Scenario E -->
-          <div class="scenario-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span class="section-label" style="margin:0">Scenario E</span>
-              <span class="badge badge-green">Zero Open Ports</span>
-            </div>
-            <div style="font-size:16px;font-weight:700">Remote Coffee Shop Access</div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.5">
-              <strong>Architecture:</strong> Encrypted Cloudflare Quick-Tunnel links phone browser to local agent wallet.
-              <br><br>
-              <strong>Experience:</strong> Authenticate via phone FaceID (WebAuthn NIST P-256), steer risk, and approve breakouts securely from any public Wi-Fi.
-            </div>
-            <button class="pill-btn" style="border:1px solid var(--text);font-weight:700;margin-top:auto" onclick="switchTab('virtual-session')">
-              Open Virtual Sessions &rarr;
-            </button>
-          </div>
-
-        </div>
-      </section>
-
     </main>
   </div>
 
@@ -1479,7 +1353,7 @@
   <div class="modal-overlay" id="modal-breakout">
     <div class="modal-dialog">
       <div class="modal-header">
-        <div class="modal-title">&#9889; High-Value Breakout Trade (Scenario B)</div>
+        <div class="modal-title">&#9889; High-Value Breakout Trade Alert</div>
         <button class="modal-close" onclick="closeModal('modal-breakout')">&times;</button>
       </div>
       <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:12px;font-size:12px;line-height:1.5;">
@@ -1538,97 +1412,6 @@
         <button class="btn-primary" onclick="submitNoteToBrain()">Send Note to AI Brain</button>
         <button class="pill-btn" onclick="closeModal('modal-note')">Cancel</button>
       </div>
-    </div>
-  </div>
-
-  <!-- Modal: The 3 Pillars & Invariants -->
-  <div class="modal-overlay" id="modal-pillars">
-    <div class="modal-dialog" style="max-width:680px;">
-      <div class="modal-header">
-        <div class="modal-title">&#128737; The 3 Pillars &amp; Invariants of Tec-C</div>
-        <button class="modal-close" onclick="closeModal('modal-pillars')">&times;</button>
-      </div>
-      
-      <!-- 3 Pillars Grid -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;">
-        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:#fff">
-          <div class="badge badge-green">Pillar 1</div>
-          <div style="font-weight:700;margin-top:6px">Non-Custodial Agent Wallet</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">
-            ERC-7579 &amp; ERC-4337 smart safe. AI holds ephemeral session key restricted by bytecode hooks.
-          </div>
-        </div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:#fff">
-          <div class="badge badge-blue">Pillar 2</div>
-          <div style="font-weight:700;margin-top:6px">Mathematical Leash</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">
-            On-chain TetherGuardHook. Daily limits converted to 8-decimal USD via Chainlink feeds.
-          </div>
-        </div>
-        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:#fff">
-          <div class="badge badge-amber">Pillar 3</div>
-          <div style="font-weight:700;margin-top:6px">Mobile Virtual Session</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">
-            Cloudflare tunnel to smartphone. Steer risk and approve breakouts via WebAuthn NIST P-256 FaceID.
-          </div>
-        </div>
-      </div>
-
-      <!-- Comparison Matrix from Page 1 -->
-      <div>
-        <div class="section-label">Section 02 &bull; Autonomy vs. Safety Matrix</div>
-        <table class="data-table" style="font-size:11px;">
-          <thead>
-            <tr>
-              <th>Feature / Risk</th>
-              <th>Traditional Bots</th>
-              <th>Hardware Wallet</th>
-              <th>Tec-C Vault</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Autonomous 24/7 Trading</td>
-              <td style="color:var(--green)">&check; Full Autonomy</td>
-              <td style="color:var(--red)">&cross; Zero (Manual click)</td>
-              <td style="color:var(--green);font-weight:700">&check; Full inside leash</td>
-            </tr>
-            <tr>
-              <td>Catastrophic Hack Risk</td>
-              <td style="color:var(--red)">&cross; 100% Drain Risk</td>
-              <td style="color:var(--green)">&check; Low (Offline)</td>
-              <td style="color:var(--green);font-weight:700">&check; Zero (Capped by leash)</td>
-            </tr>
-            <tr>
-              <td>Daily Limit Tuning</td>
-              <td>Unbounded</td>
-              <td>N/A</td>
-              <td style="color:var(--green);font-weight:700">&check; User limit + elasticity</td>
-            </tr>
-            <tr>
-              <td>Biometric Security</td>
-              <td>None</td>
-              <td>Physical Button</td>
-              <td style="color:var(--green);font-weight:700">&check; FaceID WebAuthn P-256</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Unbreakable Invariants from Page 6 -->
-      <div style="background:var(--bg);border-radius:10px;padding:12px;font-size:12px;line-height:1.5">
-        <strong>Section 11 &bull; 4 Unbreakable Security Invariants:</strong>
-        <ol style="margin:6px 0 0 16px;display:flex;flex-direction:column;gap:4px;">
-          <li><strong>AI can NEVER withdraw funds:</strong> External transfers strictly require hardware FaceID.</li>
-          <li><strong>AI can NEVER exceed daily limit:</strong> Leash enforced on-chain via Chainlink USD feeds.</li>
-          <li><strong>AI can NEVER touch unwhitelisted tokens:</strong> Bytecode whitelist blocks fake tokens.</li>
-          <li><strong>Trust is lost 7x faster than gained:</strong> -20% penalty on flag vs. max +10% daily growth cap.</li>
-        </ol>
-      </div>
-
-      <button class="pill-btn" style="border:1px solid var(--text);font-weight:700;align-self:flex-end" onclick="closeModal('modal-pillars')">
-        Close Architecture Summary
-      </button>
     </div>
   </div>
 
@@ -2612,7 +2395,7 @@
       }, 900);
     }
 
-    // Modal: Breakout Trade Authorization (Scenario B)
+    // Modal: Breakout Trade Authorization
     function openBreakoutModal(val, profit) {
       document.getElementById('breakout-trade-val').innerText = `$${val.toLocaleString()}`;
       document.getElementById('breakout-trade-profit').innerText = `+$${profit.toLocaleString()}`;
@@ -2676,10 +2459,6 @@
       showToast(penalize ? 'Note learned! -10% leash penalty applied on-chain.' : 'Note learned by tecc_brain.learning.notes! Protocol affinity updated.');
     }
 
-    function openPillarsModal() {
-      openModal('modal-pillars');
-    }
-
     // Agent Weights Sliders in Zone C (Page 3)
     const agentWeights = { news: 30, econ: 45, inj: 25 };
     function updateAgentWeight(comp, val) {
@@ -2738,31 +2517,6 @@
       const card = document.getElementById('watchdog-alert-card');
       card.style.display = 'none';
       showToast('Watchdog alert dismissed.');
-    }
-
-    // Scenario Simulations from Guide (Page 6)
-    function runScenarioA() {
-      selectAction('Invest');
-      state.capitalPercent = 10;
-      executeAutonomousTrade();
-      showToast('Scenario A Complete: $800 Compound v3 yield harvesting executed silently on-chain inside leash!');
-    }
-    function simulateElasticityStep(type) {
-      if (type === 'reward') {
-        state.tetherTotal = Math.min(2500, Math.round(state.tetherTotal * 1.10));
-        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
-        showToast(`Trust Reward (+10%): Daily tether limit expanded to $${state.tetherTotal.toLocaleString()} towards ceiling.`);
-      } else {
-        state.tetherTotal = Math.round(state.tetherTotal * 0.80);
-        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
-        showToast(`Mistake Penalty (-20%): Daily tether limit contracted to $${state.tetherTotal.toLocaleString()}!`);
-      }
-    }
-    function runScenarioD() {
-      showToast('PegGuard Alert: Synthetic token de-pegged to $0.982!');
-      setTimeout(() => {
-        showToast('PegGuard Emergency Circuit-Breaker: Swapped 6,000 synthetic units into USDC at $0.982. Capital protected!');
-      }, 1000);
     }
 
     function handleLikeAndRatify(id) {
