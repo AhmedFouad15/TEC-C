@@ -180,7 +180,7 @@ library P256Verifier {
         uint256 u1 = mulmod(e, sInv, P256_N);
         uint256 u2 = mulmod(r, sInv, P256_N);
 
-        (uint256 rx, , uint256 rz) = _shamirLinearCombination(u1, u2, qx, qy);
+        (uint256 rx,, uint256 rz) = _shamirLinearCombination(u1, u2, qx, qy);
         if (rz == 0) {
             return false;
         }

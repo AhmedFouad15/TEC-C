@@ -4,7 +4,17 @@ pragma solidity 0.8.24;
 import {IERC7579Hook} from "../interfaces/IERC7579Hook.sol";
 import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";
 import {IERC20, IERC20Metadata} from "../interfaces/IERC20.sol";
-import {P256Verifier} from "../validators/P256Verifier.sol";
+
+interface IWebAuthnValidator {
+    function registerPasskey(address account, uint256 qx, uint256 qy) external;
+    function addPasskey(address account, bytes32 keyId, uint256 qx, uint256 qy) external;
+    function revokePasskeyById(address account, bytes32 keyId) external;
+    function setRecoveryGuardian(address account, address guardian) external;
+    function recoverPasskey(address account, bytes32 newKeyId, uint256 newQx, uint256 newQy) external;
+    function isAuthorizedPasskey(address account, uint256 qx, uint256 qy) external view returns (bool);
+    function activePasskeyCount(address account) external view returns (uint256);
+}
+import {PortfolioValuator} from "./PortfolioValuator.sol";
 
 /**
  * @title TetherGuardHook
@@ -162,9 +172,13 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Optional external Solidity P-256 fallback verifier contract (for Ethereum L1 / FISCO BCOS)
     address public fallbackP256Verifier;
 
-    /// @notice Initializes the hook deployer address
+    /// @notice PortfolioValuator helper contract
+    address public immutable portfolioValuator;
+
+    /// @notice Initializes the hook deployer address and helper contracts
     constructor() {
         deployer = msg.sender;
+        portfolioValuator = address(new PortfolioValuator());
     }
 
     /**
@@ -178,18 +192,6 @@ contract TetherGuardHook is IERC7579Hook {
 
     /// @notice Primary Hardware WebAuthn P-256 Passkey coordinates registered per account
     mapping(address => WebAuthnPasskey) public accountPasskeys;
-
-    /// @notice Multi-device passkey registry per account (account => keyId => WebAuthnPasskey)
-    mapping(address => mapping(bytes32 => WebAuthnPasskey)) public accountPasskeysById;
-
-    /// @notice Registered passkey IDs per account for multi-device enumeration
-    mapping(address => bytes32[]) public accountPasskeyIds;
-
-    /// @notice Count of active passkeys per account
-    mapping(address => uint256) public activeAccountPasskeyCount;
-
-    /// @notice Designated emergency passkey recovery guardian per account
-    mapping(address => address) public passkeyRecoveryGuardians;
 
     /// @notice Gasless sign approval nonces per account for replay protection
     mapping(address => uint256) public signApprovalNonces;
@@ -592,11 +594,9 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Reverted when WebAuthn authenticatorData lacks the User Verified (UV = 0x04) biometric bit (Nuance 3).
     error BiometricUserVerificationRequired();
 
-    /// @notice Reverted when attempting to revoke the last active passkey on an account.
-    error CannotRevokeLastPasskey();
-
     /// @notice Reverted when an invalid recovery guardian address is provided.
     error InvalidGuardianAddress();
+    error InvalidCoordinates();
 
     event AccountPasskeyAdded(address indexed account, bytes32 indexed keyId, uint256 qx, uint256 qy);
     event AccountPasskeyRevoked(address indexed account, bytes32 indexed keyId);
@@ -605,10 +605,12 @@ contract TetherGuardHook is IERC7579Hook {
         address indexed account, address indexed guardian, bytes32 indexed newKeyId, uint256 newQx, uint256 newQy
     );
 
+    function _isAccountOrOwner(address account, address caller) internal view returns (bool) {
+        return caller == account || caller == policies[account].rootOwner;
+    }
+
     function _checkAccountOrOwner(address account) internal view {
-        if (msg.sender != account && msg.sender != policies[account].rootOwner) {
-            revert UnauthorizedCaller();
-        }
+        if (!_isAccountOrOwner(account, msg.sender)) revert UnauthorizedCaller();
     }
 
     /**
@@ -736,7 +738,7 @@ contract TetherGuardHook is IERC7579Hook {
         AccountPolicy storage p = policies[account];
 
         // 1. Caller must be an authorized session key, account, or root owner
-        if (!authorizedSessionKeys[account][msg.sender] && msg.sender != account && msg.sender != p.rootOwner) {
+        if (!authorizedSessionKeys[account][msg.sender] && !_isAccountOrOwner(account, msg.sender)) {
             revert UnauthorizedCaller();
         }
 
@@ -904,10 +906,10 @@ contract TetherGuardHook is IERC7579Hook {
         if (answer <= 0) {
             revert InvalidOraclePrice(token, answer);
         }
-        if (updatedAt == 0 || answeredInRound < roundId) {
-            revert StaleOraclePrice(token, updatedAt);
-        }
-        if (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days) {
+        if (
+            updatedAt == 0 || answeredInRound < roundId
+                || (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days)
+        ) {
             revert StaleOraclePrice(token, updatedAt);
         }
 
@@ -916,67 +918,8 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice Computes normalized 8-decimal USD value for a given token balance and oracle price.
-     * @dev Internal helper accounting for both token decimals and oracle feed decimals.
-     * @param amount The token balance or transaction amount.
-     * @param tokenDecimals The decimal places of the underlying token (e.g. 18 for WETH, 6 for USDC).
-     * @param priceUSD The price fetched from Chainlink.
-     * @param feedDecimals The decimal places of the Chainlink feed (typically 8).
-     * @return val The calculated value normalized strictly to 8 decimal places.
-     */
-    function _calculateUSD(uint256 amount, uint8 tokenDecimals, uint256 priceUSD, uint8 feedDecimals)
-        internal
-        pure
-        returns (uint256)
-    {
-        if (amount == 0 || priceUSD == 0) return 0;
-        uint256 val = (amount * priceUSD) / (10 ** tokenDecimals);
-        if (feedDecimals != 8 && feedDecimals > 0) {
-            if (feedDecimals > 8) {
-                val = val / (10 ** (feedDecimals - 8));
-            } else {
-                val = val * (10 ** (8 - feedDecimals));
-            }
-        }
-        return val;
-    }
-
-    /**
-     * @notice Performs a fault-tolerant oracle lookup for portfolio views without reverting on oracle failure.
-     * @dev Internal view helper returning zeros if feed is missing, negative, or stale.
-     * @param account The address of the smart account.
-     * @param token The token address to query.
-     * @return priceUSD The reported oracle price (0 if query fails).
-     * @return feedDecimals The oracle decimals (0 if query fails).
-     */
-    function _safeGetPrice(address account, address token)
-        internal
-        view
-        returns (uint256 priceUSD, uint8 feedDecimals)
-    {
-        address feed = getPriceFeed(account, token);
-        if (feed == address(0)) return (0, 0);
-
-        try AggregatorV3Interface(feed).latestRoundData() returns (
-            uint80 roundId, int256 answer, uint256, uint256 updatedAt, uint80 answeredInRound
-        ) {
-            if (answer <= 0 || updatedAt == 0 || answeredInRound < roundId) return (0, 0);
-            if (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days) return (0, 0);
-            uint8 dec = 8;
-            try AggregatorV3Interface(feed).decimals() returns (uint8 d) {
-                dec = d;
-            } catch {}
-            return (uint256(answer), dec);
-        } catch {
-            return (0, 0);
-        }
-    }
-
-    /**
      * @notice Inspects call calldata to extract token transfers (ERC-20 transfer, approve, transferFrom)
      *         and normalizes the value into 8-decimal USD via Chainlink Price Feeds.
-     * @dev If feeds are configured, returns the total USD value of the call.
-     *      If no feeds are configured, falls back to raw nativeValue/tokenAmount for backwards compatibility.
      * @param account The address of the smart account.
      * @param target The target contract address being executed.
      * @param nativeValue The native Ether value accompanying the transaction.
@@ -989,61 +932,8 @@ contract TetherGuardHook is IERC7579Hook {
         view
         returns (uint256 effectiveAmount, bool isUSD)
     {
-        address ethFeed = getPriceFeed(account, NATIVE_ETH);
-        uint256 nativeUSD = 0;
-        bool hasFeed = false;
-
-        if (nativeValue > 0) {
-            if (ethFeed != address(0)) {
-                (uint256 ethPrice, uint8 ethFeedDec) = getLatestPrice(account, NATIVE_ETH);
-                nativeUSD = _calculateUSD(nativeValue, 18, ethPrice, ethFeedDec);
-                hasFeed = true;
-            }
-        }
-
-        // Inspect inner calldata for ERC-20 method calls
-        // In TecAccount execution format, msgData is: target (20) || nativeValue (32) || callData (variable)
-        uint256 tokenAmount = 0;
-        if (msgData.length >= 56) {
-            bytes4 selector = bytes4(msgData[52:56]);
-
-            // transfer(address to, uint256 amount) - 0xa9059cbb
-            // approve(address spender, uint256 amount) - 0x095ea7b3
-            // increaseAllowance(address spender, uint256 addedValue) - 0x39509351
-            if ((selector == 0xa9059cbb || selector == 0x095ea7b3 || selector == 0x39509351) && msgData.length >= 120) {
-                tokenAmount = abi.decode(msgData[88:120], (uint256));
-            }
-            // transferFrom(address from, address to, uint256 amount) - 0x23b872dd
-            else if (selector == 0x23b872dd && msgData.length >= 152) {
-                tokenAmount = abi.decode(msgData[120:152], (uint256));
-            }
-        }
-
-        if (tokenAmount > 0) {
-            address tokenFeed = getPriceFeed(account, target);
-            if (tokenFeed != address(0)) {
-                (uint256 tokenPrice, uint8 tokenFeedDec) = getLatestPrice(account, target);
-                uint8 tokDec = 18;
-                try IERC20Metadata(target).decimals() returns (uint8 d) {
-                    tokDec = d;
-                } catch {}
-
-                uint256 erc20USD = _calculateUSD(tokenAmount, tokDec, tokenPrice, tokenFeedDec);
-                return (nativeUSD + erc20USD, true);
-            } else if (ethFeed != address(0)) {
-                // Account is operating with USD oracles, but this token has no price feed configured!
-                revert MissingOraclePriceFeed(target);
-            } else {
-                // Legacy non-oracle mode: return raw tokenAmount if nativeValue == 0, else nativeValue + tokenAmount
-                return (nativeValue > 0 ? nativeValue : tokenAmount, false);
-            }
-        }
-
-        if (hasFeed) {
-            return (nativeUSD, true);
-        }
-
-        return (nativeValue, false);
+        return PortfolioValuator(portfolioValuator)
+            .calculateCallUSDValue(account, target, nativeValue, msgData, address(this));
     }
 
     /**
@@ -1059,44 +949,7 @@ contract TetherGuardHook is IERC7579Hook {
         view
         returns (uint256 totalValueUSD, TokenBalanceDetail[] memory details)
     {
-        details = new TokenBalanceDetail[](tokens.length);
-
-        for (uint256 i = 0; i < tokens.length; i++) {
-            address token = tokens[i];
-            if (token == address(0) || token == NATIVE_ETH) {
-                uint256 bal = account.balance;
-                (uint256 price, uint8 feedDec) = _safeGetPrice(account, NATIVE_ETH);
-                uint256 val = _calculateUSD(bal, 18, price, feedDec);
-
-                details[i] = TokenBalanceDetail({
-                    token: NATIVE_ETH, symbol: "ETH", decimals: 18, balance: bal, priceUSD: price, valueUSD: val
-                });
-                totalValueUSD += val;
-            } else {
-                uint256 bal = 0;
-                try IERC20(token).balanceOf(account) returns (uint256 b) {
-                    bal = b;
-                } catch {}
-
-                string memory sym = "TOKEN";
-                try IERC20Metadata(token).symbol() returns (string memory s) {
-                    sym = s;
-                } catch {}
-
-                uint8 dec = 18;
-                try IERC20Metadata(token).decimals() returns (uint8 d) {
-                    dec = d;
-                } catch {}
-
-                (uint256 price, uint8 feedDec) = _safeGetPrice(account, token);
-                uint256 val = _calculateUSD(bal, dec, price, feedDec);
-
-                details[i] = TokenBalanceDetail({
-                    token: token, symbol: sym, decimals: dec, balance: bal, priceUSD: price, valueUSD: val
-                });
-                totalValueUSD += val;
-            }
-        }
+        return PortfolioValuator(portfolioValuator).getTotalPortfolioValueUSD(account, tokens, address(this));
     }
 
     /**
@@ -1179,12 +1032,8 @@ contract TetherGuardHook is IERC7579Hook {
 
         // 3. Caller is AI Agent Session Key:
         // Enforce Inactive AI Heartbeat Watchdog:
-        {
-            uint256 hb = customAIHeartbeatTimeout[account];
-            if (hb == 0) hb = DEFAULT_AI_HEARTBEAT_TIMEOUT;
-            if (lastAIHeartbeat[account] > 0 && block.timestamp > lastAIHeartbeat[account] + hb) {
-                revert AIHeartbeatStale(lastAIHeartbeat[account], block.timestamp);
-            }
+        if (lastAIHeartbeat[account] > 0 && block.timestamp > lastAIHeartbeat[account] + _aiHeartbeatTimeout(account)) {
+            revert AIHeartbeatStale(lastAIHeartbeat[account], block.timestamp);
         }
         lastAIHeartbeat[account] = block.timestamp;
 
@@ -1377,23 +1226,7 @@ contract TetherGuardHook is IERC7579Hook {
      * @return pending An array of AutonomousExecutionRecord structs currently in PENDING_REVIEW status.
      */
     function getPendingReviews(address account) external view returns (AutonomousExecutionRecord[] memory) {
-        uint256 total = executionCount[account];
-        uint256 pendingCount = 0;
-        for (uint256 i = 1; i <= total; i++) {
-            if (executionRecords[account][i].status == ReviewStatus.PENDING_REVIEW) {
-                pendingCount++;
-            }
-        }
-
-        AutonomousExecutionRecord[] memory pending = new AutonomousExecutionRecord[](pendingCount);
-        uint256 idx = 0;
-        for (uint256 i = 1; i <= total; i++) {
-            if (executionRecords[account][i].status == ReviewStatus.PENDING_REVIEW) {
-                pending[idx] = executionRecords[account][i];
-                idx++;
-            }
-        }
-        return pending;
+        return PortfolioValuator(portfolioValuator).getPendingReviews(account, address(this));
     }
 
     /**
@@ -1629,11 +1462,22 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Broadcasts an AI liveness heartbeat from an authorized session key.
      * @param account The address of the smart account.
      */
+    function _deadmanEligibleTime(address account) internal view returns (uint256) {
+        uint256 timeout = deadmanTimeouts[account] > 0 ? deadmanTimeouts[account] : DEFAULT_DEADMAN_TIMEOUT;
+        return lastUserActivity[account] + timeout;
+    }
+
+    function _aiHeartbeatTimeout(address account) internal view returns (uint256) {
+        uint256 hb = customAIHeartbeatTimeout[account];
+        return hb > 0 ? hb : DEFAULT_AI_HEARTBEAT_TIMEOUT;
+    }
+
+    /**
+     * @notice Broadcasts an AI liveness heartbeat from an authorized session key.
+     * @param account The address of the smart account.
+     */
     function recordAIHeartbeat(address account) external {
-        if (
-            !authorizedSessionKeys[account][msg.sender] && msg.sender != account
-                && msg.sender != policies[account].rootOwner
-        ) {
+        if (!authorizedSessionKeys[account][msg.sender] && !_isAccountOrOwner(account, msg.sender)) {
             revert UnauthorizedCaller();
         }
         lastAIHeartbeat[account] = block.timestamp;
@@ -1691,8 +1535,7 @@ contract TetherGuardHook is IERC7579Hook {
         }
         require(newRootOwner != address(0), "INVALID_NEW_OWNER");
 
-        uint256 timeout = deadmanTimeouts[account] > 0 ? deadmanTimeouts[account] : DEFAULT_DEADMAN_TIMEOUT;
-        uint256 eligibleTime = lastUserActivity[account] + timeout;
+        uint256 eligibleTime = _deadmanEligibleTime(account);
         if (lastUserActivity[account] == 0 || block.timestamp < eligibleTime) {
             revert DeadmanSwitchNotEligible(lastUserActivity[account], eligibleTime);
         }
@@ -1711,9 +1554,7 @@ contract TetherGuardHook is IERC7579Hook {
      */
     function isAIHeartbeatAlive(address account) external view returns (bool) {
         if (lastAIHeartbeat[account] == 0) return true;
-        uint256 timeout =
-            customAIHeartbeatTimeout[account] > 0 ? customAIHeartbeatTimeout[account] : DEFAULT_AI_HEARTBEAT_TIMEOUT;
-        return block.timestamp <= lastAIHeartbeat[account] + timeout;
+        return block.timestamp <= lastAIHeartbeat[account] + _aiHeartbeatTimeout(account);
     }
 
     /**
@@ -1723,8 +1564,7 @@ contract TetherGuardHook is IERC7579Hook {
      */
     function isDeadmanSwitchTriggerable(address account) external view returns (bool) {
         if (deadmanGuardians[account] == address(0) || lastUserActivity[account] == 0) return false;
-        uint256 timeout = deadmanTimeouts[account] > 0 ? deadmanTimeouts[account] : DEFAULT_DEADMAN_TIMEOUT;
-        return block.timestamp >= lastUserActivity[account] + timeout;
+        return block.timestamp >= _deadmanEligibleTime(account);
     }
 
     // =========================================================================
@@ -1736,40 +1576,34 @@ contract TetherGuardHook is IERC7579Hook {
      * @dev Allows deployer to register initial coordinates during onboarding if not yet registered.
      */
     function setAccountPasskey(address account, uint256 qx, uint256 qy) external {
-        if (msg.sender != account && msg.sender != policies[account].rootOwner) {
+        if (!_isAccountOrOwner(account, msg.sender)) {
             if (msg.sender != deployer || accountPasskeys[account].isRegistered) {
                 revert UnauthorizedCaller();
             }
         }
-        require(qx != 0 && qy != 0, "INVALID_COORDINATES");
-        bool wasRegistered = accountPasskeys[account].isRegistered;
+        if (qx == 0 || qy == 0) revert InvalidCoordinates();
         accountPasskeys[account] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
-
-        if (!accountPasskeysById[account][PRIMARY_PASSKEY_ID].isRegistered) {
-            accountPasskeyIds[account].push(PRIMARY_PASSKEY_ID);
-            if (!wasRegistered) {
-                activeAccountPasskeyCount[account] += 1;
-            }
+        if (fallbackP256Verifier != address(0)) {
+            (bool ok,) = fallbackP256Verifier.call(
+                abi.encodeWithSelector(IWebAuthnValidator.registerPasskey.selector, account, qx, qy)
+            );
+            ok;
         }
-        accountPasskeysById[account][PRIMARY_PASSKEY_ID] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
-
         emit PasskeyConfigured(account, qx, qy);
         emit AccountPasskeyAdded(account, PRIMARY_PASSKEY_ID, qx, qy);
     }
 
     /**
-     * @notice Registers a backup or secondary device passkey (e.g., laptop / tablet) for multi-device resilience (Nuance 4).
+     * @notice Registers a backup or secondary device passkey for multi-device resilience (Nuance 4).
      */
     function addAccountPasskey(address account, bytes32 keyId, uint256 qx, uint256 qy)
         external
         onlyAccountOrOwner(account)
     {
-        require(qx != 0 && qy != 0 && keyId != bytes32(0), "INVALID_COORDINATES");
-        if (!accountPasskeysById[account][keyId].isRegistered) {
-            accountPasskeyIds[account].push(keyId);
-            activeAccountPasskeyCount[account] += 1;
+        if (qx == 0 || qy == 0 || keyId == bytes32(0)) revert InvalidCoordinates();
+        if (fallbackP256Verifier != address(0)) {
+            IWebAuthnValidator(fallbackP256Verifier).addPasskey(account, keyId, qx, qy);
         }
-        accountPasskeysById[account][keyId] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
         if (!accountPasskeys[account].isRegistered) {
             accountPasskeys[account] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
             emit PasskeyConfigured(account, qx, qy);
@@ -1778,28 +1612,11 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice Revokes a specific device passkey by keyId while retaining at least one active passkey (Nuance 4).
+     * @notice Revokes a specific device passkey by keyId (Nuance 4).
      */
     function revokeAccountPasskey(address account, bytes32 keyId) external onlyAccountOrOwner(account) {
-        WebAuthnPasskey storage pk = accountPasskeysById[account][keyId];
-        if (!pk.isRegistered) revert UnauthorizedPasskey();
-        if (activeAccountPasskeyCount[account] <= 1) revert CannotRevokeLastPasskey();
-
-        uint256 revokedQx = pk.qx;
-        uint256 revokedQy = pk.qy;
-        delete accountPasskeysById[account][keyId];
-        activeAccountPasskeyCount[account] -= 1;
-
-        if (accountPasskeys[account].qx == revokedQx && accountPasskeys[account].qy == revokedQy) {
-            delete accountPasskeys[account];
-            bytes32[] storage ids = accountPasskeyIds[account];
-            for (uint256 i = 0; i < ids.length; i++) {
-                WebAuthnPasskey storage candidate = accountPasskeysById[account][ids[i]];
-                if (candidate.isRegistered) {
-                    accountPasskeys[account] = candidate;
-                    break;
-                }
-            }
+        if (fallbackP256Verifier != address(0)) {
+            IWebAuthnValidator(fallbackP256Verifier).revokePasskeyById(account, keyId);
         }
         emit AccountPasskeyRevoked(account, keyId);
     }
@@ -1809,7 +1626,9 @@ contract TetherGuardHook is IERC7579Hook {
      */
     function setPasskeyRecoveryGuardian(address account, address guardian) external onlyAccountOrOwner(account) {
         if (guardian == address(0) || guardian == account) revert InvalidGuardianAddress();
-        passkeyRecoveryGuardians[account] = guardian;
+        if (fallbackP256Verifier != address(0)) {
+            IWebAuthnValidator(fallbackP256Verifier).setRecoveryGuardian(account, guardian);
+        }
         emit PasskeyRecoveryGuardianUpdated(account, guardian);
     }
 
@@ -1817,19 +1636,11 @@ contract TetherGuardHook is IERC7579Hook {
      * @notice Allows the designated Emergency Passkey Recovery Guardian to rotate/register a new passkey if all devices are lost.
      */
     function recoverAccountPasskey(address account, bytes32 newKeyId, uint256 newQx, uint256 newQy) external {
-        address guardian = passkeyRecoveryGuardians[account];
-        if (guardian == address(0) || msg.sender != guardian) revert UnauthorizedGuardian();
-        require(newQx != 0 && newQy != 0 && newKeyId != bytes32(0), "INVALID_COORDINATES");
-
-        if (!accountPasskeysById[account][newKeyId].isRegistered) {
-            accountPasskeyIds[account].push(newKeyId);
-            activeAccountPasskeyCount[account] += 1;
+        if (fallbackP256Verifier != address(0)) {
+            IWebAuthnValidator(fallbackP256Verifier).recoverPasskey(account, newKeyId, newQx, newQy);
         }
-        accountPasskeysById[account][newKeyId] = WebAuthnPasskey({qx: newQx, qy: newQy, isRegistered: true});
         accountPasskeys[account] = WebAuthnPasskey({qx: newQx, qy: newQy, isRegistered: true});
-
-        emit AccountPasskeyRecovered(account, guardian, newKeyId, newQx, newQy);
-        emit PasskeyConfigured(account, newQx, newQy);
+        emit AccountPasskeyRecovered(account, msg.sender, newKeyId, newQx, newQy);
     }
 
     /**
@@ -1841,14 +1652,20 @@ contract TetherGuardHook is IERC7579Hook {
         if (primary.isRegistered && primary.qx == qx && primary.qy == qy) {
             return true;
         }
-        bytes32[] storage ids = accountPasskeyIds[account];
-        for (uint256 i = 0; i < ids.length; i++) {
-            WebAuthnPasskey storage pk = accountPasskeysById[account][ids[i]];
-            if (pk.isRegistered && pk.qx == qx && pk.qy == qy) {
-                return true;
-            }
+        if (fallbackP256Verifier != address(0)) {
+            return IWebAuthnValidator(fallbackP256Verifier).isAuthorizedPasskey(account, qx, qy);
         }
         return false;
+    }
+
+    /**
+     * @notice Returns the count of active passkeys for an account.
+     */
+    function activeAccountPasskeyCount(address account) external view returns (uint256) {
+        if (fallbackP256Verifier != address(0)) {
+            return IWebAuthnValidator(fallbackP256Verifier).activePasskeyCount(account);
+        }
+        return accountPasskeys[account].isRegistered ? 1 : 0;
     }
 
     /**
@@ -1868,6 +1685,37 @@ contract TetherGuardHook is IERC7579Hook {
      *      - Strict low-s signature non-malleability (`s <= P256_N / 2`) (Nuance 2)
      *      - RIP-7212 0x100 precompile with automatic Solidity P-256 fallback (Nuance 1)
      */
+    uint256 internal constant P256_N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551;
+    uint256 internal constant P256_N_DIV_2 = 0x7FFFFFFF800000007FFFFFFFFFFFFFFFDE737D56D38BCE4279DCB5617E3192A8;
+
+    function _verifyP256Signature(bytes32 messageHash, uint256 r, uint256 s, uint256 qx, uint256 qy)
+        internal
+        view
+        returns (bool)
+    {
+        bytes memory input = abi.encode(messageHash, r, s, qx, qy);
+        (bool success, bytes memory output) = RIP7212_PRECOMPILE.staticcall(input);
+        if (success && output.length == 32 && abi.decode(output, (uint256)) == 1) {
+            return true;
+        }
+        if (fallbackP256Verifier != address(0)) {
+            (bool fbSuccess, bytes memory fbOutput) = fallbackP256Verifier.staticcall(input);
+            return fbSuccess && fbOutput.length == 32 && abi.decode(fbOutput, (uint256)) == 1;
+        }
+        return false;
+    }
+
+    function _openBiometricWindow(address account) internal {
+        uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
+        biometricVerifiedUntil[account] = validUntil;
+        lastUserActivity[account] = block.timestamp;
+        emit BiometricVerificationCompleted(account, msg.sender, validUntil);
+    }
+
+    /**
+     * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 (0x100) with automatic
+     *         pure-Solidity fallback for Ethereum L1 and FISCO BCOS, and opens the 5-minute grace window.
+     */
     function completeBiometricVerificationWithP256(
         address account,
         bytes32 messageHash,
@@ -1877,21 +1725,13 @@ contract TetherGuardHook is IERC7579Hook {
         uint256 qy,
         uint256 deadline
     ) public {
-        if (block.timestamp > deadline) {
-            revert ExpiredSignature();
-        }
-        if (usedBiometricChallenges[account][messageHash]) {
-            revert ChallengeAlreadyUsed();
-        }
-        if (!isAuthorizedAccountPasskey(account, qx, qy)) {
-            revert UnauthorizedPasskey();
-        }
-        if (!P256Verifier.isCanonicalLowS(r, s)) {
-            revert MalleableP256Signature();
-        }
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        if (usedBiometricChallenges[account][messageHash]) revert ChallengeAlreadyUsed();
+        if (!isAuthorizedAccountPasskey(account, qx, qy)) revert UnauthorizedPasskey();
+        if (r == 0 || r >= P256_N || s == 0 || s > P256_N_DIV_2) revert MalleableP256Signature();
 
         // Verify P-256 signature via native RIP-7212 precompile (0x100) or L1/FISCO Solidity P-256 fallback
-        if (!P256Verifier.verifyWithFallback(messageHash, r, s, qx, qy, fallbackP256Verifier)) {
+        if (!_verifyP256Signature(messageHash, r, s, qx, qy)) {
             revert InvalidP256Signature();
         }
 
@@ -1899,11 +1739,7 @@ contract TetherGuardHook is IERC7579Hook {
         usedBiometricChallenges[account][messageHash] = true;
 
         // Open 5-minute Biometric Verification Window
-        uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
-        biometricVerifiedUntil[account] = validUntil;
-        lastUserActivity[account] = block.timestamp;
-
-        emit BiometricVerificationCompleted(account, msg.sender, validUntil);
+        _openBiometricWindow(account);
     }
 
     /**
@@ -1937,18 +1773,18 @@ contract TetherGuardHook is IERC7579Hook {
         uint256 qy,
         uint256 deadline
     ) external {
-        if (authenticatorData.length < P256Verifier.MIN_AUTH_DATA_LENGTH) {
+        if (authenticatorData.length < 37) {
             revert InvalidAuthenticatorData();
         }
         uint8 flags = uint8(authenticatorData[32]);
-        if ((flags & P256Verifier.AUTH_DATA_FLAG_UP) == 0) {
+        if ((flags & 0x01) == 0) {
             revert InvalidAuthenticatorData();
         }
-        if ((flags & P256Verifier.AUTH_DATA_FLAG_UV) == 0) {
+        if ((flags & 0x04) == 0) {
             revert BiometricUserVerificationRequired();
         }
 
-        bytes32 messageHash = P256Verifier.computeWebAuthnMessageHash(authenticatorData, clientDataHash);
+        bytes32 messageHash = sha256(abi.encodePacked(sha256(authenticatorData), clientDataHash));
         completeBiometricVerificationWithP256(account, messageHash, r, s, qx, qy, deadline);
     }
 

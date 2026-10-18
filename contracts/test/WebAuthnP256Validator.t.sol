@@ -36,6 +36,7 @@ contract WebAuthnP256ValidatorTest is Test {
 
         validator = new WebAuthnP256Validator();
         hook = new TetherGuardHook();
+        hook.setFallbackP256Verifier(address(validator));
 
         hook.initializeAccountPolicy(tecAccount, rootOwner, 0.5 ether, 2);
 
