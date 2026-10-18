@@ -31,7 +31,7 @@ Use `127.0.0.1:3000`, not `localhost:3000`, if another dev server already owns `
 | Emergency sweep | `POST /trigger_hourly_monitor` |
 | Learned profile | `GET /api/profile/demo` |
 
-Point at another server with `app.html?api=http://host:port` (it is remembered).
+Point at another local port with `app.html?api=http://127.0.0.1:8001` (remembered). Only loopback addresses are accepted, so a crafted link cannot redirect your commands to someone else's server.
 
 ## Landing URL switches
 

@@ -33,10 +33,19 @@ function animateNumber(el, to, { prefix = '$', dur = 900, suffix = el?.children.
 /* =========================================================================================
    Brain API
    ========================================================================================= */
+// Only a Brain on this machine is trusted: a crafted ?api= link must not be able to send the user's commands
+// and notes to someone else's server (and must not persist such a choice).
+const isLoopbackApi = v => {
+  try {
+    const u = new URL(v);
+    return /^https?:$/.test(u.protocol) && ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname) && !u.username && !u.password;
+  } catch { return false; }
+};
 const API = (() => {
   const q = new URLSearchParams(location.search).get('api');
-  if (q && /^https?:\/\/[^\s]+$/.test(q)) store.set('tecc_api', q);
-  return (store.get('tecc_api') || 'http://127.0.0.1:8000').replace(/\/$/, '');
+  if (q && isLoopbackApi(q)) store.set('tecc_api', new URL(q).origin);
+  const saved = store.get('tecc_api');
+  return isLoopbackApi(saved) ? new URL(saved).origin : 'http://127.0.0.1:8000';
 })();
 const brain = { live: false, checked: false };
 
