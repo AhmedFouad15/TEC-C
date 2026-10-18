@@ -15,6 +15,7 @@ which itself is capped by `GROK_SENTIMENT_CAP` below and can never alone push a 
 from __future__ import annotations
 
 import os
+import re
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -23,8 +24,54 @@ from tecc_brain.intent.firewall import scan
 from tecc_brain.sentinel import ENTITY_ALIASES, HeadlineSignal, LexiconSentinel
 
 GROK_API_URL = os.environ.get("GROK_API_URL", "https://api.x.ai/v1/chat/completions")
-GROK_MODEL = os.environ.get("GROK_MODEL", "grok-4")
+GROK_RESPONSES_URL = os.environ.get("GROK_RESPONSES_URL", "https://api.x.ai/v1/responses")
+# Non-reasoning on purpose: every call here caps its output at 50–100 tokens, which a reasoning model can spend
+# entirely on thinking (truncated JSON → silent fallback to the offline lexicon).
+DEFAULT_GROK_MODEL = "grok-4.20-0309-non-reasoning"
+GROK_MODEL = os.environ.get("GROK_MODEL", DEFAULT_GROK_MODEL)
 DEFAULT_TIMEOUT_S = 8.0
+X_SEARCH_MAX_OUTPUT_TOKENS = 600  # room for the tool round-trip; the JSON answer itself stays tiny
+
+# --- Live X Search toggle -----------------------------------------------------------------------------------
+# TECC_ENABLE_X_SEARCH=true attaches xAI's server-side `x_search` tool (Responses API) to the two X-pulse calls
+# (market mood, per-token crowd check), so Grok reads live X posts instead of answering from its training data.
+# It is billed per post returned ($5 per 1,000 posts), so it is off by default. The Settings API
+# (GET/PUT /api/settings/x-search) can flip it at runtime; the runtime value lasts until the process restarts.
+_TRUE = {"1", "true", "yes", "on"}
+_x_search_override: bool | None = None
+
+
+def x_search_env_default() -> bool:
+    return os.environ.get("TECC_ENABLE_X_SEARCH", "false").strip().lower() in _TRUE
+
+
+def x_search_enabled() -> bool:
+    return _x_search_override if _x_search_override is not None else x_search_env_default()
+
+
+def x_search_source() -> str:
+    return "runtime" if _x_search_override is not None else "env"
+
+
+def set_x_search(enabled: bool | None) -> bool:
+    """Runtime override from the Settings UI; None goes back to TECC_ENABLE_X_SEARCH."""
+    global _x_search_override
+    _x_search_override = enabled
+    return x_search_enabled()
+
+
+_JSON = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _response_text(data: dict) -> str:
+    """Text of a Responses API reply (with tools the output mixes tool calls and the final message)."""
+    if isinstance(data.get("output_text"), str):
+        return data["output_text"]
+    parts = [c.get("text", "") for item in data.get("output", []) if item.get("type") == "message"
+             for c in item.get("content", []) if c.get("type") in ("output_text", "text")]
+    if not parts:
+        raise KeyError("no message text in the Responses API output")
+    return "".join(parts)
 GROK_SENTIMENT_CAP = 0.85  # never let one model call claim near-certainty; leaves room for price/redemption evidence
 
 SYSTEM_PROMPT = (
@@ -134,23 +181,34 @@ class GrokSentinel:
         self.api_key = api_key if api_key is not None else os.environ.get("GROK_API_KEY")
         self.timeout_s = timeout_s
 
+    def _complete(self, system: str, user: str, max_tokens: int, live_x: bool = False) -> str:
+        """One Grok request → the JSON object it answered with (as text). Raises on any HTTP/shape problem; callers
+        fall back to their neutral/offline value. `live_x` calls use X Search when the toggle is on."""
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        if live_x and x_search_enabled():
+            resp = httpx.post(GROK_RESPONSES_URL, headers=headers, timeout=self.timeout_s, json={
+                "model": GROK_MODEL, "input": messages, "tools": [{"type": "x_search"}],
+                "max_output_tokens": X_SEARCH_MAX_OUTPUT_TOKENS,
+            })
+            resp.raise_for_status()
+            text = _response_text(resp.json())
+        else:
+            resp = httpx.post(GROK_API_URL, headers=headers, timeout=self.timeout_s, json={
+                "model": GROK_MODEL, "messages": messages, "temperature": 0.0, "max_tokens": max_tokens,
+            })
+            resp.raise_for_status()
+            text = resp.json()["choices"][0]["message"]["content"]
+        match = _JSON.search(text or "")
+        if not match:
+            raise ValueError("Grok reply contained no JSON object")
+        return match.group(0)
+
     def _call(self, user_content: str) -> float | None:
         if not self.api_key:
             return None
         try:
-            resp = httpx.post(
-                GROK_API_URL,
-                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": GROK_MODEL,
-                    "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_content}],
-                    "temperature": 0.0,
-                    "max_tokens": 50,
-                },
-                timeout=self.timeout_s,
-            )
-            resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            raw = self._complete(SYSTEM_PROMPT, user_content, max_tokens=50)  # scores given text: no live search
             parsed = GrokSentiment.model_validate_json(raw)
             return min(parsed.p_negative, GROK_SENTIMENT_CAP)
         except (httpx.HTTPError, KeyError, IndexError, ValidationError, ValueError):
@@ -189,22 +247,8 @@ class GrokSentinel:
         if not self.api_key:
             return GrokMacroRubric(retail_capitulation_index=50, retail_euphoria_index=50)
         try:
-            resp = httpx.post(
-                GROK_API_URL,
-                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": GROK_MODEL,
-                    "messages": [
-                        {"role": "system", "content": MACRO_X_SYSTEM_PROMPT},
-                        {"role": "user", "content": "Analyze current retail X pulse for capitulation vs euphoria."},
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": 60,
-                },
-                timeout=self.timeout_s,
-            )
-            resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            raw = self._complete(MACRO_X_SYSTEM_PROMPT, "Analyze current retail X pulse for capitulation vs euphoria.",
+                                 max_tokens=60, live_x=True)
             return GrokMacroRubric.model_validate_json(raw)
         except (httpx.HTTPError, KeyError, IndexError, ValidationError, ValueError):
             return GrokMacroRubric(retail_capitulation_index=50, retail_euphoria_index=50)
@@ -247,22 +291,7 @@ class GrokSentinel:
 
         try:
             prompt = f"Asset: {symbol} ({names[0]}). Recent headlines:\n" + "\n".join(f"- {h}" for h in safe)
-            resp = httpx.post(
-                GROK_API_URL,
-                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": GROK_MODEL,
-                    "messages": [
-                        {"role": "system", "content": TOKEN_X_SYSTEM_PROMPT},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": 100,
-                },
-                timeout=self.timeout_s,
-            )
-            resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            raw = self._complete(TOKEN_X_SYSTEM_PROMPT, prompt, max_tokens=100, live_x=True)
             parsed = GrokTokenRubric.model_validate_json(raw)
             parsed.symbol = symbol
             if security_alert:
@@ -280,10 +309,15 @@ class GrokSentinel:
 
 
 __all__ = [
+    "DEFAULT_GROK_MODEL",
     "GROK_SENTIMENT_CAP",
     "GrokMacroRubric",
     "GrokMarketSentiment",
     "GrokSentiment",
     "GrokSentinel",
     "GrokTokenRubric",
+    "set_x_search",
+    "x_search_enabled",
+    "x_search_env_default",
+    "x_search_source",
 ]

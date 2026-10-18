@@ -1123,6 +1123,68 @@
         }
       }
     },
+    "/api/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Settings",
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/x-search": {
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Set X Search",
+        "operationId": "set_x_search_api_settings_x_search_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/XSearchUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/XSearchSetting"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/sessions": {
       "get": {
         "tags": [
@@ -1396,6 +1458,25 @@
         "summary": "Get Virtual Sessions Ui",
         "description": "Section 8.4: Laptop UI ('Virtual Sessions' screen).",
         "operationId": "get_virtual_sessions_ui_admin_virtual_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Index",
+        "description": "Serves the interactive demo frontend for the Tec-C Agent Wallet.",
+        "operationId": "index__get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3722,6 +3803,34 @@
         "title": "Mandate",
         "description": "A user's request, parsed into typed form."
       },
+      "ModelSetting": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured",
+            "description": "An API key is set; otherwise this component runs its offline fallback"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "xai",
+              "gemini"
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured",
+          "provider",
+          "model"
+        ],
+        "title": "ModelSetting"
+      },
       "OLSFitResult": {
         "properties": {
           "alpha": {
@@ -5218,6 +5327,33 @@
         ],
         "title": "SetGuardianRequest"
       },
+      "SettingsView": {
+        "properties": {
+          "x_search": {
+            "$ref": "#/components/schemas/XSearchSetting"
+          },
+          "sentinel": {
+            "$ref": "#/components/schemas/ModelSetting"
+          },
+          "brain": {
+            "$ref": "#/components/schemas/ModelSetting"
+          },
+          "pegguard": {
+            "type": "string",
+            "const": "deterministic",
+            "title": "Pegguard",
+            "description": "PegGuard never calls an LLM (Math > AI)",
+            "default": "deterministic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x_search",
+          "sentinel",
+          "brain"
+        ],
+        "title": "SettingsView"
+      },
       "Signal": {
         "type": "string",
         "enum": [
@@ -5718,6 +5854,68 @@
           "qy"
         ],
         "title": "VerifyWebAuthnRequest"
+      },
+      "XSearchSetting": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether the Sentinel's X-pulse calls attach xAI's live x_search tool"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "env",
+              "runtime"
+            ],
+            "title": "Source",
+            "description": "'env' = TECC_ENABLE_X_SEARCH; 'runtime' = set via this API"
+          },
+          "env_default": {
+            "type": "boolean",
+            "title": "Env Default",
+            "description": "TECC_ENABLE_X_SEARCH, the value after a restart"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "False while GROK_API_KEY is unset: the Sentinel then runs offline anyway"
+          },
+          "price_note": {
+            "type": "string",
+            "title": "Price Note",
+            "default": "Billed by xAI per post returned ($5 per 1,000 posts) on top of tokens."
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "source",
+          "env_default",
+          "available"
+        ],
+        "title": "XSearchSetting"
+      },
+      "XSearchUpdate": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "true/false to override; null to return to TECC_ENABLE_X_SEARCH"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "XSearchUpdate"
       }
     }
   }
