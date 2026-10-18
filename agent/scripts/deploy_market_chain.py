@@ -41,7 +41,13 @@ def eth(x: float) -> int:
 
 
 def deploy(args: argparse.Namespace) -> None:
-    rpc_url = args.rpc or os.environ.get(RPC_ENV[args.network]) or ("http://127.0.0.1:8545" if args.network == "anvil" else None)
+    if args.network == "fisco_bcos":
+        from tecc_brain.onchain.fisco_node import ensure_fisco_node_running
+        ensure_fisco_node_running(args.rpc or "http://127.0.0.1:8555")
+
+    rpc_url = args.rpc or os.environ.get(RPC_ENV[args.network]) or (
+        "http://127.0.0.1:8545" if args.network == "anvil" else ("http://127.0.0.1:8555" if args.network == "fisco_bcos" else None)
+    )
     if not rpc_url:
         sys.exit(f"pass --rpc or set {RPC_ENV[args.network]}")
     rpc = Rpc(rpc_url, timeout_s=60)
@@ -77,6 +83,10 @@ def deploy(args: argparse.Namespace) -> None:
 
 
 def smoke(args: argparse.Namespace) -> None:
+    if args.network == "fisco_bcos":
+        from tecc_brain.onchain.fisco_node import ensure_fisco_node_running
+        ensure_fisco_node_running(args.rpc or "http://127.0.0.1:8555")
+
     m = load_market(args.network)
     if m is None:
         sys.exit(f"{args.network} is not deployed yet: run this script without --smoke first")

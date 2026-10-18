@@ -1,6 +1,7 @@
 # Foundry Compiler & Build Artifacts
 contracts/cache/
 contracts/out/
+contracts/out-*/
 
 # Development broadcast logs & dry runs
 contracts/broadcast/*/31337/

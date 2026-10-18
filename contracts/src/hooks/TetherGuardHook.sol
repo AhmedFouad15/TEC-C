@@ -906,9 +906,11 @@ contract TetherGuardHook is IERC7579Hook {
         if (answer <= 0) {
             revert InvalidOraclePrice(token, answer);
         }
+        uint256 curTime = block.timestamp > 1e11 ? block.timestamp / 1000 : block.timestamp;
+        uint256 updTime = updatedAt > 1e11 ? updatedAt / 1000 : updatedAt;
         if (
             updatedAt == 0 || answeredInRound < roundId
-                || (block.timestamp > updatedAt && block.timestamp - updatedAt > 1 days)
+                || (curTime > updTime && curTime - updTime > 1 days)
         ) {
             revert StaleOraclePrice(token, updatedAt);
         }
@@ -1362,7 +1364,8 @@ contract TetherGuardHook is IERC7579Hook {
      * @param account The address of the smart account.
      */
     function completeBiometricVerification(address account) external onlyAccountOrOwner(account) {
-        uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
+        uint256 window = block.timestamp > 1e11 ? BIOMETRIC_VERIFICATION_WINDOW * 1000 : BIOMETRIC_VERIFICATION_WINDOW;
+        uint256 validUntil = block.timestamp + window;
         biometricVerifiedUntil[account] = validUntil;
         lastUserActivity[account] = block.timestamp;
         emit BiometricVerificationCompleted(account, msg.sender, validUntil);

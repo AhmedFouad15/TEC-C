@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import os
+
 from tecc_brain import __version__
 from tecc_brain.api import arbitrage, biometrics, insight, mandate, options, profile, risk
 from tecc_brain.api.deps import allowed_origins, require_client
@@ -13,9 +15,23 @@ from tecc_brain.monitor.hourly import start_scheduler, stop_scheduler
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    network = os.environ.get("TECC_NETWORK", "anvil").strip().lower()
+    auto_fisco = os.environ.get(
+        "TECC_AUTO_START_FISCO", "1" if network == "fisco_bcos" else "0"
+    ).lower() in ("1", "true", "yes")
+    fisco_started = False
+    if auto_fisco:
+        from tecc_brain.onchain.fisco_node import ensure_fisco_node_running
+        fisco_started = ensure_fisco_node_running()
+
     start_scheduler()  # no-op unless TECC_ENABLE_HOURLY_MONITOR=1
-    yield
-    stop_scheduler()
+    try:
+        yield
+    finally:
+        stop_scheduler()
+        if fisco_started or os.environ.get("TECC_STOP_FISCO_ON_SHUTDOWN", "0").lower() in ("1", "true", "yes"):
+            from tecc_brain.onchain.fisco_node import stop_fisco_node
+            stop_fisco_node()
 
 
 app = FastAPI(

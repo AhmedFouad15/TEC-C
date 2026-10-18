@@ -42,7 +42,9 @@ def test_rpc_url_for_multi_chain(monkeypatch):
     monkeypatch.setenv("ARBITRUM_RPC_URL", "https://arb1.arbitrum.io/rpc")
     assert rpc_url_for("arbitrum") == "https://arb1.arbitrum.io/rpc"
 
-    # FISCO BCOS
+    # FISCO BCOS (defaults to 127.0.0.1:8555 if not set)
+    monkeypatch.delenv("FISCO_BCOS_RPC_URL", raising=False)
+    assert rpc_url_for("fisco_bcos") == "http://127.0.0.1:8555"
     monkeypatch.setenv("FISCO_BCOS_RPC_URL", "http://127.0.0.1:20200")
     assert rpc_url_for("fisco_bcos") == "http://127.0.0.1:20200"
 
@@ -58,16 +60,27 @@ def test_shared_contract_configs_exist():
     assert FISCO_CONTRACTS_FILE.exists()
 
 
-def test_load_arbitrum_and_fisco_deployments():
+def test_load_arbitrum_and_fisco_deployments(tmp_path):
     mock_rpc = MagicMock()
     mock_rpc.call.return_value = "0x100"
 
-    # In production without live deploys, DEAD_ADDRESS in deployedAddresses will raise _require_deployed
-    # verifying that undeployed safety checks are actively enforced
+    # Arbitrum without live deploys has DEAD_ADDRESS, raising NetworkConfigError
     with pytest.raises(NetworkConfigError) as exc_arb:
         load_arbitrum_deployment(mock_rpc)
     assert "Arbitrum" in str(exc_arb.value)
 
-    with pytest.raises(NetworkConfigError) as exc_fisco:
-        load_fisco_deployment(mock_rpc)
-    assert "FISCO BCOS" in str(exc_fisco.value)
+    # FISCO BCOS has live testnet deployment loaded from shared/contracts.fisco.json
+    fisco_deploy = load_fisco_deployment(mock_rpc)
+    assert fisco_deploy.chain_id == 20200
+    assert fisco_deploy.hook.startswith("0x")
+    assert fisco_deploy.validator.startswith("0x")
+    assert fisco_deploy.account.startswith("0x")
+
+    # When missing or dead addresses are encountered, safety checks raise NetworkConfigError
+    dead_fisco = tmp_path / "dead.json"
+    dead_fisco.write_text(
+        '{"_meta": {"chainId": 20200}, "deployedAddresses": {"TetherGuardHook": "0x000000000000000000000000000000000000dEaD"}}'
+    )
+    with pytest.raises(NetworkConfigError) as exc_fisco_dead:
+        load_fisco_deployment(mock_rpc, path=dead_fisco)
+    assert "FISCO BCOS" in str(exc_fisco_dead.value)
