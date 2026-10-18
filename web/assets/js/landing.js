@@ -43,7 +43,7 @@
   let seen = false;
   try { seen = sessionStorage.getItem('tecc_seen') === '1'; sessionStorage.setItem('tecc_seen', '1'); } catch { /* storage blocked */ }
   if (seen || new URLSearchParams(location.search).has('skip')) { pre.style.transition = 'none'; finish(); }
-  const seqAt = parseFloat(new URLSearchParams(location.search).get('seq')); // e.g. ?seq=0.4 to inspect the run
+  const seqAt = parseFloat(new URLSearchParams(location.search).get('seq')); // e.g. ?seq=0.4 to inspect the mist transition
   if (seqAt >= 0 && seqAt <= 1) setTimeout(() => { document.documentElement.style.scrollBehavior = 'auto'; scrollTo(0, innerHeight * 0.05 + seqAt * ($('#hero-track').offsetHeight - innerHeight)); onScroll(); }, 400);
   const jumpTo = new URLSearchParams(location.search).get('at'); // deep link into a section, e.g. ?at=senses
   if (jumpTo && /^[a-z-]+$/.test(jumpTo)) setTimeout(() => { const el = document.getElementById(jumpTo); if (el) { document.documentElement.style.scrollBehavior = 'auto'; scrollTo(0, el.offsetTop); onScroll(); } }, 400);
@@ -171,76 +171,36 @@
   /* ---------- scroll-driven effects ---------- */
   const header = $('#site-header'), statement = $('#statement'), track = $('#hero-track');
   const mossRing = $('.statement-ring'), band = $('.terr-band'), terr = $('#territories'), naturePhoto = $('.nature-photo');
-  const night = $('#scene-night'), cave = $('#scene-cave'), flash = $('#flash'), runner = $('#runner');
-  const runnerEl = () => (document.body.classList.contains('run-sprite') ? $('.runner-sprite') : $('.runner-photo'));
-  const caption1 = $('#seq-caption'), caption2 = $('#scene-cave .seq-caption');
-  // ?run=sprite swaps the photo for the 1887 Muybridge gallop sprite (19 frames)
-  let runMode = new URLSearchParams(location.search).get('run');
-  try { runMode = runMode || localStorage.getItem('tecc_run'); } catch { /* storage blocked */ }
-  const setRun = m => {
-    document.body.classList.toggle('run-sprite', m === 'sprite');
-    $('#run-toggle').textContent = m === 'sprite' ? 'Run: 1887 sprite' : 'Run: photo';
-    try { localStorage.setItem('tecc_run', m); } catch { /* storage blocked */ }
-  };
-  setRun(runMode === 'sprite' ? 'sprite' : 'photo');
-  $('#run-toggle').addEventListener('click', () => setRun(document.body.classList.contains('run-sprite') ? 'photo' : 'sprite'));
+  const stage = $('#stage'), fogBack = $('#fog-back'), fogL = $('#fog-left'), fogR = $('#fog-right'), veil = $('#fog-veil');
   const clamp01 = v => Math.min(1, Math.max(0, v));
   const seg = (t, a, b) => clamp01((t - a) / (b - a));
-  const easeIn = (u, k = 2.6) => Math.pow(u, k);
   const smooth = u => u * u * (3 - 2 * u);
-  let seqT = 0;
-
-  function renderRun(now) {
-    const t = seqT, el = runnerEl(), sprite = document.body.classList.contains('run-sprite');
-    const u = seg(t, 0.12, 0.6);
-    const vw = innerWidth / 100, vh = innerHeight / 100;
-    const k = easeIn(u);
-    const rs = 0.16 + k * 6.2;                                         // grows as it charges the camera
-    const stride = Math.sin(now / 1000 * (sprite ? 9 : 13));
-    const bob = (sprite ? 0.6 : 1) * stride * 1.4 * vh * Math.min(rs, 2.2);
-    const rx = sprite ? (-34 + 38 * smooth(u)) * vw : (24 - 30 * smooth(u)) * vw;
-    const ry = (-5 + 20 * k) * vh + bob;
-    const rr = (sprite ? -1 : 1) * stride * 2.2 - (u > 0.85 ? (u - 0.85) * 60 : 0) * (sprite ? 1 : -1); // a leap at the end
-    el.style.setProperty('--rs', rs.toFixed(3));
-    el.style.setProperty('--rx', rx.toFixed(1) + 'px');
-    el.style.setProperty('--ry', ry.toFixed(1) + 'px');
-    el.style.setProperty('--rr', rr.toFixed(2) + 'deg');
-    el.style.setProperty('--rb', (0.8 * (1 - seg(u, 0.78, 0.98) * 0.97)).toFixed(3)); // fills the frame and goes dark
-    runner.style.opacity = u > 0 && t < 0.62 ? 1 : 0;
-    if (sprite) {
-      const f = Math.floor(now / 1000 * 20) % 19;
-      el.style.backgroundPosition = (f / 18 * 100) + '% 0';
-    }
-  }
-  (function loop(now) {
-    if (seqT > 0.02 && seqT < 0.66) renderRun(now);
-    requestAnimationFrame(loop);
-  })(performance.now());
 
   function onScroll() {
     const y = scrollY, vh = innerHeight;
     header.classList.toggle('scrolled', y > 40);
-    // the run: hero → night jungle + cave → jaguar charges the camera → inside the cave → light → forest
-    const t = clamp01((y - vh * 0.05) / (track.offsetHeight - vh));
-    seqT = t;
-    const heroOut = seg(t, 0.03, 0.15);
-    hero.style.opacity = 1 - heroOut;
-    hero.style.transform = `scale(${1 + heroOut * 0.08})`;
-    hero.style.filter = heroOut > 0 ? `blur(${heroOut * 8}px)` : '';
-    night.style.opacity = seg(t, 0.06, 0.16) * (1 - seg(t, 0.6, 0.64));
-    const cam = 1 + seg(t, 0.14, 0.5) * 0.5 + easeIn(seg(t, 0.46, 0.64), 3) * 12; // camera pushes into the mouth
-    night.style.setProperty('--cam', cam.toFixed(3));
-    caption1.style.setProperty('--co', (seg(t, 0.17, 0.23) * (1 - seg(t, 0.33, 0.4))).toFixed(3));
-    cave.style.opacity = seg(t, 0.63, 0.71);
-    cave.style.setProperty('--cz', (1 + easeIn(seg(t, 0.68, 0.97), 2.2) * 5.5).toFixed(3));
-    cave.style.setProperty('--cb', (0.35 + seg(t, 0.64, 0.95) * 1.1).toFixed(3));
-    caption2.style.setProperty('--co', (seg(t, 0.71, 0.76) * (1 - seg(t, 0.83, 0.88))).toFixed(3));
-    flash.style.opacity = seg(t, 0.87, 0.97);
-    $$('.slide-index, .socials, .scroll-hint').forEach(c => { c.style.opacity = 1 - seg(t, 0.01, 0.05); });
+    // hero → mist → forest
+    const t = clamp01((y - vh * 0.04) / (track.offsetHeight - vh));
+    const soften = smooth(seg(t, 0.02, 0.5));
+    hero.style.transform = `scale(${1 + soften * 0.1})`;
+    hero.style.filter = soften > 0 ? `blur(${soften * 7}px) brightness(${1 + soften * 0.6}) saturate(${1 - soften * 0.5})` : '';
+    const roll = smooth(seg(t, 0.04, 0.55));                       // the two banks of mist close in
+    fogL.style.setProperty('--fx', (-40 + roll * 40) + '%');
+    fogR.style.setProperty('--fx', (40 - roll * 40) + '%');
+    const thin = smooth(seg(t, 0.62, 1));                         // ...and drift past the camera as it thins
+    fogL.style.setProperty('--fs', 1 + thin * 0.8);
+    fogR.style.setProperty('--fs', 1 + thin * 0.8);
+    const fogO = seg(t, 0.03, 0.3) * (1 - thin * 0.85);
+    fogL.style.opacity = fogR.style.opacity = fogO;
+    fogBack.style.opacity = seg(t, 0.1, 0.4) * (1 - thin);
+    veil.style.opacity = smooth(seg(t, 0.26, 0.48)) * (1 - smooth(seg(t, 0.6, 0.9)));
+    hero.style.opacity = 1 - seg(t, 0.38, 0.52);
+    stage.style.background = t > 0.6 ? 'transparent' : '';         // the forest (fixed behind) shows through the last of the mist
+    $$('.slide-copy').forEach(c => { c.style.opacity = 1 - seg(t, 0.02, 0.22); });
+    $$('.slide-index, .socials, .scroll-hint').forEach(c => { c.style.opacity = 1 - seg(t, 0.01, 0.06); });
     const nowTransitioning = t > 0.02;
     if (nowTransitioning !== transitioning) { transitioning = nowTransitioning; nowTransitioning ? (clearTimeout(timer), cancelAnimationFrame(raf)) : restart(); }
-    document.body.classList.toggle('on-light', t > 0.96);
-    if (t <= 0.02 || t >= 0.66) renderRun(performance.now());
+    document.body.classList.toggle('on-light', t > 0.3);
     const docSpan = Math.max(1, document.documentElement.scrollHeight - vh);
     naturePhoto.style.setProperty('--ny', (-(y / docSpan) * vh * 0.07).toFixed(1) + 'px'); // stays inside the 8% bleed
     // statement: light words one by one while the moss ring turns

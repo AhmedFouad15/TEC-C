@@ -81,6 +81,9 @@ function setBrainStatus(live, text) {
   if (changed) {
     loadRegimes();
     loadProfile();
+    maybeShowQuizBanner();
+    btLoaded = false;
+    if ($('#panel-backtests').classList.contains('active')) loadBacktests();
     if (live) showToast('Brain connected: commands now run through the real pipeline.');
   }
 }
@@ -222,6 +225,7 @@ function switchTab(tab) {
   if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
   scrollTo({ top: 0, behavior: 'smooth' });
   if (tab === 'portfolio') drawTrend();
+  if (tab === 'backtests') loadBacktests();
 }
 $$('.nav-item').forEach(n => n.addEventListener('click', e => { e.preventDefault(); switchTab(n.dataset.tab); }));
 addEventListener('hashchange', () => switchTab(location.hash.slice(1)));
@@ -361,6 +365,7 @@ async function animatePipeline(agents, { blockedAt = -1 } = {}) {
    Submit → Brain (live) or demo
    ========================================================================================= */
 async function submitCommandToBrain(text) {
+  const textGiven = !!text;
   const shown = text || commandText();
   text = text || brainText();
   const btn = $('#submit-btn');
@@ -368,13 +373,14 @@ async function submitCommandToBrain(text) {
   state.requestNo++;
   $('#request-id').textContent = `Request #${String(state.requestNo).padStart(4, '0')}`;
   try {
+    if (brain.live && !textGiven) return await evaluateOptions(shown); // composer buttons → closed schema
     if (brain.live) {
       const headline = $('#headline-input').value.trim() || undefined;
       const [res] = await Promise.all([
         api('/api/mandate/propose', { method: 'POST', body: { text, account: 'demo', headline } }),
         sleep(300),
       ]);
-      state.live = res;
+      state.live = res; state.liveOptions = null;
       const blocked = res.status !== 'decided' || res.decision?.mode === 'BLOCKED';
       const agents = res.agents?.length ? res.agents : DEMO_AGENTS;
       await animatePipeline(agents, { blockedAt: blocked ? agents.length - 1 : -1 });
@@ -383,7 +389,7 @@ async function submitCommandToBrain(text) {
       else if (blocked) showToast('The Brain refused this command. See the pipeline for why.');
       else { await sleep(350); switchTab('opportunities'); showToast(`The Brain rated ${res.decision.cards.length} route(s) and rejected ${res.decision.rejected.length}.`); }
     } else {
-      state.live = null;
+      state.live = null; state.liveOptions = null;
       await animatePipeline(DEMO_AGENTS);
       renderOpportunities();
       await sleep(300);
@@ -399,6 +405,123 @@ async function submitCommandToBrain(text) {
     btn.disabled = false; btn.classList.remove('loading');
   }
 }
+/* =========================================================================================
+   Composer → /evaluate_options: a closed schema (enum action, real asset, bounded amount), no free text
+   ========================================================================================= */
+const OPTION_ACTION = {
+  'Find opportunities': 'deposit', 'Invest': 'deposit', 'Stake': 'stake', 'Swap': 'swap', 'Rebalance': 'optimize_yield',
+  'Reduce risk': 'reduce_exposure', 'Exit position': 'withdraw', 'Park idle cash': 'deposit',
+};
+const OPT_MODE = { AUTO: ['Autonomous', 'badge-green'], PROPOSE: ['Needs your tap', 'badge-blue'], BREAKOUT: ['FaceID breakout', 'badge-amber'], BLOCKED: ['Blocked', 'badge-red'] };
+
+function composerOptions() {
+  const assets = state.assets.filter(a => a !== 'All in market');
+  const list = assets.length ? assets : ['USDC'];
+  const each = Math.max(1, Math.round(dollarsForCommand() / list.length));
+  return list.map((asset, i) => ({ option_id: String.fromCharCode(65 + i), action: OPTION_ACTION[state.action], asset, amount_usd: each }));
+}
+
+async function evaluateOptions(shown) {
+  const options = composerOptions();
+  const [res] = await Promise.all([api('/evaluate_options', { method: 'POST', body: { account: 'demo', options } }), sleep(300)]);
+  state.live = null;
+  res.results.sort((x, y) => x.option_id.localeCompare(y.option_id));
+  state.liveOptions = { ...res, options, shown };
+  const funded = res.results.filter(r => r.allocated_usd > 0);
+  const agents = [
+    { agent: 'gatekeeper_intake', lines: [`Closed schema: ${options.length} option(s), action “${options[0].action}”, no free-text field.`, 'Nothing here can carry an injected instruction.'] },
+    { agent: 'profile', lines: res.profile ? [`Tier ${res.profile.tier} · λ ${res.profile.lam.toFixed(2)} · τ ${res.profile.tau.toFixed(2)} · soft limit ${usd(res.profile.soft_limit_usd)}.`] : ['Profile loaded.'] },
+    { agent: 'nlp_sentinel', lines: [res.trace[0] || 'Market snapshot loaded.'] },
+    { agent: 'econometric_liquidity', lines: res.results.map(r => (r.venue_id
+      ? `${r.option_id} → ${r.venue_id}: ${r.score_pct_per_yr != null ? signed(r.score_pct_per_yr) + '%/yr' : 'no score'}`
+      : `${r.option_id}: ${r.reasons[0] || 'rejected'}`)) },
+    { agent: 'gatekeeper_aggregator', lines: res.trace.slice(-2) },
+    { agent: 'web3_executor', lines: res.intents.length ? res.intents.map(i => `${i.action} ${usd(i.amount_usd)} → ${i.venue_id} (${i.status.replace(/_/g, ' ')})`) : ['Nothing to sign.'] },
+  ];
+  await animatePipeline(agents, { blockedAt: funded.length ? -1 : agents.length - 1 });
+  renderOptions();
+  await sleep(350);
+  switchTab('opportunities');
+  showToast(`${res.status.replace(/_/g, ' ').toLowerCase()}: ${funded.length} of ${res.results.length} option(s) funded.`);
+}
+
+function renderOptions() {
+  const o = state.liveOptions;
+  $('#source-badge').className = 'badge big badge-live';
+  $('#source-badge').textContent = 'Live · injection-proof options';
+  $('#opp-request-header').textContent = `“${o.shown}” · sent as ${o.options.length} structured option(s), no free text`;
+  $('#opp-count').textContent = o.results.length;
+  if (!o.results.find(r => 'opt:' + r.option_id === state.selectedCandidate)) state.selectedCandidate = 'opt:' + o.results[0]?.option_id;
+  $('#candidates-container').innerHTML = o.results.map(r => {
+    const req = o.options.find(x => x.option_id === r.option_id) || {};
+    const [mt, mc] = OPT_MODE[r.mode] || [r.mode, ''];
+    const funded = r.requested_usd ? r.allocated_usd / r.requested_usd : 0;
+    return `<button class="card glass cand ${'opt:' + r.option_id === state.selectedCandidate ? 'chosen' : ''}" data-cand="opt:${esc(r.option_id)}" data-tilt>
+      <div class="row-between"><span class="badge badge-live">Option ${esc(r.option_id)}</span><span class="badge ${mc}">${esc(mt)}</span></div>
+      <div class="cand-title">${esc(req.action)} ${esc(req.asset)} ${r.venue_id ? '→ ' + esc(r.venue_id) : '· no venue'}</div>
+      <div class="cand-info">${usd(r.allocated_usd)} funded of ${usd(r.requested_usd)} requested</div>
+      <div class="mini-badges">${r.sharpe != null ? `<span class="badge">Sharpe ${r.sharpe.toFixed(2)}</span>` : ''}${r.cvar_95_pct != null ? `<span class="badge">CVaR95 ${r.cvar_95_pct.toFixed(1)}%</span>` : ''}</div>
+      <div class="cand-score"><b>${r.score_pct_per_yr != null ? signed(r.score_pct_per_yr) + '%' : '—'}</b><span class="caption">risk-adjusted / yr</span></div>
+      ${scoreRing(funded)}
+    </button>`;
+  }).join('');
+  fillRings();
+  bindTilt();
+  showOptionDetail();
+}
+
+function showOptionDetail() {
+  const o = state.liveOptions;
+  const r = o.results.find(x => 'opt:' + x.option_id === state.selectedCandidate) || o.results[0];
+  const req = o.options.find(x => x.option_id === r.option_id) || {};
+  $('#zone-b-title').textContent = `Zone B · Option ${r.option_id}: ${req.action} ${req.asset}`;
+  $('#sentiment-indicator').style.left = '75%';
+  $('#rating-news-badge').textContent = 'Market snapshot';
+  $('#rating-news-badge').className = 'badge badge-green';
+  $('#headlines-list').innerHTML = `<li>${esc(o.trace[0] || '')}</li>`;
+  $('#metric-sharpe').textContent = r.sharpe != null ? r.sharpe.toFixed(2) : '—';
+  $('#metric-cvar95').textContent = r.cvar_95_pct != null ? '−' + r.cvar_95_pct.toFixed(1) + '%' : '—';
+  $('#metric-cvar99').previousElementSibling.textContent = 'Funded';
+  $('#metric-cvar99').textContent = usd(r.allocated_usd);
+  $('#econ-badge').textContent = r.allocated_usd > 0 ? 'Funded' : 'Not funded';
+  $('#econ-badge').className = 'badge ' + (r.allocated_usd > 0 ? 'badge-green' : 'badge-amber');
+  $('#explain-list').innerHTML = r.reasons.map(x => `<li>${esc(x)}</li>`).join('') || '<li>Fully within your leash.</li>';
+  $('#slippage-text').textContent = '';
+  $('#inj-badge').textContent = 'Closed schema';
+  $('#inj-badge').className = 'badge badge-green';
+  $('#inj-checks').innerHTML = [
+    ['Action is a closed enum, not text', ''],
+    [`Asset “${esc(req.asset)}” must name a real asset`, ''],
+    [`Amount is a bounded number: ${usd(req.amount_usd)}`, ''],
+    [r.venue_id ? `Venue ${esc(r.venue_id)} is on the whitelist` : 'No whitelisted venue accepts this, so it was refused', r.venue_id ? '' : 'bad'],
+    ['No free-text field reaches the Brain', ''],
+  ].map(([l, c]) => `<li class="${c}">${l}</li>`).join('');
+  const [mt] = OPT_MODE[r.mode] || [r.mode];
+  $('#synthesis-badge').textContent = o.status.replace(/_/g, ' ');
+  $('#synthesis-badge').className = 'badge ' + (o.intents.length ? 'badge-green' : 'badge-amber');
+  const queued = o.intents.reduce((a, i) => a + i.amount_usd, 0);
+  $('#synthesis-rationale').innerHTML = `<b>${esc(o.status.replace(/_/g, ' '))}</b> · option ${esc(r.option_id)} is <b>${esc(mt)}</b>. ${o.intents.length} intent(s) ready to sign, ${usd(queued)} inside today's soft tether.`;
+  $('#trace-list').innerHTML = o.trace.map(t => `<li>${esc(t)}</li>`).join('');
+  const btn = $('#btn-execute-trade');
+  btn.style.display = o.intents.length ? '' : 'none';
+  btn.firstElementChild.textContent = `Sign ${o.intents.length} intent(s) with the session key`;
+}
+
+function executeOptions() {
+  const o = state.liveOptions;
+  o.intents.forEach(i => {
+    addTrade({
+      title: `${i.action} ${i.asset_in} → ${i.venue_id}`, market: i.market, val: i.amount_usd,
+      status: i.status === 'pending_signature' ? 'signing' : 'pending', news: '—', econ: '—',
+      tx: i.tx_hash || 'awaiting signature', detail: 'From the injection-proof options flow.',
+    });
+    spendTether(Math.min(i.amount_usd, tetherLeft()));
+  });
+  showToast(`${o.intents.length} intent(s) queued for the session key. See Morning Review.`);
+  state.liveOptions = { ...o, intents: [] };
+  showOptionDetail();
+}
+
 function askBrain() {
   const v = $('#ask-input').value.trim();
   if (!v) { $('#ask-input').focus(); return; }
@@ -492,7 +615,7 @@ $('#candidates-container').addEventListener('click', e => {
   const c = e.target.closest('[data-cand]'); if (!c) return;
   state.selectedCandidate = c.dataset.cand;
   $$('#candidates-container .cand').forEach(x => x.classList.toggle('chosen', x === c));
-  state.live ? showLiveDetail() : renderOpportunities(false);
+  state.liveOptions ? showOptionDetail() : state.live ? showLiveDetail() : renderOpportunities(false);
   showToast(`Inspecting ${state.live ? c.dataset.cand.split(':')[1] : 'option ' + c.dataset.cand}`);
 });
 
@@ -575,6 +698,7 @@ $$('[data-weight]').forEach(r => r.addEventListener('change', () => showToast(`A
    Execute
    ========================================================================================= */
 async function executeAutonomousTrade() {
+  if (state.liveOptions) return executeOptions();
   if (state.live?.decision && state.live.proposal_id) return executeLive();
   if (state.outcome === 'breakout') return openBreakoutModal(4500, 120);
   const d = dollarsForCommand(), use = Math.min(d, tetherLeft());
@@ -1061,6 +1185,160 @@ setInterval(() => {
   const m = Math.floor((next - now) / 60000);
   $('#epoch-timer').textContent = `${String(Math.floor(m / 60)).padStart(2, '0')}h ${String(m % 60).padStart(2, '0')}m`;
 }, 1000);
+
+/* =========================================================================================
+   Backtests: /api/backtest, /api/backtest/{episode}
+   ========================================================================================= */
+const STRATS = {
+  tec_c: ['Tec-C Brain', 'Regime model: exits when P(failure) rises, holds through noise.'],
+  sentiment_veto: ['News veto', 'Sells after the headlines turn negative.'],
+  mean_reversion: ['Buy the dip', 'Doubles down whenever the price falls below the peg.'],
+};
+const EPISODE_NAMES = { ust_2022: 'UST · May 2022', usdc_svb_2023: 'USDC · SVB, Mar 2023', steth_celsius_2022: 'stETH · Celsius, Jun 2022' };
+let btLoaded = false, btEpisode = null;
+
+async function loadBacktests() {
+  if (!brain.live) {
+    $('#bt-seg').innerHTML = '';
+    $('#bt-title').textContent = 'Start the Brain to replay the episodes';
+    $('#bt-strats').innerHTML = `<div class="card glass"><div class="caption">Backtests run on the Brain itself (agent/), so they need the API.<br><code>cd agent && .venv/bin/uvicorn tecc_brain.app:app</code></div></div>`;
+    return;
+  }
+  if (btLoaded) return;
+  try {
+    const eps = await api('/api/backtest');
+    btLoaded = true;
+    $('#bt-seg').innerHTML = eps.map(e => `<button data-ep="${esc(e)}">${esc(EPISODE_NAMES[e] || e)}</button>`).join('');
+    runBacktest(eps.includes('ust_2022') ? 'ust_2022' : eps[0]);
+  } catch (err) { showToast(`Backtests unavailable: ${err.message}`); }
+}
+$('#bt-seg').addEventListener('click', e => { const b = e.target.closest('[data-ep]'); if (b) runBacktest(b.dataset.ep); });
+
+async function runBacktest(ep) {
+  btEpisode = ep;
+  $$('#bt-seg button').forEach(b => b.classList.toggle('active', b.dataset.ep === ep));
+  let r;
+  try { r = await api('/api/backtest/' + encodeURIComponent(ep), { method: 'POST' }); }
+  catch (err) { return showToast(`Backtest failed: ${err.message}`); }
+  if (btEpisode !== ep) return; // a newer click won
+  $('#bt-title').innerHTML = `${esc(r.title)} <em>replay</em>`;
+  $('#bt-asset').textContent = r.asset;
+  drawBacktest(r);
+  const order = ['tec_c', 'sentiment_veto', 'mean_reversion'].filter(k => r.strategies[k]);
+  const best = Math.max(...order.map(k => r.strategies[k].pnl_pct));
+  $('#bt-strats').innerHTML = order.map((k, i) => {
+    const st = r.strategies[k], [name, how] = STRATS[k] || [k, ''];
+    const when = st.exited_at ? `exited ${esc(st.exited_at)}` : st.bought_at ? `bought more ${esc(st.bought_at)}` : 'held to the end';
+    return `<div class="card glass bt-strat ${k === 'tec_c' ? 'is-brain' : ''}" style="animation-delay:${i * 90}ms">
+      <div class="row-between"><b>${esc(name)}</b>${st.pnl_pct === best ? '<span class="badge badge-live">best</span>' : ''}</div>
+      <div class="bt-pnl ${st.pnl_pct >= 0 ? 'txt-green' : 'txt-red'}">${st.pnl_pct >= 0 ? '+' : '−'}${Math.abs(st.pnl_pct * 100).toFixed(1)}%</div>
+      <div class="caption">${usd(st.invested_usd)} → ${usd(st.final_value_usd)} · ${when}</div>
+      <div class="caption">${esc(how)}</div>
+    </div>`;
+  }).join('');
+  const verb = { hold: 'hold', exit: 'exit', buy: 'buy', 'hold_no_new_deposits': 'no new deposits' };
+  $('#bt-steps tbody').innerHTML = r.steps.map(s => {
+    const resp = s.response.replace(/_/g, ' ').toLowerCase();
+    const cell = a => { const v = (s.actions[a] || '').toLowerCase(); return `<td class="${v === 'exit' ? 'txt-green' : v === 'buy' ? 'txt-red' : 'muted'}">${esc(verb[v] || v || '—')}</td>`; };
+    return `<tr><td>${esc(s.date)}</td><td>${esc(s.event)}</td><td>${s.price.toFixed(4)}</td><td>${(s.probs.p_normal * 100).toFixed(0)}%</td>
+      <td><span class="badge ${s.response === 'EXIT' ? 'badge-red' : s.response === 'HOLD' ? 'badge-green' : 'badge-amber'}">${esc(resp)}</span></td>
+      ${cell('tec_c')}${cell('sentiment_veto')}${cell('mean_reversion')}</tr>`;
+  }).join('');
+}
+
+function drawBacktest(r) {
+  const W = 640, H = 260, P = { l: 46, r: 14, t: 16, b: 34 }, n = r.steps.length;
+  const xs = i => P.l + (n === 1 ? 0 : i * (W - P.l - P.r) / (n - 1));
+  const prices = r.steps.map(s => s.price), lo = Math.min(...prices), hi = Math.max(...prices);
+  const pad = (hi - lo) * 0.12 || 0.01, y0 = lo - pad, y1 = hi + pad;
+  const yp = v => P.t + (1 - (v - y0) / (y1 - y0)) * (H - P.t - P.b);
+  const yq = v => P.t + (1 - v) * (H - P.t - P.b);
+  const area = (fn, base) => `M${xs(0)} ${base(0)} ` + r.steps.map((s, i) => `L${xs(i)} ${fn(s)}`).join(' ') + ` L${xs(n - 1)} ${base(n - 1)} ` +
+    r.steps.slice().reverse().map((s, j) => `L${xs(n - 1 - j)} ${base(n - 1 - j)}`).join(' ') + ' Z';
+  const failTop = s => yq(s.probs.p_failure), distTop = s => yq(s.probs.p_failure + s.probs.p_distress), bottom = () => yq(0);
+  const failArea = `M${xs(0)} ${bottom()} ` + r.steps.map((s, i) => `L${xs(i)} ${failTop(s)}`).join(' ') + ` L${xs(n - 1)} ${bottom()} Z`;
+  const distArea = `M${xs(0)} ${bottom()} ` + r.steps.map((s, i) => `L${xs(i)} ${distTop(s)}`).join(' ') + ` L${xs(n - 1)} ${bottom()} Z`;
+  const line = r.steps.map((s, i) => `${i ? 'L' : 'M'}${xs(i)} ${yp(s.price)}`).join(' ');
+  const marks = [];
+  const markAt = (date, label, cls) => {
+    const i = r.steps.findIndex(s => s.date === date);
+    if (i >= 0) marks.push(`<g class="bt-mark ${cls}"><line x1="${xs(i)}" x2="${xs(i)}" y1="${P.t}" y2="${H - P.b}"/><text x="${xs(i) + 4}" y="${P.t + 12 + marks.length * 13}">${esc(label)}</text></g>`);
+  };
+  const st = r.strategies;
+  if (st.tec_c?.exited_at) markAt(st.tec_c.exited_at, 'Tec-C exits', 'm-brain');
+  if (st.sentiment_veto?.exited_at) markAt(st.sentiment_veto.exited_at, 'news veto sells', 'm-veto');
+  if (st.mean_reversion?.bought_at) markAt(st.mean_reversion.bought_at, 'dip buyer buys', 'm-dip');
+  const ticks = [y0 + pad, (y0 + y1) / 2, y1 - pad].map(v => `<text class="bt-axis" x="${P.l - 6}" y="${yp(v) + 4}" text-anchor="end">${v.toFixed(3)}</text><line class="bt-grid" x1="${P.l}" x2="${W - P.r}" y1="${yp(v)}" y2="${yp(v)}"/>`).join('');
+  const dates = r.steps.map((s, i) => (i === 0 || i === n - 1 || n <= 8) ? `<text class="bt-axis" x="${xs(i)}" y="${H - 12}" text-anchor="middle">${esc(s.date.slice(5))}</text>` : '').join('');
+  $('#bt-chart').innerHTML = `${ticks}${dates}
+    <path d="${distArea}" fill="rgba(232,166,75,.38)"/><path d="${failArea}" fill="rgba(255,107,94,.5)"/>
+    <path class="bt-line" d="${line}" fill="none" stroke="#cde38a" stroke-width="2.5" stroke-linejoin="round"/>
+    ${r.steps.map((s, i) => `<circle cx="${xs(i)}" cy="${yp(s.price)}" r="3.5" fill="#0c120e" stroke="#cde38a" stroke-width="1.5"><title>${esc(s.date)}: ${esc(s.event)} · ${s.price}</title></circle>`).join('')}
+    ${marks.join('')}`;
+  void area;
+}
+
+/* =========================================================================================
+   Onboarding quiz: /api/profile/quiz, /api/profile/onboard
+   ========================================================================================= */
+let quiz = null, quizAnswers = {}, quizStep = 0;
+
+async function openQuiz() {
+  openModal('modal-quiz');
+  const body = $('#quiz-body');
+  if (!brain.live) {
+    body.innerHTML = '<p class="caption">The quiz scores on the Brain, so it needs the API running.</p>';
+    return;
+  }
+  try {
+    quiz = quiz || await api('/api/profile/quiz');
+  } catch (err) { body.innerHTML = `<p class="caption">Could not load the quiz: ${esc(err.message)}</p>`; return; }
+  quizAnswers = {}; quizStep = 0;
+  renderQuizStep();
+}
+function renderQuizStep() {
+  const q = quiz[quizStep];
+  $('#quiz-bar').style.width = (quizStep / quiz.length * 100) + '%';
+  $('#quiz-body').innerHTML = `<div class="quiz-step">
+      <div class="caption">Question ${quizStep + 1} of ${quiz.length}</div>
+      <h3 class="quiz-q">${esc(q.text)}</h3>
+      <div class="quiz-options">${q.options.map(o => `<button class="quiz-opt" data-opt="${esc(o.id)}">${esc(o.text)}</button>`).join('')}</div>
+      ${quizStep ? '<button class="btn-ghost-sm" data-back="1">← Back</button>' : ''}
+      ${quizStep === 0 ? '<div class="caption">Finishing the quiz starts your profile fresh: the Brain forgets what it learned from your past reviews.</div>' : ''}
+    </div>`;
+}
+$('#quiz-body').addEventListener('click', async e => {
+  if (e.target.closest('[data-back]')) { quizStep--; return renderQuizStep(); }
+  const b = e.target.closest('[data-opt]');
+  if (!b || !quiz) return;
+  quizAnswers[quiz[quizStep].id] = b.dataset.opt;
+  b.classList.add('picked');
+  await sleep(220);
+  if (quizStep < quiz.length - 1) { quizStep++; return renderQuizStep(); }
+  $('#quiz-bar').style.width = '100%';
+  $('#quiz-body').innerHTML = '<div class="caption">Scoring…</div>';
+  try {
+    const r = await api('/api/profile/onboard', { method: 'POST', body: { account: 'demo', answers: quizAnswers, reset: true } });
+    const tierName = { 1: 'Preserve', 2: 'Balanced', 3: 'Growth' }[r.result.tier] || r.result.tier;
+    $('#quiz-body').innerHTML = `<div class="quiz-result">
+        <div class="caption">Your risk tier</div>
+        <div class="quiz-tier">Tier ${esc(r.result.tier)} · <em>${esc(tierName)}</em></div>
+        <div class="metric-row"><div class="metric"><div class="caption">Points</div><div class="metric-v">${esc(r.result.points)}/10</div></div>
+          <div class="metric"><div class="caption">Loss aversion λ</div><div class="metric-v">${r.result.lam.toFixed(2)}</div></div>
+          <div class="metric"><div class="caption">Trust τ</div><div class="metric-v">${(+r.profile.tau).toFixed(2)}</div></div></div>
+        <ul class="explain">${r.result.rationale.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        <button class="btn-primary" onclick="closeModal('modal-quiz')"><span>Done</span><span class="btn-shine"></span></button>
+      </div>`;
+    store.set('tecc_quiz_done', '1');
+    $('#quiz-banner').hidden = true;
+    selectTier('Tier ' + Math.min(2, r.result.tier), false); // Tier 3 stays passkey-locked in the composer
+    loadProfile();
+  } catch (err) {
+    $('#quiz-body').innerHTML = `<p class="caption">The Brain refused the answers: ${esc(err.message)}</p>`;
+  }
+});
+function dismissQuizBanner() { $('#quiz-banner').hidden = true; store.set('tecc_quiz_done', 'later'); }
+function maybeShowQuizBanner() { $('#quiz-banner').hidden = !(brain.live && !store.get('tecc_quiz_done')); }
 
 /* =========================================================================================
    Boot

@@ -196,31 +196,22 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 .scroll-hint i::after { content: ""; position: absolute; left: 0; top: -40%; width: 100%; height: 40%; background: var(--amber); animation: drip 1.8s var(--ease) infinite; }
 @keyframes drip { to { top: 100%; } }
 
-/* ---------- hero → run → cave → forest ---------- */
-/* A tall track with a sticky stage. Scroll progress p (0..1) drives everything in landing.js:
-   hero fades → night jungle with a cave mouth → the jaguar charges the camera until it fills the frame (black)
-   → inside the cave, the light at the exit rushes closer → a flash of green light → the forest sections. */
-.hero-track { position: relative; z-index: 5; height: 460vh; }
-.stage { position: sticky; top: 0; height: 100vh; min-height: 560px; overflow: hidden; background: #050605; }
+/* ---------- hero → mist → forest ---------- */
+/* A sticky stage over a tall track; scroll progress drives it (landing.js):
+   the jaguar softens while mist rolls in from both sides, the screen becomes pale mist,
+   then the stage fades and the forest behind it emerges through the thinning fog. */
+.hero-track { position: relative; z-index: 5; height: 280vh; }
+.stage { position: sticky; top: 0; height: 100vh; min-height: 560px; overflow: hidden; background: var(--ink); will-change: opacity; }
 .stage > * { position: absolute; inset: 0; }
-.stage .hero { height: 100%; min-height: 0; will-change: opacity, transform; }
-.scene-night, .scene-cave, .flash { opacity: 0; pointer-events: none; }
-.night-bg { position: absolute; inset: -5%; background: url(../img/moss-forest.jpg) center 40% / cover; filter: brightness(.42) saturate(.8) hue-rotate(20deg) contrast(1.1); transform: scale(var(--cam, 1)); transform-origin: 50% 60%; }
-.night-bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 60%, transparent 20%, rgba(0, 0, 0, .75) 75%); }
-.cave-mouth { position: absolute; inset: 0; width: 100%; height: 100%; transform: scale(var(--cam, 1)); transform-origin: 50% 66%; will-change: transform; }
-.runner { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
-.runner > * { position: absolute; left: 50%; top: 60%; will-change: transform; filter: brightness(var(--rb, .8)) contrast(1.08) saturate(.9) drop-shadow(0 30px 40px rgba(0, 0, 0, .7)); }
-.runner-photo { width: min(48vw, 70vh); transform: translate(-50%, -50%) translate(var(--rx, 0), var(--ry, 0)) rotate(var(--rr, 0deg)) scale(var(--rs, .2)); }
-.runner-sprite {
-  width: min(44vw, 64vh); aspect-ratio: 480 / 250; background: url(../img/jaguar-gallop-sprite.webp) 0 0 / 1900% 100% no-repeat;
-  transform: translate(-50%, -50%) translate(var(--rx, 0), var(--ry, 0)) rotate(var(--rr, 0deg)) scale(var(--rs, .2)); display: none;
-}
-.run-sprite .runner-sprite { display: block; }
-.run-sprite .runner-photo { display: none; }
-.seq-caption { position: absolute; left: 0; right: 0; bottom: 12vh; text-align: center; font-family: var(--serif); font-style: italic; font-size: clamp(26px, 3.6vw, 48px); color: rgba(241, 237, 228, .9); opacity: var(--co, 0); transform: translateY(calc((1 - var(--co, 0)) * 20px)); }
-.seq-caption.light { color: #fff; text-shadow: 0 2px 30px rgba(0, 0, 0, .5); }
-.cave-img { position: absolute; inset: 0; background: url(../img/cave-exit.jpg) 60% 25% / cover; transform: scale(var(--cz, 1)); transform-origin: 60% 22%; filter: brightness(var(--cb, .4)) saturate(1.1); will-change: transform; }
-.flash { background: radial-gradient(circle at 60% 30%, #fbfff2, #dfeccd 40%, #a9b79d 100%); }
+.stage .hero { height: 100%; min-height: 0; will-change: opacity, transform, filter; }
+.fog { pointer-events: none; background: url(../img/fog.webp) repeat-x; background-size: auto 100%; opacity: 0; will-change: transform, opacity;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); }
+.fog-back { inset: -10% -20%; animation: drift 90s linear infinite; filter: blur(2px); }
+.fog-left { inset: -15% -40% -15% -60%; animation: drift 60s linear infinite reverse; transform: translateX(var(--fx, -40%)) scale(var(--fs, 1)); }
+.fog-right { inset: -20% -60% -10% -40%; background-position: 900px 0; animation: drift 75s linear infinite; transform: translateX(var(--fx, 40%)) scale(var(--fs, 1)) scaleY(-1); }
+@keyframes drift { to { background-position-x: 2400px; } }
+.fog-veil { pointer-events: none; opacity: 0; background:
+  radial-gradient(ellipse at 50% 55%, rgba(236, 241, 230, .96), rgba(205, 215, 196, .92) 60%, rgba(170, 184, 160, .9)); }
 
 .nature { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: var(--sage-2); }
 .nature-photo {
@@ -425,7 +416,5 @@ main > :not(.hero-track) { position: relative; z-index: 4; }
 #fireflies { transition: opacity .8s; }
 .on-light #fireflies { opacity: 0; visibility: hidden; }
 
-.run-toggle { font-size: 12px; font-weight: 600; opacity: .8; border-bottom: 1px dashed rgba(241, 237, 228, .5); padding: 0; }
-.run-toggle:hover { opacity: 1; color: var(--amber); }
 
 html, body { overflow-x: clip; }

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/landing.css?v=21">
+  <link rel="stylesheet" href="assets/css/landing.css?v=24">
 </head>
 <body class="is-loading">
 
@@ -146,41 +146,16 @@
         <a href="https://github.com/AhmedFouad15/TEC-C" target="_blank" rel="noopener">GitHub</a>
         <a href="app.html">Command Center</a>
         <a href="#credits">Credits</a>
-        <button class="run-toggle" id="run-toggle" title="Switch the run animation">Run: photo</button>
       </div>
 
       <div class="scroll-hint" aria-hidden="true"><span>Scroll into the forest</span><i></i></div>
     </section>
 
-    <!-- the run: night jungle, a cave mouth, the jaguar charging the camera (photo or 1887 gallop sprite) -->
-    <div class="scene-night" id="scene-night" aria-hidden="true">
-      <div class="night-bg"></div>
-      <svg class="cave-mouth" id="cave-mouth" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice">
-        <defs>
-          <filter id="rocky" x="-20%" y="-20%" width="140%" height="140%">
-            <feTurbulence type="fractalNoise" baseFrequency=".018" numOctaves="4" seed="7" result="n"/>
-            <feDisplacementMap in="SourceGraphic" in2="n" scale="70" xChannelSelector="R" yChannelSelector="G"/>
-          </filter>
-          <filter id="grit"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="g"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .35"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter>
-          <radialGradient id="rock" cx="50%" cy="60%" r="65%"><stop offset=".45" stop-color="#2b3326"/><stop offset=".8" stop-color="#1a2016"/><stop offset="1" stop-color="#0d110b" stop-opacity="0"/></radialGradient>
-          <radialGradient id="mouth" cx="50%" cy="58%" r="55%"><stop offset="0" stop-color="#000"/><stop offset=".75" stop-color="#030403"/><stop offset="1" stop-color="#0b0e09"/></radialGradient>
-          <linearGradient id="moss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5f7d45" stop-opacity=".9"/><stop offset="1" stop-color="#2d3b22" stop-opacity="0"/></linearGradient>
-        </defs>
-        <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
-        <ellipse cx="505" cy="470" rx="330" ry="260" fill="#000" opacity=".55" filter="url(#soft)"/>
-        <path d="M300 700 C270 520 320 360 420 300 C470 272 545 270 600 292 C705 340 750 500 720 700 Z" fill="url(#mouth)" filter="url(#rocky)"/>
-        <path d="M300 700 C270 520 320 360 420 300 C470 272 545 270 600 292 C705 340 750 500 720 700 Z" fill="none" stroke="#6f8f52" stroke-opacity=".14" stroke-width="5" filter="url(#rocky)"/>
-      </svg>
-      <div class="runner" id="runner">
-        <img class="runner-photo" src="assets/img/jaguar-run.webp" alt="">
-        <div class="runner-sprite"></div>
-      </div>
-      <div class="seq-caption" id="seq-caption"><span>Into the dark</span></div>
-    </div>
-
-    <!-- inside the cave, looking out at the light -->
-    <div class="scene-cave" id="scene-cave" aria-hidden="true"><div class="cave-img"></div><div class="seq-caption light"><span>…and out into the forest</span></div></div>
-    <div class="flash" id="flash" aria-hidden="true"></div>
+    <!-- the jaguar fades into rolling mist; the mist thins into the forest -->
+    <div class="fog fog-back" id="fog-back" aria-hidden="true"></div>
+    <div class="fog fog-left" id="fog-left" aria-hidden="true"></div>
+    <div class="fog fog-right" id="fog-right" aria-hidden="true"></div>
+    <div class="fog-veil" id="fog-veil" aria-hidden="true"></div>
     </div>
     </div>
 
@@ -309,14 +284,11 @@
       <a href="https://commons.wikimedia.org/wiki/File:Jaguar_portrait,_Tiergarten_Sch%C3%B6nbrunn.jpg" target="_blank" rel="noopener">Alexander Leisser</a> (CC BY-SA 4.0),
       <a href="https://commons.wikimedia.org/wiki/File:Smiling_Jaguar_Portrait_(8231275312).jpg" target="_blank" rel="noopener">Eric Kilby</a> (CC BY-SA 2.0),
       <a href="https://commons.wikimedia.org/wiki/File:Mystic_Layers_of_Agumbe.jpg" target="_blank" rel="noopener">Pradyumnakp</a> (CC0),
-      <a href="https://commons.wikimedia.org/wiki/File:Moss-covered_tree_trunks_in_a_dense_forest_understory.jpg" target="_blank" rel="noopener">Krishna k. sahh</a> (CC0),
-      <a href="https://commons.wikimedia.org/wiki/File:Jaguar_(Panthera_onca_palustris)_male_Three_Brothers_River_2.jpg" target="_blank" rel="noopener">Charles J. Sharp</a> (CC BY-SA 4.0, cut out),
-      <a href="https://commons.wikimedia.org/wiki/File:KITUM_-_View_from_inside_Kitum_Cave_towards_the_entrance,_Kenya,_2012.jpg" target="_blank" rel="noopener">Josep M. Gracia</a> (CC BY-SA 4.0);
-      gallop sprite from Eadweard Muybridge, <a href="https://commons.wikimedia.org/wiki/File:Cat_galloping_(rbm-QP301M8-1887-719).jpg" target="_blank" rel="noopener">Animal Locomotion plate 719</a> (1887, public domain), filled with jaguar fur.
+      <a href="https://commons.wikimedia.org/wiki/File:Moss-covered_tree_trunks_in_a_dense_forest_understory.jpg" target="_blank" rel="noopener">Krishna k. sahh</a> (CC0).
       Images are cropped and color-graded.
     </div>
   </footer>
 
-  <script src="assets/js/landing.js?v=21"></script>
+  <script src="assets/js/landing.js?v=24"></script>
 </body>
 </html>
