@@ -10,7 +10,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Annotated, Any, Literal
 
@@ -22,7 +22,9 @@ from tecc_brain.graph.brain_llm import brain_llm_from_env
 from tecc_brain.graph.pipeline import PipelineResult
 from tecc_brain.intent.rules import ParseOutcome
 from tecc_brain.learning.store import ProfileStore, account_key
-from tecc_brain.models import Mandate, VaultState
+from tecc_brain.models import ExecutionIntent, Mandate, VaultState
+from tecc_brain.onchain.anchoring import AuditAnchorService
+from tecc_brain.onchain.executor import MarketRouter
 from tecc_brain.reference import Reference, load_reference
 from tecc_brain.sentinel.blended import NewsRiskSentinel
 
@@ -59,6 +61,12 @@ class Proposal:
     vault: VaultState
     created: float
     executed: bool = False
+    auto_executed_usd: dict[str, float] = field(default_factory=dict)  # card key → USD that already ran automatically
+
+
+def card_key(card) -> str:
+    """Identifies one card inside a proposal: the option it answers (options flow) or its venue."""
+    return card.option_id or card.candidate.venue_id
 
 
 class ProposalCache:
@@ -69,11 +77,13 @@ class ProposalCache:
         self._items: dict[str, Proposal] = {}
         self._lock = threading.Lock()
 
-    def add(self, account: str, result: PipelineResult, vault: VaultState) -> str:
+    def add(self, account: str, result: PipelineResult, vault: VaultState,
+            auto_executed_usd: dict[str, float] | None = None) -> str:
         with self._lock:
             self._evict()
             pid = uuid.uuid4().hex
-            self._items[pid] = Proposal(pid, account, result, vault, time.monotonic())
+            self._items[pid] = Proposal(pid, account, result, vault, time.monotonic(),
+                                        auto_executed_usd=dict(auto_executed_usd or {}))
             return pid
 
     def get(self, pid: str) -> Proposal | None:
@@ -353,6 +363,42 @@ def get_news_sentinel() -> NewsRiskSentinel:
     """Agent 1 for the free-text path: CMC Fear & Greed + Grok + CoinGlass + FinBERT. Each source falls back to
     an offline neutral/lexicon reading when its key (CMC_API_KEY, GROK_API_KEY, COINGLASS_API_KEY) is unset."""
     return _news_sentinel()
+
+
+@lru_cache(maxsize=1)
+def _anchors() -> AuditAnchorService:
+    return AuditAnchorService.from_env()
+
+
+def get_anchors() -> AuditAnchorService:
+    """Anchors audit hashes on FISCO BCOS when TECC_AUDIT_ANCHOR_* is configured; otherwise reports not_configured."""
+    return _anchors()
+
+
+@lru_cache(maxsize=1)
+def _router() -> MarketRouter:
+    from tecc_brain.onchain.markets import build_router
+
+    router = build_router()
+    router.anchors = get_anchors()
+    return router
+
+
+def get_router() -> MarketRouter:
+    """The one MarketRouter every execution path shares, so the cross-chain tether tracker sees all spending.
+    Markets with a deployed vault (scripts/deploy_market_chain.py) are live; the others are honest simulations."""
+    return _router()
+
+
+@dataclass
+class RouterExecutor:
+    """Adapts the MarketRouter to the graph's Executor protocol, metering against this request's vault radius."""
+
+    router: MarketRouter
+    limit_usd: float
+
+    def submit(self, intent: ExecutionIntent, account: str) -> ExecutionIntent:
+        return self.router.submit(intent, account, limit_usd=self.limit_usd)
 
 
 @lru_cache(maxsize=1)

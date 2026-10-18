@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from eth_account import Account
 from eth_utils import keccak
@@ -23,6 +23,9 @@ from pydantic import BaseModel
 from tecc_brain.models import ActionType, ExecutionIntent, usd_to_onchain
 from tecc_brain.onchain.artifacts import Contract
 from tecc_brain.onchain.audit_anchor import compute_audit_record_hash
+
+if TYPE_CHECKING:
+    from tecc_brain.onchain.anchoring import AuditAnchorService
 from tecc_brain.onchain.deploy import USDC_DECIMALS, LocalDeployment
 from tecc_brain.onchain.mandate import UserMandate
 from tecc_brain.onchain.rpc import GAS_HEADROOM, GAS_MARGIN, Rpc, RpcError
@@ -588,8 +591,10 @@ class MarketRouter:
         arbitrage: PegGuardArbitrageExecutor | None = None,
         tether_tracker: CrossChainTetherTracker | None = None,
         daily_limit_usd: float = 500.0,
+        anchors: "AuditAnchorService | None" = None,
     ) -> None:
         self.crypto = crypto
+        self.anchors = anchors
         self.chinese_market = chinese_market or FiscoBcosExecutor()
         self.commodities = commodities or ArbitrumCommoditiesExecutor()
         self.arbitrage = arbitrage or PegGuardArbitrageExecutor()
@@ -612,23 +617,39 @@ class MarketRouter:
             return self.crypto
         return self.chinese_market
 
-    def submit(self, intent: ExecutionIntent, account: str, market: str | None = None) -> ExecutionIntent:
+    def submit(
+        self, intent: ExecutionIntent, account: str, market: str | None = None, limit_usd: float | None = None
+    ) -> ExecutionIntent:
+        """`limit_usd`: the account's daily radius when the caller knows it (else the router default)."""
         m = market or intent.market
+        intent = intent.model_copy(update={"market": m})
+        limit = self.daily_limit_usd if limit_usd is None else limit_usd
 
         # Cross-Chain Tether Radius Check (Aggregated across Ethereum, Arbitrum, FISCO BCOS)
-        allowed, reason = self.tether_tracker.check_can_transact(account, intent.amount_usd, self.daily_limit_usd)
+        allowed, reason = self.tether_tracker.check_can_transact(account, intent.amount_usd, limit)
         if not allowed:
             return intent.model_copy(update={
                 "status": "failed",
                 "detail": reason,
             })
 
+        norm = m.strip().lower()
+        if norm in ("crypto", "ethereum", "eth", "sepolia") and self.crypto is None:
+            # No live Ethereum vault deployed on this machine: an honest dry run, never an invented transaction.
+            return simulated(intent, "crypto", "no live Ethereum vault configured for this machine "
+                                               "(deploy one with scripts/deploy_market_chain.py); nothing was sent")
         executor = self.get_executor(m)
         result = executor.submit(intent, account)
 
-        # If successfully submitted, record spend against cross-chain aggregate quota
+        # If successfully submitted, record what actually ran (a slippage recovery may have halved the order)
         if result.status == "submitted":
-            self.tether_tracker.record_spend(account, m, intent.amount_usd)
+            self.tether_tracker.record_spend(account, m, result.amount_usd)
+            if norm in ("arbitrage", "pegguard", "peg_guard") and self.anchors is not None:
+                from tecc_brain.onchain.audit_anchor import AuditRecordType
+
+                anchored = self.anchors.anchor(result.audit_record_hash, AuditRecordType.ARBITRAGE_EXECUTED)
+                if anchored is not None and anchored.tx_hash:
+                    result = result.model_copy(update={"audit_anchor_tx": anchored.tx_hash})
 
         return result
 

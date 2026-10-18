@@ -90,6 +90,7 @@ REDEMPTION_PAUSED = 1.0
 _REDEMPTION_VALUES = {REDEMPTION_OPEN, REDEMPTION_DELAYED, REDEMPTION_PAUSED}
 
 Peg = Literal["USD", "ETH", "XAU"]
+Market = Literal["crypto", "chinese_market", "commodities", "arbitrage"]
 
 _STATIC = ConfigDict(frozen=True, extra="forbid")
 
@@ -141,6 +142,7 @@ class Venue(BaseModel):
     )
     exposures: list[str] = Field(default_factory=list, description="Pegged assets this position depends on")
     target_address: str | None = Field(None, description="On-chain target, filled at deployment (Phase 7)")
+    market: Market = Field("crypto", description="Which market executor settles this venue (routes the ExecutionIntent)")
     note: str = ""
 
 
@@ -414,6 +416,8 @@ class Card(BaseModel):
     mode: AutonomyMode
     headline: str
     explanation: list[str] = Field(default_factory=list)
+    market: Market = Field("crypto", description="Market executor the Brain routes this card to when it runs")
+    option_id: str | None = Field(None, description="The options-list option this card answers (options flow only)")
 
 
 class Decision(BaseModel):
@@ -457,5 +461,8 @@ class ExecutionIntent(BaseModel):
     audit_record_hash: str | None = Field(
         None,
         description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
+    audit_anchor_tx: str | None = Field(
+        None, description="FISCO BCOS transaction that anchored audit_record_hash; None while it is not anchored"
     )
     detail: str = ""

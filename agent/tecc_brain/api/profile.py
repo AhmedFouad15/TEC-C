@@ -7,13 +7,15 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from tecc_brain.api.deps import Account, get_ref, get_store
+from tecc_brain.api.deps import Account, get_anchors, get_ref, get_store
 from tecc_brain.graph.pipeline import load_or_create_profile
 from tecc_brain.learning.levers import LeverAction, LeverState, approval_rate, lever_actions
 from tecc_brain.learning.onboarding import QUIZ, OnboardingResult, QuizQuestion, onboard, score_quiz
 from tecc_brain.learning.store import ProfileStore, account_key
 from tecc_brain.learning.update import learn
 from tecc_brain.models import LAMBDA_BANDS, BrainProfile, FeedbackEvent, RiskTier, VaultState
+from tecc_brain.onchain.anchoring import AnchorResult, AuditAnchorService
+from tecc_brain.onchain.audit_anchor import AuditRecordType
 from tecc_brain.reference import Reference
 from tecc_brain.strategy.planner import soft_limit
 
@@ -119,6 +121,8 @@ class SyncItem(BaseModel):
     event_id: str
     applied: bool
     changes: list[str]
+    audit_record_hash: str | None = None
+    audit_anchor: AnchorResult | None = Field(None, description="Review notes are anchored on FISCO BCOS (hash only)")
 
 
 class SyncResponse(BaseModel):
@@ -130,7 +134,8 @@ class SyncResponse(BaseModel):
 
 @router.post("/api/review/sync", response_model=SyncResponse)
 def review_sync(
-    req: SyncRequest, store: ProfileStore = Depends(get_store), ref: Reference = Depends(get_ref)
+    req: SyncRequest, store: ProfileStore = Depends(get_store), ref: Reference = Depends(get_ref),
+    anchors: AuditAnchorService = Depends(get_anchors),
 ) -> SyncResponse:
     """Apply Morning Review events (Phase 7 pulls them from the chain; until then the UI/simulator posts them)."""
     profile = load_or_create_profile(store, req.account)
@@ -138,7 +143,12 @@ def review_sync(
     for event in sorted(req.events, key=lambda e: e.at):
         outcome = learn(profile, event, ref=ref)
         profile = outcome.profile
-        results.append(SyncItem(event_id=event.event_id, applied=outcome.applied, changes=outcome.changes))
+        recorded = next((e for e in reversed(profile.history) if e.event_id == event.event_id), None)
+        record_hash = recorded.audit_record_hash if recorded is not None else None
+        anchored = (anchors.anchor(record_hash, AuditRecordType.MORNING_REVIEW_NOTE)
+                    if outcome.applied and event.note else None)
+        results.append(SyncItem(event_id=event.event_id, applied=outcome.applied, changes=outcome.changes,
+                                audit_record_hash=record_hash, audit_anchor=anchored))
     store.save(profile)
     applied = sum(r.applied for r in results)
     return SyncResponse(applied=applied, duplicates=len(results) - applied, results=results, profile=profile_view(profile))

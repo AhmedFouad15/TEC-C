@@ -264,7 +264,7 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
             intent = ExecutionIntent(
                 card_label=auto.label, venue_id=venue.id, action=venue.action, asset_in=auto.candidate.asset_in,
                 amount_usd=decision.auto_amount_usd, amount_onchain=usd_to_onchain(decision.auto_amount_usd),
-                target_address=venue.target_address,
+                target_address=venue.target_address, market=auto.market,
             )
             lines.append(f"Execution intent: {venue.action.value} ${intent.amount_usd:,.0f} into {venue.name} "
                          f"({intent.amount_onchain} on-chain units).")

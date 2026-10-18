@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from urllib.parse import urlparse
 
 DEFAULT_TEMP_TUNNEL_URL = "https://xxxx.trycloudflare.co"
