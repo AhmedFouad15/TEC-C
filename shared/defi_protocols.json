@@ -1,0 +1,404 @@
+{
+  "_meta": {
+    "project": "Tec-C (Tethered Expense Corporate Card)",
+    "description": "DeFi Protocol Registry with verified smart contract addresses, function selectors, ABIs, and risk tiers across Ethereum Mainnet and Arbitrum One for autonomous AI executor routing.",
+    "version": "1.0.0"
+  },
+  "protocols": {
+    "lido": {
+      "id": "lido",
+      "name": "Lido Liquid Staking",
+      "category": "Liquid Staking",
+      "riskTier": 1,
+      "chains": {
+        "1": {
+          "network": "Ethereum Mainnet",
+          "contracts": {
+            "stETH": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+            "wstETH": "0x7f39C581F595B53c5cb19cD0b3f8b1E1E380541C",
+            "unstakeQueue": "0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1"
+          },
+          "interactions": {
+            "stake": {
+              "targetContract": "stETH",
+              "function": "submit(address _referral)",
+              "selector": "0xa1903eab",
+              "isPayable": true,
+              "inputs": [
+                { "name": "_referral", "type": "address" }
+              ],
+              "defaultReferral": "0x0000000000000000000000000000000000000000"
+            },
+            "wrap": {
+              "targetContract": "wstETH",
+              "function": "wrap(uint256 _stETHAmount)",
+              "selector": "0xea598cb0",
+              "isPayable": false,
+              "inputs": [
+                { "name": "_stETHAmount", "type": "uint256" }
+              ]
+            }
+          }
+        },
+        "42161": {
+          "network": "Arbitrum One",
+          "contracts": {
+            "wstETH": "0x5979D7b546E38E414F7E9822514be443A4800529"
+          },
+          "interactions": {
+            "wrap": {
+              "targetContract": "wstETH",
+              "function": "wrap(uint256 _stETHAmount)",
+              "selector": "0xea598cb0",
+              "isPayable": false,
+              "inputs": [
+                { "name": "_stETHAmount", "type": "uint256" }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "curve": {
+      "id": "curve",
+      "name": "Curve Finance",
+      "category": "Decentralized AMM / StableSwap",
+      "riskTier": 2,
+      "chains": {
+        "1": {
+          "network": "Ethereum Mainnet",
+          "contracts": {
+            "3pool": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+            "stethPool": "0xDC2436075622864796368C0944DC025E1007E383",
+            "tricrypto2": "0xD51a44d3FaE010294C616388b506AcdA1bfAAE46"
+          },
+          "interactions": {
+            "exchange": {
+              "targetContract": "3pool",
+              "function": "exchange(int128 i, int128 j, uint256 dx, uint256 min_dy)",
+              "selector": "0x3df02124",
+              "isPayable": false,
+              "inputs": [
+                { "name": "i", "type": "int128" },
+                { "name": "j", "type": "int128" },
+                { "name": "dx", "type": "uint256" },
+                { "name": "min_dy", "type": "uint256" }
+              ]
+            },
+            "add_liquidity_2pool": {
+              "targetContract": "stethPool",
+              "function": "add_liquidity(uint256[2] amounts, uint256 min_mint_amount)",
+              "selector": "0x0b4c7e4d",
+              "isPayable": true,
+              "inputs": [
+                { "name": "amounts", "type": "uint256[2]" },
+                { "name": "min_mint_amount", "type": "uint256" }
+              ]
+            }
+          }
+        },
+        "42161": {
+          "network": "Arbitrum One",
+          "contracts": {
+            "2pool": "0x7f90122BF0700F9E7e1F688fe926940E8839F353",
+            "wstethPool": "0x6eB2dcCF654546582368509733b832716E294B41"
+          },
+          "interactions": {
+            "exchange": {
+              "targetContract": "2pool",
+              "function": "exchange(int128 i, int128 j, uint256 dx, uint256 min_dy)",
+              "selector": "0x3df02124",
+              "isPayable": false,
+              "inputs": [
+                { "name": "i", "type": "int128" },
+                { "name": "j", "type": "int128" },
+                { "name": "dx", "type": "uint256" },
+                { "name": "min_dy", "type": "uint256" }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "aave_v3": {
+      "id": "aave_v3",
+      "name": "Aave v3 Lending & Liquidity",
+      "category": "Money Market / Lending",
+      "riskTier": 1,
+      "chains": {
+        "1": {
+          "network": "Ethereum Mainnet",
+          "contracts": {
+            "pool": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+            "poolDataProvider": "0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3"
+          },
+          "interactions": {
+            "supply": {
+              "targetContract": "pool",
+              "function": "supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode)",
+              "selector": "0x617ba037",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" },
+                { "name": "onBehalfOf", "type": "address" },
+                { "name": "referralCode", "type": "uint16" }
+              ]
+            },
+            "withdraw": {
+              "targetContract": "pool",
+              "function": "withdraw(address asset, uint256 amount, address to)",
+              "selector": "0x69328dec",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" },
+                { "name": "to", "type": "address" }
+              ]
+            }
+          }
+        },
+        "42161": {
+          "network": "Arbitrum One",
+          "contracts": {
+            "pool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+            "poolDataProvider": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654"
+          },
+          "interactions": {
+            "supply": {
+              "targetContract": "pool",
+              "function": "supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode)",
+              "selector": "0x617ba037",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" },
+                { "name": "onBehalfOf", "type": "address" },
+                { "name": "referralCode", "type": "uint16" }
+              ]
+            },
+            "withdraw": {
+              "targetContract": "pool",
+              "function": "withdraw(address asset, uint256 amount, address to)",
+              "selector": "0x69328dec",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" },
+                { "name": "to", "type": "address" }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "uniswap_v3": {
+      "id": "uniswap_v3",
+      "name": "Uniswap v3 Concentrated Liquidity DEX",
+      "category": "DEX / Concentrated AMM",
+      "riskTier": 2,
+      "chains": {
+        "1": {
+          "network": "Ethereum Mainnet",
+          "contracts": {
+            "swapRouter": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+            "swapRouter02": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+            "quoterV2": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
+          },
+          "interactions": {
+            "exactInputSingle": {
+              "targetContract": "swapRouter",
+              "function": "exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96))",
+              "selector": "0x414bacae",
+              "isPayable": true,
+              "inputs": [
+                {
+                  "name": "params",
+                  "type": "tuple",
+                  "components": [
+                    { "name": "tokenIn", "type": "address" },
+                    { "name": "tokenOut", "type": "address" },
+                    { "name": "fee", "type": "uint24" },
+                    { "name": "recipient", "type": "address" },
+                    { "name": "deadline", "type": "uint256" },
+                    { "name": "amountIn", "type": "uint256" },
+                    { "name": "amountOutMinimum", "type": "uint256" },
+                    { "name": "sqrtPriceLimitX96", "type": "uint160" }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "42161": {
+          "network": "Arbitrum One",
+          "contracts": {
+            "swapRouter": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+            "swapRouter02": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+          },
+          "interactions": {
+            "exactInputSingle": {
+              "targetContract": "swapRouter",
+              "function": "exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96))",
+              "selector": "0x414bacae",
+              "isPayable": true,
+              "inputs": [
+                {
+                  "name": "params",
+                  "type": "tuple",
+                  "components": [
+                    { "name": "tokenIn", "type": "address" },
+                    { "name": "tokenOut", "type": "address" },
+                    { "name": "fee", "type": "uint24" },
+                    { "name": "recipient", "type": "address" },
+                    { "name": "deadline", "type": "uint256" },
+                    { "name": "amountIn", "type": "uint256" },
+                    { "name": "amountOutMinimum", "type": "uint256" },
+                    { "name": "sqrtPriceLimitX96", "type": "uint160" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "compound_v3": {
+      "id": "compound_v3",
+      "name": "Compound v3 (Comet)",
+      "category": "Lending Market",
+      "riskTier": 1,
+      "chains": {
+        "1": {
+          "network": "Ethereum Mainnet",
+          "contracts": {
+            "cometUSDC": "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
+            "cometWETH": "0xA17581A9E3356d9A858b789D68B4d866e593aE94"
+          },
+          "interactions": {
+            "supply": {
+              "targetContract": "cometUSDC",
+              "function": "supply(address asset, uint256 amount)",
+              "selector": "0xf2b9fdb8",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" }
+              ]
+            },
+            "withdraw": {
+              "targetContract": "cometUSDC",
+              "function": "withdraw(address asset, uint256 amount)",
+              "selector": "0xf3fef3a3",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" }
+              ]
+            }
+          }
+        },
+        "42161": {
+          "network": "Arbitrum One",
+          "contracts": {
+            "cometUSDC": "0xA5EDBDD9646f8dFF606d7448e414884C7d905dCA"
+          },
+          "interactions": {
+            "supply": {
+              "targetContract": "cometUSDC",
+              "function": "supply(address asset, uint256 amount)",
+              "selector": "0xf2b9fdb8",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" }
+              ]
+            },
+            "withdraw": {
+              "targetContract": "cometUSDC",
+              "function": "withdraw(address asset, uint256 amount)",
+              "selector": "0xf3fef3a3",
+              "isPayable": false,
+              "inputs": [
+                { "name": "asset", "type": "address" },
+                { "name": "amount", "type": "uint256" }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "paxos": {
+      "id": "paxos",
+      "name": "Paxos Gold (PAXG)",
+      "category": "Tokenized Commodities",
+      "riskTier": 1,
+      "chains": {
+        "1": {
+          "network": "Ethereum Mainnet",
+          "contracts": {
+            "PAXG": "0x45804880De22913dAFE09f4980848ECE6EcbAf78"
+          },
+          "interactions": {
+            "transfer": {
+              "targetContract": "PAXG",
+              "function": "transfer(address to, uint256 value)",
+              "selector": "0xa9059cbb",
+              "isPayable": false,
+              "inputs": [
+                { "name": "to", "type": "address" },
+                { "name": "value", "type": "uint256" }
+              ]
+            }
+          }
+        },
+        "42161": {
+          "network": "Arbitrum One",
+          "contracts": {
+            "PAXG": "0xfeb4483660e5700215918e1702b779a868778ac2"
+          },
+          "interactions": {
+            "transfer": {
+              "targetContract": "PAXG",
+              "function": "transfer(address to, uint256 value)",
+              "selector": "0xa9059cbb",
+              "isPayable": false,
+              "inputs": [
+                { "name": "to", "type": "address" },
+                { "name": "value", "type": "uint256" }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "eigenlayer": {
+      "id": "eigenlayer",
+      "name": "EigenLayer Liquid Restaking",
+      "category": "Restaking",
+      "riskTier": 3,
+      "chains": {
+        "1": {
+          "network": "Ethereum Mainnet",
+          "contracts": {
+            "strategyManager": "0x858646372CC42E1A627fcE94aa7A7033e7CF075A",
+            "delegationManager": "0x39053D4343f0C4F2297E9368818160577394fe4f"
+          },
+          "interactions": {
+            "depositIntoStrategy": {
+              "targetContract": "strategyManager",
+              "function": "depositIntoStrategy(address strategy, address token, uint256 amount)",
+              "selector": "0xe7a050aa",
+              "isPayable": false,
+              "inputs": [
+                { "name": "strategy", "type": "address" },
+                { "name": "token", "type": "address" },
+                { "name": "amount", "type": "uint256" }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

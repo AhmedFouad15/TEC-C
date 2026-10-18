@@ -49,17 +49,38 @@ def set_windows_keep_awake(enabled: bool) -> bool:
     return False
 
 
+def find_cloudflared_binary() -> str | None:
+    """Finds the cloudflared executable in system PATH or common tool locations."""
+    custom = os.environ.get("CLOUDFLARED_BIN")
+    if custom and (Path(custom).exists() or shutil.which(custom)):
+        return custom
+    which = shutil.which("cloudflared")
+    if which:
+        return which
+    user_home = Path.home()
+    candidates = [
+        user_home / ".foundry" / "bin" / "cloudflared.exe",
+        user_home / ".foundry" / "bin" / "cloudflared",
+        user_home / "bin" / "cloudflared.exe",
+        Path("C:/Program Files/cloudflared/cloudflared.exe"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return None
+
+
 class TunnelManager:
     """Manages the outbound `cloudflared` quick-tunnel subprocess and watches for URL changes."""
 
     def __init__(
         self,
-        cloudflared_path: str = "cloudflared",
+        cloudflared_path: str | None = None,
         port: int = 8001,
         default_url: str | None = None,
         spawn_binary: bool = False,
     ) -> None:
-        self.path = cloudflared_path
+        self.path = cloudflared_path or find_cloudflared_binary() or "cloudflared"
         self.port = port
         self.default_url = (
             default_url
@@ -75,6 +96,11 @@ class TunnelManager:
         self.on_url_change: Callable[[str, str], None] | None = None
         self._lock = threading.Lock()
         self._watchdog_enabled = False
+
+    @property
+    def is_binary_available(self) -> bool:
+        """Returns True if cloudflared binary is located on disk."""
+        return bool(shutil.which(self.path) or Path(self.path).exists())
 
     @property
     def tunnel_host(self) -> str:
@@ -181,3 +207,28 @@ class TunnelManager:
                 self.proc = None
             self.url = None
             set_windows_keep_awake(False)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Tec-C Cloudflare Quick-Tunnel Runner")
+    parser.add_argument("--port", type=int, default=8001, help="Local port to expose (default: 8001)")
+    parser.add_argument("--spawn", action="store_true", default=True, help="Spawn live cloudflared binary")
+    args = parser.parse_args()
+
+    mgr = TunnelManager(port=args.port, spawn_binary=args.spawn)
+    print(f"[Tec-C] Cloudflared binary located at: {mgr.path}")
+    print(f"[Tec-C] Binary available: {mgr.is_binary_available}")
+    try:
+        url = mgr.start(timeout=25.0)
+        print(f"[Tec-C] Quick-Tunnel Active: {url}")
+        print(f"[Tec-C] Mobile RP_ID: {mgr.tunnel_host}")
+        print("[Tec-C] Press Ctrl+C to stop tunnel.")
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[Tec-C] Stopping tunnel...")
+        mgr.stop()
+        print("[Tec-C] Tunnel stopped.")
+
