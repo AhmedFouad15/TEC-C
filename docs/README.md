@@ -10,15 +10,15 @@ Each core component has a dedicated folder containing comprehensive technical ex
 
 | Folder | Domain | Core Content |
 |---|---|---|
-| [`01_system_architecture/`](../docs/01_system_architecture/README.md) | **System Architecture** | Multi-Agent cognitive graph, 3-Member execution model, LangGraph state machine, dual-server runner. |
-| [`02_prerequisites_and_run_guide/`](../docs/02_prerequisites_and_run_guide/README.md) | **Prerequisites & Run Guide** | System requirements (Python 3.10+, Foundry, WSL 2), step-by-step setup, test execution, and deployment manual. |
-| [`03_market_data_feeds_and_apis/`](../docs/03_market_data_feeds_and_apis/README.md) | **Market Data Feeds & APIs** | Zero-cost design ($0.00 / no paid keys required), Chainlink oracles, and enterprise alternatives comparative catalog. |
-| [`04_multichain_and_fisco_bcos/`](../docs/04_multichain_and_fisco_bcos/README.md) | **Multichain & FISCO BCOS** | 4-chain topology (Ethereum, Base, Arbitrum, FISCO BCOS), official v3.17.1 node supervisor, and EVM RPC normalization. |
-| [`05_fail_closed_strictness_hierarchy/`](../docs/05_fail_closed_strictness_hierarchy/README.md) | **Math > AI Strictness Hierarchy** | Tsinghua PBCSF academic panel framing, mathematical asymmetric bounding ($B_{AI} \subseteq B_{math}$), and fail-closed timeout logic. |
-| [`06_privacy_anchors_and_slippage/`](../docs/06_privacy_anchors_and_slippage/README.md) | **Privacy Anchors & Resilience** | WeBank banking secrecy, SHA-256 on-chain audit anchors, and flash-panic order halving ($Q^*/2$) recovery. |
-| [`07_defi_protocols_and_routing/`](../docs/07_defi_protocols_and_routing/README.md) | **DeFi Protocols & Routing** | Verified multi-chain DeFi protocol registry (Lido, Aave v3, Curve, Uniswap v3, Compound v3, Shibor MMF, PAXG). |
-| [`08_smart_contracts/`](../docs/08_smart_contracts/README.md) | **Smart Contracts Architecture** | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas benchmarks, and EIP-170 compliance. |
-| [`09_reference_whitepapers/`](../docs/09_reference_whitepapers/README.md) | **Original Whitepapers & Reference PDFs** | Complete archive of 8 original technical PDF whitepapers, engineering masterplans, and roadmap guides. |
+| [`01_system_architecture/`](./01_system_architecture/README.md) | **System Architecture** | Multi-Agent cognitive graph, 3-Member execution model, LangGraph state machine, dual-server runner. |
+| [`02_prerequisites_and_run_guide/`](./02_prerequisites_and_run_guide/README.md) | **Prerequisites & Run Guide** | System requirements (Python 3.10+, Foundry, WSL 2), step-by-step setup, test execution, and deployment manual. |
+| [`03_market_data_feeds_and_apis/`](./03_market_data_feeds_and_apis/README.md) | **Market Data Feeds & APIs** | Zero-cost design ($0.00 / no paid keys required), Chainlink oracles, and enterprise alternatives comparative catalog. |
+| [`04_multichain_and_fisco_bcos/`](./04_multichain_and_fisco_bcos/README.md) | **Multichain & FISCO BCOS** | 4-chain topology (Ethereum, Base, Arbitrum, FISCO BCOS), official v3.17.1 node supervisor, and EVM RPC normalization. |
+| [`05_fail_closed_strictness_hierarchy/`](./05_fail_closed_strictness_hierarchy/README.md) | **Math > AI Strictness Hierarchy** | Tsinghua PBCSF academic panel framing, mathematical asymmetric bounding ($B_{AI} \subseteq B_{math}$), and fail-closed timeout logic. |
+| [`06_privacy_anchors_and_slippage/`](./06_privacy_anchors_and_slippage/README.md) | **Privacy Anchors & Resilience** | WeBank banking secrecy, SHA-256 on-chain audit anchors, and flash-panic order halving ($Q^*/2$) recovery. |
+| [`07_defi_protocols_and_routing/`](./07_defi_protocols_and_routing/README.md) | **DeFi Protocols & Routing** | Verified multi-chain DeFi protocol registry (Lido, Aave v3, Curve, Uniswap v3, Compound v3, Shibor MMF, PAXG). |
+| [`08_smart_contracts/`](./08_smart_contracts/README.md) | **Smart Contracts Architecture** | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas benchmarks, and EIP-170 compliance. |
+| [`pdf/`](./pdf/README.md) | **Original Technical Whitepapers (PDF)** | Complete collection of all 8 original technical PDF whitepapers, engineering roadmaps, and specification documents. |
 
 ---
 
@@ -59,8 +59,8 @@ docs/
 │   ├── README.md                                                 # ERC-7579 Vault, EIP-712 Session Key & Hook Spec
 │   ├── SECURITY_AND_GAS_BENCHMARKS.md                            # Gas Benchmarks & EIP-170 Compliance Analysis
 │   └── VAULT_ARCHITECTURE_GUIDE.md                               # Transcribed from Tec-C_Vault_User_and_Architecture_Guide.pdf
-└── 09_reference_whitepapers/
-    ├── README.md                                                 # Index of All Original Technical PDFs
+└── pdf/
+    ├── README.md                                                 # Index of All Original Technical PDFs & Whitepapers
     ├── excution.pdf                                              # Master Technical Roadmap
     ├── project.pdf                                               # Core Project Specification
     ├── Tec-C_4_Person_Execution_Roadmap.pdf                      # Engineering Workstream Map
@@ -76,13 +76,14 @@ docs/
 ## 🧭 Navigation Guide for Reviewers & Judges
 
 ### For Academic Judges (Tsinghua University PBCSF):
-* Start with [`05_fail_closed_strictness_hierarchy/`](../docs/05_fail_closed_strictness_hierarchy/README.md) to review how mathematical models (Markov-switching AR(1), CVaR bounds, Sharpe filters) strictly govern probabilistic LLM outputs.
-* Review [`01_system_architecture/`](../docs/01_system_architecture/README.md) for the 3-member multi-agent cognitive architecture.
+* Start with [`05_fail_closed_strictness_hierarchy/`](./05_fail_closed_strictness_hierarchy/README.md) to review how mathematical models (Markov-switching AR(1), CVaR bounds, Sharpe filters) strictly govern probabilistic LLM outputs.
+* Review [`01_system_architecture/`](./01_system_architecture/README.md) for the 3-member multi-agent cognitive architecture.
 
 ### For Enterprise & Consortium Evaluators (WeBank):
-* Start with [`06_privacy_anchors_and_slippage/`](../docs/06_privacy_anchors_and_slippage/README.md) to inspect how proprietary orderbook alpha is kept private off-chain while committing SHA-256 regulatory hashes to FISCO BCOS.
-* Review [`04_multichain_and_fisco_bcos/`](../docs/04_multichain_and_fisco_bcos/README.md) for official FISCO BCOS node integration and EVM millisecond compatibility.
+* Start with [`06_privacy_anchors_and_slippage/`](./06_privacy_anchors_and_slippage/README.md) to inspect how proprietary orderbook alpha is kept private off-chain while committing SHA-256 regulatory hashes to FISCO BCOS.
+* Review [`04_multichain_and_fisco_bcos/`](./04_multichain_and_fisco_bcos/README.md) for official FISCO BCOS node integration and EVM millisecond compatibility.
 
 ### For Developers & Quant Engineers:
-* Start with [`02_prerequisites_and_run_guide/`](../docs/02_prerequisites_and_run_guide/README.md) to run the 170 Foundry tests and 637 Pytest suites locally.
-* Review [`03_market_data_feeds_and_apis/`](../docs/03_market_data_feeds_and_apis/README.md) and [`07_defi_protocols_and_routing/`](../docs/07_defi_protocols_and_routing/README.md) for market integrations and smart contract addresses.
+* Start with [`02_prerequisites_and_run_guide/`](./02_prerequisites_and_run_guide/README.md) to run the 170 Foundry tests and 637 Pytest suites locally.
+* Review [`03_market_data_feeds_and_apis/`](./03_market_data_feeds_and_apis/README.md) and [`07_defi_protocols_and_routing/`](./07_defi_protocols_and_routing/README.md) for market integrations and smart contract addresses.
+* Inspect [`pdf/`](./pdf/README.md) for original reference PDFs and architectural whitepapers.

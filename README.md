@@ -33,7 +33,7 @@ Detailed architectural breakdowns, run guides, and econometric specifications ar
 | [`docs/06_privacy_anchors_and_slippage/`](./docs/06_privacy_anchors_and_slippage/README.md) | Audit & Slippage Engine | SHA-256 anchors on FISCO BCOS, orderbook thinning recovery ($Q^*/2$), and positive carry |
 | [`docs/07_defi_protocols_and_routing/`](./docs/07_defi_protocols_and_routing/README.md) | Protocol Registry | Verified contracts, ABIs, function selectors, and risk tiers (Lido, Aave, Curve, Uniswap) |
 | [`docs/08_smart_contracts/`](./docs/08_smart_contracts/README.md) | Smart Contracts Vault | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas matrix |
-| [`docs/09_reference_whitepapers/`](./docs/09_reference_whitepapers/README.md) | Reference Whitepapers & Archive | Complete archive of 8 original technical PDF whitepapers, engineering masterplans, and markdown transcripts |
+| [`docs/pdf/`](./docs/pdf/README.md) | Original Whitepapers (PDF) | Complete archive of all 8 original technical PDF whitepapers, engineering masterplans, and roadmap guides |
 
 ---
 
@@ -72,6 +72,15 @@ TEC-C/
 │   ├── foundry.toml                         # Compiler & optimizer configuration
 │   └── README.md                            # Smart contracts deep dive
 ├── docs/                                    # Comprehensive Technical & Architectural Documentation
+│   ├── 01_system_architecture/              # Architecture, Multi-Agent & Transcribed Roadmaps
+│   ├── 02_prerequisites_and_run_guide/      # Run & Deployment Manuals
+│   ├── 03_market_data_feeds_and_apis/       # Zero-Cost Feeds & Enterprise Alternatives
+│   ├── 04_multichain_and_fisco_bcos/        # 4-Chain Setup & FISCO BCOS Supervisor
+│   ├── 05_fail_closed_strictness_hierarchy/ # Math > AI Asymmetric Governance
+│   ├── 06_privacy_anchors_and_slippage/     # Banking Secrecy SHA-256 & Recovery
+│   ├── 07_defi_protocols_and_routing/       # Verified Multi-Chain Protocol Registry
+│   ├── 08_smart_contracts/                  # Vault, Hook, Gas & Security Benchmarks
+│   └── pdf/                                 # Complete Collection of 8 Original PDF Whitepapers
 ├── shared/
 │   ├── api_spec.json                        # Exported OpenAPI 3.1 specification (35 endpoints)
 │   ├── chainlink_feeds.json                 # Verified Chainlink Oracle Registry (Multi-Chain)
@@ -79,12 +88,6 @@ TEC-C/
 │   ├── contracts.fisco.json                 # Deployed addresses on FISCO BCOS (Chain ID 20200)
 │   ├── contracts.sepolia.json               # Deployed addresses on Ethereum Sepolia
 │   └── defi_protocols.json                  # Verified DeFi Protocol Registry & Function Selectors
-├── Virtual_Session_Design.pdf               # Remote phone access design & security model
-├── Tec-C_Vault_User_and_Architecture_Guide.pdf # Comprehensive whitepaper guide
-├── Tec-C_4_Person_Execution_Roadmap.pdf     # Team milestone & operational breakdown
-├── Tec-c_Plain_English_Guide.pdf            # Plain English user manual
-├── project.pdf                              # Original architecture blueprint
-├── excution.pdf                             # System execution specification
 ├── LICENSE                                  # MIT License
 └── README.md                                # Root repository guide (this file)
 ```
