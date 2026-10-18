@@ -5,27 +5,28 @@
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** The risk engine must be right and defensible — 3-regime peg model, fundamental fair value, loss-averse %/yr scoring reproducing the spec numbers.
-**Current focus:** Backend freeze (Oct 20, 18:00 Beijing). Phase 6.1 (Intake loop & AI Brain) is implemented in the working tree (not yet committed); remaining: Phase 7-03 and Phase 8.
+**Current focus:** Backend freeze (Oct 20, 18:00 Beijing). Phases 6.1 (Intake loop & AI Brain) and 6.2 (System Flow Audit resolution, branch `fix/audit-resolution`) are done; remaining: Phase 7-03 and Phase 8.
 
 ## Current Position
 
-Phase: 6.1 complete (uncommitted) · 7 of 8 in progress (07-01, 07-02 done; 07-03 not started)
+Phase: 6.2 complete (branch `fix/audit-resolution`) · 7 of 8 in progress (07-01, 07-02 done; 07-03 not started)
 Plan: Next — 07-03 (review events → learning, on-chain levers), then Phase 8
 Status: In progress
-Last activity: 2026-10-17 — Phase 6.1: draft/confirm intake loop, AI Brain single-pass synthesis, options list unified through the Brain (521 tests passing)
+Last activity: 2026-10-18 — Phase 6.2: every System Flow Audit finding (B1–B5, N1–N8) resolved; 658 Python tests
 
-Progress: ████████▌░ 85% (23/27 plans)
+Progress: ████████▌░ 86% (26/30 plans)
 
-## Test Status (2026-10-17, `cd agent && python -m pytest`)
+## Test Status (2026-10-18, `cd agent && python -m pytest`)
 
-- 521 passed, 15 skipped, 1 failed: `test_market_executors.py::test_crypto_execution_action_dispatch` needs
-  Foundry build artifacts (`forge build` in `contracts/`); Foundry is not installed on the current machine.
+- 658 Python tests: 657 pass; `test_audit_anchor.py::test_privacy_audit_anchor_client_submit_and_verify` needs a
+  current `forge build` (the local `contracts/out` predates `PrivacyAuditAnchor.sol`). Regression tests for every
+  audit finding: `agent/tests/test_audit_resolution.py`.
 - Demo fixtures: `python -m scripts.brain_demo` (from `agent/`) — 2 scenarios, 10 steps, all as expected.
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 23
+- Total plans completed: 26
 - Average duration: 10 min (phases 1–4)
 
 **By Phase:**
@@ -40,6 +41,7 @@ Progress: ████████▌░ 85% (23/27 plans)
 | 05.1-sharpe-cvar | 1/1 | — | — |
 | 06-api-layer | 3/3 | — | — |
 | 06.1-intake-ai-brain | 3/3 | — | — |
+| 06.2-audit-resolution | 3/3 | — | — |
 | 07-onchain-integration | 2/3 | — | — |
 
 ## Accumulated Context
@@ -76,6 +78,14 @@ Recent decisions affecting current work:
 - 02: PD adds only regime failure above the quiet-state floor (no double count with pd_base)
 - 01-02: c_out_stress = (exit_bps/1e4)/0.30/horizon + hurdle·delay/365
 
+- 06.2 (2026-10-18, System Flow Audit resolution):
+  - B1/B2: `/execute` enforces the Brain's per-card verdict — an AI-vetoed (BLOCKED) card is refused; an AI BREAKOUT
+    always needs FaceID; only what did not already run automatically is executed, through the MarketRouter
+  - B3: PegGuard never executes on its own — authorized trades pass the soft tether, the AI Brain and the router
+  - B4: a configured model that times out or errors puts the order on HOLD (nothing automatic, options kept);
+    an invalid verdict still falls back to the rules baseline; no model configured = rules (offline demo)
+  - N2: venues carry a market; the Brain's cards and intents route to crypto / chinese_market / commodities / arbitrage
+
 ### Team work merged outside this roadmap (2026-10-17, Member 1 / Member 4)
 
 - Multi-chain vault (Ethereum/Sepolia, Arbitrum One, FISCO BCOS) + cross-chain tether radius (`TetherGuardHook`)
@@ -91,13 +101,14 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Foundry not installed on the current machine (one test needs `forge build` artifacts)
-- Execution is not wired end to end (scoped out for the demo): `MarketRouter` is not the graph's executor, `ExecutionIntent.market` is always "crypto", PegGuard is not a Brain agent, no relayer calls `syncCrossChainSpend`
-- Rate limiter and draft store are in-memory: run the API as a single worker process
-- Phase 6.1 changes are uncommitted in the working tree (owner will branch/commit/push)
+- Local `contracts/out` is stale (one test needs a fresh `forge build` for `PrivacyAuditAnchor`)
+- Markets are live only where `scripts/deploy_market_chain.py` deployed a vault; every other market returns an honest
+  `simulated` result (no transaction hash). Audit anchoring needs `TECC_AUDIT_ANCHOR_*` (else `not_configured`)
+- Rate limiter, draft store, proposals and the cross-chain tether tracker are in-memory: run the API as one worker
+- The phone gateway acts for one owner account per laptop (`TECC_VIRTUAL_SESSION_ACCOUNT`)
 
 ## Session Continuity
 
-Last session: 2026-10-17
-Stopped at: Phase 6.1 complete (uncommitted) — next: 07-03, then Phase 8 (live data keys injected by the team)
+Last session: 2026-10-18
+Stopped at: Phase 6.2 complete on `fix/audit-resolution` — next: 07-03, then Phase 8 (live data keys injected by the team)
 Resume file: agent/INTAKE_AND_ORCHESTRATOR.md

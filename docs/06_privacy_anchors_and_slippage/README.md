@@ -37,6 +37,13 @@ contract PrivacyAuditAnchor {
 }
 ```
 
+### Where It Is Wired
+`agent/tecc_brain/onchain/anchoring.py` (`AuditAnchorService`) anchors: de-pegs PegGuard detects from market data
+(`DEPEG_DETECTED`; never prices a caller supplied), arbitrage trades actually submitted (`ARBITRAGE_EXECUTED`, by the
+`MarketRouter`), and Morning Review notes (`MORNING_REVIEW_NOTE`, by `/api/review/sync`). It is live when
+`TECC_AUDIT_ANCHOR_ADDRESS`, `TECC_AUDIT_ANCHOR_RPC_URL` and `TECC_AUDIT_ANCHOR_KEY` are set (RPC and key default to the
+deployed `fisco_bcos` market); otherwise each result honestly reports `not_configured`.
+
 ### Enterprise Benefits
 1. **Commercial Confidentiality**: Proprietary orderbook curves, parameters, and client trade details remain strictly private off-chain.
 2. **Immutable Regulatory Trail**: Regulators (e.g. PBOC, CSRC, or WeBank compliance officers) can request the off-chain pre-image and immediately verify that the event occurred at exact timestamp $t$ without retroactive tampering.
@@ -79,5 +86,8 @@ When a transaction fails with a slippage-related revert, Tec-C activates its **M
    The engine calculates expected net yield after fees:
    $$E[\Delta V] = \frac{Q^*}{2} \times \left(R_{\text{yield}} - C_{\text{fee}} - \text{Slippage}_{\text{est}}\right) > 0$$
    If expected carry remains positive, the recovery trade is submitted exactly once.
-3. **No Looping**:
+3. **Where it runs**: inside `ChainExecutor.submit` (live Ethereum vault), reached from `/api/mandate/propose`,
+   `/api/mandate/execute`, `/evaluate_options` and PegGuard through the shared `MarketRouter`, which meters the
+   cross-chain radius by the amount that actually ran (the halved order after a recovery).
+4. **No Looping**:
    The `recovery_attempted` boolean prevents infinite retry loops. If the halved order still fails, the system fails closed cleanly into a safe state.

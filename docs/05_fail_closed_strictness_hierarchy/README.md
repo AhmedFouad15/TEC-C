@@ -85,8 +85,18 @@ Untrusted user text is scanned by [`agent/tecc_brain/intent/firewall.py`](..\../
 ### B. Fail-Closed 8-Second Circuit Breaker
 If the external LLM or sentiment API lags or times out ($t > 8.0\text{ seconds}$):
 - The model synthesis is immediately abandoned.
-- The system executes `report_from_decision()`: reverting to the conservative rule-based baseline or safe `HOLD` state.
+- The system executes `hold()` (`agent/tecc_brain/graph/brain.py`): the order goes on `HOLD` — no automatic execution,
+  every option the rules allowed stays visible for manual approval, vetoes stay vetoes (`BrainReport.decision = "HOLD"`,
+  reason code `MODEL_UNAVAILABLE`).
+- A model that answers with an invalid verdict is discarded instead and `report_from_decision()` applies the
+  deterministic rule-based baseline. With no model configured, the rules decide (offline demo).
 - A fallback reason is logged to the immutable audit report.
+
+### C. The Verdict Is Binding Downstream
+- `/api/mandate/execute` refuses a card the AI marked `BLOCKED` and always requires FaceID for a card it marked
+  `BREAKOUT`, whatever the amount.
+- PegGuard-authorized arbitrage (`/api/arbitrage/scan` and the hourly monitor) passes the same soft tether, AI Brain and
+  `MarketRouter` (cross-chain tether radius) as every other order — PegGuard never executes on its own.
 
 ---
 
@@ -102,5 +112,8 @@ Tec-C's fail-closed hierarchy is verified by dedicated automated tests in [`agen
 | `test_ai_can_tighten_or_veto_approved_candidates` | Asymmetric tightening: AI can safely step down AUTO to PROPOSE | ✅ Passed |
 | `test_mathematical_layer1_rejection_cannot_be_overridden_by_ai` | Deterministic Governance: Layer 1 $\Delta \ge 0$ rejects even if AI optimism = 1.0 | ✅ Passed |
 | `test_mathematical_layer2_death_spiral_rejects_regardless_of_ai` | Deterministic Governance: Non-stationary divergence rejects regardless of AI | ✅ Passed |
-| `test_ai_timeout_fails_closed_to_rules_baseline` | Fail-Closed Resilience: Timeout fails closed into conservative baseline | ✅ Passed |
+| `test_ai_timeout_fails_closed_to_rules_baseline` | Fail-Closed Resilience: Timeout never lets the model decide | ✅ Passed |
+| `test_audit_resolution.py::test_b4_*` | Timeout or provider error → `HOLD` (no automatic execution, options kept) | ✅ Passed |
+| `test_audit_resolution.py::test_b1_*`, `test_b2_*` | AI veto and BREAKOUT enforced at `/execute` | ✅ Passed |
+| `test_audit_resolution.py::test_b3_*` | PegGuard trades capped by the soft tether, vetoable by the AI, routed via the tether tracker | ✅ Passed |
 
