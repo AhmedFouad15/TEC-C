@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from tecc_brain.models import ActionType, ExecutionIntent, usd_to_onchain
 from tecc_brain.onchain.artifacts import Contract
+from tecc_brain.onchain.audit_anchor import compute_audit_record_hash
 from tecc_brain.onchain.deploy import USDC_DECIMALS, LocalDeployment
 from tecc_brain.onchain.mandate import UserMandate
 from tecc_brain.onchain.rpc import GAS_HEADROOM, GAS_MARGIN, Rpc, RpcError
@@ -36,6 +37,7 @@ class LedgerRecord(BaseModel):
     venue_id: str
     amount_usd: float
     tx_hash: str
+    audit_record_hash: str | None = None
 
 
 class RecordLedger:
@@ -197,12 +199,26 @@ class ChainExecutor:
 
         records = [a["recordId"] for name, a, _ in self.hook.decode_logs(receipt["logs"]) if name == "AutonomousExecutionLogged"]
         record_id = records[0] if records else None
+        audit_hash = compute_audit_record_hash(
+            account=account,
+            symbol=intent.asset_in,
+            action=intent.action.value,
+            p_cons=intent.amount_usd,
+            salt=intent.venue_id,
+        )
         if record_id is not None:
-            self.ledger.add(LedgerRecord(record_id=record_id, venue_id=intent.venue_id, amount_usd=intent.amount_usd,
-                                         tx_hash=receipt["transactionHash"]))
+            self.ledger.add(LedgerRecord(
+                record_id=record_id,
+                venue_id=intent.venue_id,
+                amount_usd=intent.amount_usd,
+                tx_hash=receipt["transactionHash"],
+                audit_record_hash=audit_hash,
+            ))
         return intent.model_copy(update={
-            "status": "submitted", "tx_hash": receipt["transactionHash"],
+            "status": "submitted",
+            "tx_hash": receipt["transactionHash"],
             "target_address": self.dep.venues[intent.venue_id],
+            "audit_record_hash": audit_hash,
             "detail": f"vault accepted; Morning Review record #{record_id}" if record_id else "vault accepted",
         })
 
@@ -256,13 +272,14 @@ CryptoExecutor = ChainExecutor
 SIMULATION_GUIDE = "agent/MULTICHAIN_NODES.md"
 
 
-def simulated(intent: ExecutionIntent, market: str, detail: str) -> ExecutionIntent:
+def simulated(intent: ExecutionIntent, market: str, detail: str, audit_record_hash: str | None = None) -> ExecutionIntent:
     """An honest dry run: nothing was sent, so there is no transaction hash."""
     return intent.model_copy(update={
         "status": "simulated",
         "market": market,
         "tx_hash": None,
         "simulated": True,
+        "audit_record_hash": audit_record_hash,
         "detail": f"SIMULATED: {detail}",
     })
 
@@ -302,10 +319,17 @@ class EvmMarketExecutor:
                 "detail": f"${intent.amount_usd:,.0f} exceeds mandate max ${self.mandate.max_amount_usd:,.0f}",
             })
         if self.chain is None:
+            audit_hash = compute_audit_record_hash(
+                account=account,
+                symbol=intent.asset_in,
+                action=intent.action.value,
+                p_cons=intent.amount_usd,
+                salt=intent.venue_id,
+            )
             return simulated(intent, self.market, (
                 f"no transaction was sent to {self.chain_label}: no node is configured for this market. "
                 f"Deploy with `scripts/deploy_market_chain.py --network {self.network}` (see {SIMULATION_GUIDE})."
-            ))
+            ), audit_record_hash=audit_hash)
         out = self.chain.submit(intent, account)
         return out.model_copy(update={"market": self.market, "detail": f"{self.chain_label} (chain {self.dep.chain_id}): {out.detail}"})  # type: ignore[union-attr]
 
@@ -458,8 +482,20 @@ class PegGuardArbitrageExecutor:
                 f"OrderSize=${l5.final_order_size_usd:,.2f}"
             )
 
-        plan = simulated(intent, "arbitrage", f"PegGuard authorized a two-leg plan; no orders were placed. {detail}")
-        return plan.model_copy(update={"target_address": target_addr})
+        audit_hash = compute_audit_record_hash(
+            account=account,
+            symbol=symbol,
+            action="ARBITRAGE_EXECUTED",
+            p_cons=l1.r_cons,
+            salt=intent.venue_id,
+        )
+        plan = simulated(
+            intent,
+            "arbitrage",
+            f"PegGuard authorized a two-leg plan; no orders were placed. {detail}",
+            audit_record_hash=audit_hash,
+        )
+        return plan.model_copy(update={"target_address": target_addr, "audit_record_hash": audit_hash})
 
 
 class CrossChainTetherTracker:

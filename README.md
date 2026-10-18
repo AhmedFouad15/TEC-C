@@ -3,7 +3,7 @@
 
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
 [![Foundry](https://img.shields.io/badge/Foundry-170%2F170%20Passing-brightgreen?logo=ethereum)](https://getfoundry.sh/)
-[![Python Brain](https://img.shields.io/badge/Python%20Brain-622%2F622%20Passing-blue?logo=python)](https://fastapi.tiangolo.com/)
+[![Python Brain](https://img.shields.io/badge/Python%20Brain-637%2F637%20Passing-blue?logo=python)](https://fastapi.tiangolo.com/)
 [![ERC-7579](https://img.shields.io/badge/ERC--7579-Modular%20Account-blue)](https://erc7579.com/)
 [![ERC-4337](https://img.shields.io/badge/ERC--4337-Account%20Abstraction-purple)](https://eips.ethereum.org/EIPS/eip-4337)
 [![RIP-7212](https://img.shields.io/badge/RIP--7212-P256%20Precompile%20%40%200x100-orange)](https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md)
@@ -182,10 +182,11 @@ Ran 14 test suites: 170 tests passed, 0 failed, 0 skipped (170 total tests)
 - `MultiTokenTetherTest`: 12 passed (Multi-token pricing & USD normalization)
 - `TecAccountTest`: 7 passed (ERC-7579 modular account execution)
 
-### 2. Python AI Brain & Risk Engine: 622 / 622 Passing Tests (Pytest)
+### 2. Python AI Brain & Risk Engine: 637 / 637 Passing Tests (Pytest)
 ```bash
-622 passed, 11 warnings in 33.98s (100% passing)
+637 passed, 11 warnings in 38.59s (100% passing)
 ```
+- `test_strictness_hierarchy.py`: 9 passed (Asymmetric bounding $B_{AI} \subseteq B_{math}$, deterministic Layer 1-5 gating, fail-closed timeout > 8.0s, audit anchor hashing)
 - `test_fisco_node.py`: 8 passed (Automated cluster supervisor, health probing, WSL idle timeout management, clean shutdown)
 - `test_slippage_recovery.py`: 4 passed (Slippage detection, order halving $Q^*/2$, positive carry verification, loop prevention)
 - `test_audit_anchor.py`: 2 passed (Deterministic SHA-256 record hashing, on-chain anchor submission & verification)

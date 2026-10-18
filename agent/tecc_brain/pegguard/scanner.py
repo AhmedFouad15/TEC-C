@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, Field
 
 from tecc_brain.models import ActionType, CardLabel, ExecutionIntent, usd_to_onchain
+from tecc_brain.onchain.audit_anchor import compute_audit_record_hash
 from tecc_brain.pegguard.engine import (
     PEGGUARD_ASSET_CATALOG,
     PegGuardDecision,
@@ -58,6 +59,10 @@ class UnprofitableWatermark(BaseModel):
     ev_bps: float = Field(description="Recovery-Adjusted EV in basis points at unprofitable_price")
     reason: str = Field(description="Rejection summary from the 5-layer PegGuard engine")
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
 
 
 ScanItemStatus = Literal[
@@ -87,6 +92,10 @@ class AssetScanOutcome(BaseModel):
     ev_bps: float | None = None
     decision: PegGuardDecision | None = None
     execution_intent: ExecutionIntent | None = None
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
     detail: str
 
 
@@ -328,6 +337,13 @@ class PegGuardAutonomousScanner:
 
             if not decision.authorized:
                 noted_unprofitable_count += 1
+                depeg_hash = compute_audit_record_hash(
+                    account=account,
+                    symbol=sym,
+                    action="DEPEG_DETECTED",
+                    p_cons=r_cons,
+                    salt=f"L1_{decision.layer1.baseline_star:.4f}",
+                )
                 wm = UnprofitableWatermark(
                     symbol=sym,
                     unprofitable_price=r_cons,
@@ -335,6 +351,7 @@ class PegGuardAutonomousScanner:
                     abnormal_spread_delta=decision.layer1.abnormal_spread_delta,
                     ev_bps=decision.layer3.recovery_adjusted_ev_bps,
                     reason=decision.summary,
+                    audit_record_hash=depeg_hash,
                 )
                 acct_watermarks[sym] = wm
                 outcomes.append(
@@ -351,6 +368,7 @@ class PegGuardAutonomousScanner:
                         watermark_price=r_cons,
                         ev_bps=decision.layer3.recovery_adjusted_ev_bps,
                         decision=decision,
+                        audit_record_hash=depeg_hash,
                         detail=(
                             f"Noted unprofitable watermark for {sym} at {r_cons:.4f} "
                             f"(EV={decision.layer3.recovery_adjusted_ev_bps:+.1f} bps): {decision.summary}. "
@@ -399,6 +417,7 @@ class PegGuardAutonomousScanner:
                     ev_bps=decision.layer3.recovery_adjusted_ev_bps,
                     decision=decision,
                     execution_intent=exec_res,
+                    audit_record_hash=exec_res.audit_record_hash,
                     detail=exec_res.detail,
                 )
             )

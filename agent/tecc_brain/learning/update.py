@@ -28,6 +28,7 @@ from tecc_brain.models import (
     RiskTier,
     Signal,
 )
+from tecc_brain.onchain.audit_anchor import compute_audit_record_hash
 from tecc_brain.reference import Reference, load_reference
 
 __all__ = ["FeedbackEvent", "LearningResult", "Signal", "decay", "learn", "new_profile", "value_weight"]
@@ -205,6 +206,16 @@ def _apply_note(p: BrainProfile, event: FeedbackEvent, note: NoteOutcome, ref: R
 
 def _record(p: BrainProfile, event: FeedbackEvent) -> None:
     assert p.updated_at is not None
+    if event.audit_record_hash is None:
+        computed_hash = compute_audit_record_hash(
+            account=p.account,
+            symbol=event.venue_id or "PORTFOLIO",
+            action=event.signal.value,
+            p_cons=event.amount_usd,
+            timestamp=int(event.at.timestamp()),
+            salt=event.note[:32],
+        )
+        event = event.model_copy(update={"audit_record_hash": computed_hash})
     horizon = p.updated_at - timedelta(days=HISTORY_DAYS)
     p.history = [e for e in [*p.history, event] if e.at >= horizon]
     p.seen_events = [*p.seen_events, event.event_id][-MAX_SEEN_EVENTS:]

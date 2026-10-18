@@ -87,3 +87,20 @@ If the external LLM or sentiment API lags or times out ($t > 8.0\text{ seconds}$
 - The model synthesis is immediately abandoned.
 - The system executes `report_from_decision()`: reverting to the conservative rule-based baseline or safe `HOLD` state.
 - A fallback reason is logged to the immutable audit report.
+
+---
+
+## 5. Formal Verification Test Suite
+
+Tec-C's fail-closed hierarchy is verified by dedicated automated tests in [`agent/tests/test_strictness_hierarchy.py`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/agent/tests/test_strictness_hierarchy.py):
+
+| Test Case | Invariant Verified | Result |
+|---|---|---|
+| `test_ai_cannot_loosen_mode_from_propose_to_auto` | Invariant 3: Upgrade from PROPOSE to AUTO strictly rejected | ✅ Passed |
+| `test_ai_cannot_allocate_to_vetoed_venue` | Invariant 1: Allocation to mathematically vetoed venue rejected | ✅ Passed |
+| `test_ai_cannot_exceed_mathematical_auto_budget` | Invariant 2: $Q^*_{\text{final}} \le Q^*_{math}$ enforced | ✅ Passed |
+| `test_ai_can_tighten_or_veto_approved_candidates` | Asymmetric tightening: AI can safely step down AUTO to PROPOSE | ✅ Passed |
+| `test_mathematical_layer1_rejection_cannot_be_overridden_by_ai` | Deterministic Governance: Layer 1 $\Delta \ge 0$ rejects even if AI optimism = 1.0 | ✅ Passed |
+| `test_mathematical_layer2_death_spiral_rejects_regardless_of_ai` | Deterministic Governance: Non-stationary divergence rejects regardless of AI | ✅ Passed |
+| `test_ai_timeout_fails_closed_to_rules_baseline` | Fail-Closed Resilience: Timeout fails closed into conservative baseline | ✅ Passed |
+

@@ -282,6 +282,10 @@ class FeedbackEvent(BaseModel):
     amount_usd: float = Field(0.0, ge=0)
     at: datetime
     note: str = Field("", max_length=1000)
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
 
     @field_validator("at")
     @classmethod
@@ -449,5 +453,9 @@ class ExecutionIntent(BaseModel):
     recovery_attempted: bool = Field(
         False,
         description="True if this intent is an automated recovery retry (e.g. halved order on slippage exceeded)",
+    )
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
     )
     detail: str = ""
