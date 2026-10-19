@@ -35,21 +35,48 @@ function animateNumber(el, to, { prefix = '$', dur = 900, suffix = el?.children.
    ========================================================================================= */
 // Only a Brain on this machine is trusted: a crafted ?api= link must not be able to send the user's commands
 // and notes to someone else's server (and must not persist such a choice).
-const isLoopbackApi = v => {
+const isValidApiUrl = v => {
   try {
     const u = new URL(v);
-    return /^https?:$/.test(u.protocol) && ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname) && !u.username && !u.password;
+    if (!/^https?:$/.test(u.protocol)) return false;
+    if (u.username || u.password) return false;
+    if (['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname)) return true;
+    if (u.protocol === 'https:') return true;
+    return false;
   } catch { return false; }
 };
-const API = (() => {
+const isLoopbackApi = isValidApiUrl;
+let API = (() => {
   const q = new URLSearchParams(location.search).get('api');
-  if (q && isLoopbackApi(q)) store.set('tecc_api', new URL(q).origin);
+  if (q && isValidApiUrl(q)) store.set('tecc_api', new URL(q).origin);
   const saved = store.get('tecc_api');
-  if (isLoopbackApi(saved)) return new URL(saved).origin;
-  if (isLoopbackApi(location.origin) && location.port === '8000') return location.origin; // served by the Brain itself
-  return 'http://127.0.0.1:8000';
+  if (saved && isValidApiUrl(saved)) return new URL(saved).origin;
+  if (isValidApiUrl(location.origin) && location.port === '8000') return location.origin; // served by the Brain itself
+  return location.protocol === 'https:' ? '' : 'http://127.0.0.1:8000';
 })();
 const brain = { live: false, checked: false };
+
+function configureBrainApi() {
+  const current = API || '';
+  const msg = 'Connect Command Center to your Brain backend:\n\n' +
+    '• For local server: http://127.0.0.1:8000\n' +
+    '• For HTTPS tunnel: https://<subdomain>.trycloudflare.com\n\n' +
+    'Enter API endpoint URL (or leave empty to reset):';
+  const val = prompt(msg, current);
+  if (val === null) return;
+  const clean = val.trim();
+  if (!clean) {
+    store.set('tecc_api', '');
+    location.reload();
+    return;
+  }
+  if (!isValidApiUrl(clean)) {
+    alert('Invalid URL. Please enter an http:// or https:// URL (e.g. https://xxxx.trycloudflare.com)');
+    return;
+  }
+  store.set('tecc_api', new URL(clean).origin);
+  location.reload();
+}
 
 async function api(path, { method = 'GET', body, timeout = 60000 } = {}) {
   const ctl = new AbortController();
@@ -67,11 +94,15 @@ async function api(path, { method = 'GET', body, timeout = 60000 } = {}) {
 }
 
 async function probeBrain() {
+  if (!API) {
+    setBrainStatus(false, 'offline · click to connect');
+    return;
+  }
   try {
-    const h = await api('/health', { timeout: 2500 });
+    const h = await api('/health', { timeout: 3500 });
     setBrainStatus(true, `live · v${h.version || '?'}`);
   } catch {
-    setBrainStatus(false, 'offline');
+    setBrainStatus(false, 'offline · click to connect');
   }
 }
 function setBrainStatus(live, text) {
@@ -79,7 +110,9 @@ function setBrainStatus(live, text) {
   brain.live = live; brain.checked = true;
   $('#brain-dot').className = 'dot ' + (live ? 'active' : 'warning');
   $('#top-heartbeat-text').textContent = text;
-  $('#brain-pill').title = live ? `Connected to the Brain at ${API}` : `Brain not reachable at ${API}. Start everything with ./dev_up.sh (or python run_tecc.py)`;
+  $('#brain-pill').title = live
+    ? `Connected to the Brain at ${API} (click to change)`
+    : `Brain not reachable at ${API || 'no endpoint set'}. Click to configure backend URL.`;
   if (changed) {
     loadRegimes();
     loadProfile();

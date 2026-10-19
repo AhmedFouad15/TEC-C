@@ -416,14 +416,29 @@ def get_ref() -> Reference:
     return load_reference()
 
 
-LOOPBACK = frozenset({"127.0.0.1", "::1", "testclient"})  # socket peers; a network peer is always a real IP
+LOOPBACK = frozenset({"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost", "testclient"})  # socket peers; a network peer is always a real IP
 LOCAL_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1", "testserver"})
 
 
 def allowed_origins() -> list[str]:
     raw = os.environ.get("TECC_CORS_ORIGINS", "")
-    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    origins = []
+    for o in raw.split(","):
+        o = o.strip()
+        if not o:
+            continue
+        try:
+            from urllib.parse import urlparse
+            u = urlparse(o)
+            if u.scheme and u.netloc:
+                origins.append(f"{u.scheme}://{u.netloc}")
+            else:
+                origins.append(o)
+        except Exception:
+            origins.append(o)
     defaults = [
+        "https://www.tec-c.xyz",
+        "https://tec-c.xyz",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "http://localhost:3000",
@@ -464,10 +479,17 @@ def require_client(request: Request) -> None:
             raise HTTPException(401, "missing or wrong API token")
         return
     host = request.client.host if request.client else ""
-    if host not in LOOPBACK:
-        raise HTTPException(403, "the Brain API only answers this machine unless TECC_API_TOKEN is set")
+    req_host = _hostname(request.headers.get("host", ""))
+    is_tunnel_host = req_host.endswith(".trycloudflare.com") or req_host.endswith(".trycloudflare.co")
+    if host not in LOOPBACK and not is_tunnel_host:
+        raise HTTPException(403, f"the Brain API only answers this machine (client={host}) unless TECC_API_TOKEN is set")
     extra = {h.strip().lower() for h in os.environ.get("TECC_ALLOWED_HOSTS", "").split(",") if h.strip()}
-    if _hostname(request.headers.get("host", "")) not in LOCAL_HOSTNAMES | extra:
+    is_valid_host = (
+        req_host in LOCAL_HOSTNAMES
+        or req_host in extra
+        or is_tunnel_host
+    )
+    if not is_valid_host:
         raise HTTPException(403, "unexpected Host header")
     origin = request.headers.get("origin")
     same_origin = origin == f"{request.url.scheme}://{request.headers.get('host', '')}"
@@ -483,5 +505,15 @@ def require_client(request: Request) -> None:
                     is_loopback_origin = True
             except Exception:
                 pass
-    if origin is not None and not same_origin and not is_loopback_origin and origin not in allowed_origins():
+    is_trusted_domain = False
+    if origin:
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(origin)
+            h = (parsed.hostname or "").lower()
+            if h == "tec-c.xyz" or h.endswith(".tec-c.xyz") or h.endswith(".trycloudflare.com"):
+                is_trusted_domain = True
+        except Exception:
+            pass
+    if origin is not None and not same_origin and not is_loopback_origin and not is_trusted_domain and origin not in allowed_origins():
         raise HTTPException(403, "cross-site request refused")

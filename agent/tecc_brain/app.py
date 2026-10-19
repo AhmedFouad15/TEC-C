@@ -25,10 +25,26 @@ async def lifespan(_: FastAPI):
         fisco_started = ensure_fisco_node_running()
 
     start_scheduler()  # no-op unless TECC_ENABLE_HOURLY_MONITOR=1
+
+    # Run the Virtual Session Mobile Gateway concurrently on port 8001
+    import asyncio
+    import uvicorn
+
+    gateway_server = uvicorn.Server(
+        uvicorn.Config(gateway_app, host="127.0.0.1", port=8001, log_level="warning")
+    )
+    gateway_task = asyncio.create_task(gateway_server.serve())
+
     try:
         yield
     finally:
         stop_scheduler()
+        gateway_server.should_exit = True
+        try:
+            await gateway_server.shutdown()
+        except Exception:
+            pass
+        gateway_task.cancel()
         if fisco_started or os.environ.get("TECC_STOP_FISCO_ON_SHUTDOWN", "0").lower() in ("1", "true", "yes"):
             from tecc_brain.onchain.fisco_node import stop_fisco_node
             stop_fisco_node()
@@ -43,15 +59,20 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins(),
+    allow_origin_regex=r"^https://([a-zA-Z0-9-]+\.)*(tec-c\.xyz|trycloudflare\.(?:com|co))$",
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["*"],
 )
 from tecc_brain.virtual_session.admin_router import router as virtual_session_admin_router
+from tecc_brain.virtual_session.gateway import gateway_app
 
 for module in (mandate, risk, profile, insight, options, arbitrage, biometrics, settings, vault):
     app.include_router(module.router, dependencies=[Depends(require_client)])
 
 app.include_router(virtual_session_admin_router, dependencies=[Depends(require_client)])
+
+# Include gateway routes on port 8000 for direct browser pairing access
+app.include_router(gateway_app.router)
 
 
 from pathlib import Path

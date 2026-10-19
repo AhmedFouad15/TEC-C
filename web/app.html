@@ -60,7 +60,7 @@
     <div class="chip-stat" id="network-pill" title="Active blockchain network">
       <span class="muted">Chain</span><b id="top-network-text">—</b>
     </div>
-    <div class="chip-stat" id="brain-pill" title="Brain API connection">
+    <div class="chip-stat clickable" id="brain-pill" onclick="configureBrainApi()" title="Brain API connection (click to configure)">
       <span class="dot" id="brain-dot"></span><span class="muted">Brain</span><b id="top-heartbeat-text">connecting…</b>
     </div>
     <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Verify with your passkey (FaceID / Windows Hello) to open the 5-minute window">

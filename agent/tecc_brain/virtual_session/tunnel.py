@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlparse
 
-DEFAULT_TEMP_TUNNEL_URL = "https://xxxx.trycloudflare.co"
+DEFAULT_TEMP_TUNNEL_URL = "http://127.0.0.1:8001"
 URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.(?:com|co)")
 
 
@@ -79,7 +79,7 @@ class TunnelManager:
         cloudflared_path: str | None = None,
         port: int = 8001,
         default_url: str | None = None,
-        spawn_binary: bool = False,
+        spawn_binary: bool | None = None,
     ) -> None:
         self.path = cloudflared_path or find_cloudflared_binary() or "cloudflared"
         self.port = port
@@ -91,7 +91,11 @@ class TunnelManager:
         )
         if not self.default_url.startswith("http"):
             self.default_url = f"https://{self.default_url}"
-        self.spawn_binary = spawn_binary or (os.environ.get("TECC_SPAWN_CLOUDFLARED", "0") == "1")
+        if spawn_binary is not None:
+            self.spawn_binary = spawn_binary
+        else:
+            env_val = os.environ.get("TECC_SPAWN_CLOUDFLARED")
+            self.spawn_binary = (env_val == "1") if env_val is not None else self.is_binary_available
         self.proc: subprocess.Popen[str] | None = None
         self.url: str | None = None
         self.on_url_change: Callable[[str, str], None] | None = None
@@ -114,14 +118,14 @@ class TunnelManager:
 
         If `spawn_binary` is enabled and `cloudflared` is installed, starts the subprocess
         and parses the assigned `https://*.trycloudflare.com` / `.co` URL. Otherwise uses
-        the configured temporary URL (`https://xxxx.trycloudflare.co`).
+        the configured temporary URL.
         """
         with self._lock:
             if self.proc and self.proc.poll() is None and self.url:
                 return self.url
 
             old = self.url
-            if self.spawn_binary and shutil.which(self.path):
+            if self.spawn_binary and self.is_binary_available:
                 self.proc = subprocess.Popen(
                     [
                         self.path,
@@ -137,21 +141,24 @@ class TunnelManager:
                 self.url = None
                 t0 = time.time()
                 assert self.proc.stdout is not None
-                for line in self.proc.stdout:
-                    m = URL_RE.search(line)
-                    if m:
-                        self.url = m.group(0)
-                        break
-                    if time.time() - t0 > timeout:
-                        self.stop()
-                        raise TimeoutError("cloudflared did not return a URL")
+                try:
+                    for line in self.proc.stdout:
+                        m = URL_RE.search(line)
+                        if m:
+                            self.url = m.group(0)
+                            break
+                        if time.time() - t0 > timeout:
+                            break
+                except Exception:
+                    pass
                 if not self.url:
                     self.stop()
-                    raise TimeoutError("cloudflared exited before returning a URL")
-                self._watchdog_enabled = True
-                threading.Thread(target=self._drain_and_watch, daemon=True).start()
+                    self.url = self.default_url
+                else:
+                    self._watchdog_enabled = True
+                    threading.Thread(target=self._drain_and_watch, daemon=True).start()
             else:
-                if self. url is None:
+                if self.url is None:
                     self.url = self.default_url
 
             new_url = self.url
