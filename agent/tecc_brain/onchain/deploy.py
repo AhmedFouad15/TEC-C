@@ -66,31 +66,41 @@ def deploy_local(
     owner = Account.from_key(deployer_key).address if deployer_key is not None else rpc.call("eth_accounts")[0]
     k = deployer_key
 
+    print("  Deploying TetherGuardHook...", flush=True)
     hook = Contract.load("TetherGuardHook").deploy(rpc, owner, key=k)
+    print(f"  TetherGuardHook: {hook.address}", flush=True)
+
+    print("  Deploying SessionKeyValidator...", flush=True)
     validator = Contract.load("SessionKeyValidator").deploy(rpc, owner, key=k)
+    print(f"  SessionKeyValidator: {validator.address}", flush=True)
+
+    print("  Deploying TecAccount...", flush=True)
     account = Contract.load("TecAccount").deploy(rpc, owner, NO_BUNDLER_ENTRYPOINT, key=k)
+    print(f"  TecAccount: {account.address}", flush=True)
     account.transact(rpc, "initialize", owner, hook.address, validator.address, sender=owner, key=k)
 
     feed = Contract.load("MockChainlinkFeed")
+    print("  Deploying price feeds...", flush=True)
     eth_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(eth_usd), "ETH / USD", key=k)
     usdc_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(1.0), "USDC / USD", key=k)
+    print("  Deploying test USDC...", flush=True)
     usdc = Contract.load("MockERC20").deploy(rpc, owner, "USD Coin", "USDC", USDC_DECIMALS, key=k)
     if fund_usdc > 0:
         usdc.transact(rpc, "mint", account.address, fund_usdc * 10**USDC_DECIMALS, sender=owner, key=k)
 
+    print("  Configuring policies & feeds...", flush=True)
     hook.transact(rpc, "setGlobalPriceFeed", NATIVE_ETH, eth_feed.address, sender=owner, key=k)
     hook.transact(rpc, "setGlobalPriceFeed", usdc.address, usdc_feed.address, sender=owner, key=k)
     hook.transact(
         rpc, "initializeAccountPolicy", account.address, owner, usd_to_onchain(radius_usd), tier, True,
         usd_to_onchain(ceiling_usd), sender=owner, key=k,
     )
-    # USDC moves are ERC-20 transfers whose call target is the token itself, so the token is whitelisted too
-    # (tier 1, a core stablecoin). See SUMMARY: the hook does not check the transfer's recipient.
     hook.transact(rpc, "setTargetWhitelist", account.address, usdc.address, True, 1, sender=owner, key=k)
     hook.transact(rpc, "setTargetWhitelist", account.address, validator.address, True, 1, sender=owner, key=k)
 
     protocol = Contract.load("MockDeFiProtocol")
     venues: dict[str, str] = {}
+    print(f"  Configuring {len(ref.venues)} venue whitelist targets...", flush=True)
     for venue in ref.venues.values():
         mock = protocol.deploy(rpc, owner, key=k)
         hook.transact(rpc, "setTargetWhitelist", account.address, mock.address, True, int(venue.tier), sender=owner, key=k)
