@@ -22,6 +22,8 @@ Architecture:
 
 from __future__ import annotations
 
+import threading
+
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -141,6 +143,8 @@ class PegGuardAutonomousScanner:
     ) -> None:
         self.anchors = anchors
         self.engine = engine or PegGuardEngine()
+        # the hourly job and a manual /scan must not evaluate (and execute) the same de-peg at the same time
+        self._scan_lock = threading.RLock()
         self._executor = executor
         self._router = router
         self.store = store
@@ -234,7 +238,7 @@ class PegGuardAutonomousScanner:
 
     def _brain_gate(
         self, account: str, items: list[dict[str, Any]], *, vault: "VaultState | None", brain_llm: Any,
-        ref: "Reference | None", proposals: Any,
+        ref: "Reference | None", proposals: Any, prices_from_caller: bool = False,
     ) -> tuple[list[AssetScanOutcome], "BrainReport", str | None]:
         """PegGuard-authorized trades → soft tether → AI Brain (tighten-only) → MarketRouter. Never more than the
         user's soft tether runs automatically; anything else is held for approval or vetoed."""
@@ -265,7 +269,12 @@ class PegGuardAutonomousScanner:
             cand = Candidate(venue_id=it["venue_id"], action=ActionType.BUY_DISCOUNT, asset_in=sym, amount_usd=size,
                              apy=max(ev, 0.0) / 1e4)
             lines = [f"PegGuard: all 5 layers authorized ({d.summary}).", f"Recovery-adjusted EV {ev:+.1f} bps."]
-            if remaining > 0:
+            if prices_from_caller:
+                # a price the API caller typed is not a market fact: show the trade, never run it automatically
+                alloc = 0.0
+                mode = AutonomyMode.BREAKOUT if size > vault.remaining_usd else AutonomyMode.PROPOSE
+                lines.append("Prices came from the request, not a market feed: needs your approval.")
+            elif remaining > 0:
                 alloc = min(size, remaining)
                 remaining -= alloc
                 mode = AutonomyMode.AUTO
@@ -357,6 +366,7 @@ class PegGuardAutonomousScanner:
         brain_llm: Any = None,
         ref: "Reference | None" = None,
         proposals: Any = None,
+        prices_from_caller: bool = False,
     ) -> ScanTickReport:
         """Runs one continuous monitoring pass across the PegGuard asset universe for `account`.
 
@@ -368,6 +378,13 @@ class PegGuardAutonomousScanner:
             - If unprofitable/vetoed: updates `watermark.unprofitable_price = R_cons(t)` (`status='noted_unprofitable'`).
             - If profitable/authorized: clears the watermark and submits the trade (`status='executed'`).
         """
+        with self._scan_lock:
+            return self._scan_tick(account, price_overrides=price_overrides, market_inputs=market_inputs,
+                                   symbols=symbols, order_size_usd=order_size_usd, vault=vault, brain_llm=brain_llm,
+                                   ref=ref, proposals=proposals, prices_from_caller=prices_from_caller)
+
+    def _scan_tick(self, account: str, *, price_overrides, market_inputs, symbols, order_size_usd, vault, brain_llm,
+                   ref, proposals, prices_from_caller: bool) -> ScanTickReport:
         if not self.is_enabled(account):
             return ScanTickReport(
                 account=account,
@@ -529,7 +546,8 @@ class PegGuardAutonomousScanner:
         proposal_id = None
         if authorized:
             gated, report, proposal_id = self._brain_gate(account, authorized, vault=vault, brain_llm=brain_llm,
-                                                          ref=ref, proposals=proposals)
+                                                          ref=ref, proposals=proposals,
+                                                          prices_from_caller=prices_from_caller)
             for outcome in gated:
                 executed_count += outcome.status == "executed"
                 held_count += outcome.status == "held_for_approval"

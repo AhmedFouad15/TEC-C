@@ -54,6 +54,12 @@
   <div class="status-strip">
     <div class="chip-stat"><span class="muted">Vault</span><b id="top-vault-val">—</b></div>
     <div class="chip-stat"><span class="ring" id="tether-donut"><i></i></span><span class="muted">Tether</span><b id="top-tether-val">—</b></div>
+    <div class="chip-stat" id="wallet-pill" title="Connected wallet (EOA root owner)">
+      <span class="muted">Owner EOA</span><b id="top-wallet-text">—</b>
+    </div>
+    <div class="chip-stat" id="network-pill" title="Active blockchain network">
+      <span class="muted">Chain</span><b id="top-network-text">—</b>
+    </div>
     <div class="chip-stat" id="brain-pill" title="Brain API connection">
       <span class="dot" id="brain-dot"></span><span class="muted">Brain</span><b id="top-heartbeat-text">connecting…</b>
     </div>
@@ -211,6 +217,7 @@
         <span class="badge badge-blue big" id="source-badge">Demo data</span>
       </div>
 
+      <div id="brain-verdict"></div>
       <div class="section-label">Zone A · Candidates for this command</div>
       <div class="cand-grid" id="candidates-container"></div>
 

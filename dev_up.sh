@@ -54,9 +54,10 @@ fi
 lsof -ti tcp:8000 tcp:8001 | xargs kill 2>/dev/null || true
 sleep 0.5
 say "Starting the Brain API on http://127.0.0.1:8000 (and the phone gateway on :8001) …"
-(cd "$AGENT" && TECC_NETWORK=anvil TECC_SPAWN_CLOUDFLARED=1 \
-  TECC_CORS_ORIGINS="http://localhost:$UI_PORT,http://127.0.0.1:$UI_PORT,http://localhost:3000,http://127.0.0.1:3000" \
-  nohup .venv/bin/python -m tecc_brain.virtual_session.runner > "$STATE/brain.log" 2>&1 &)  # Brain :8000 + phone gateway :8001
+# agent/.env (API keys etc.) is loaded when present; the runner serves the Brain (:8000) and the phone gateway (:8001)
+(cd "$AGENT" && { [ -f .env ] && set -a && . ./.env && set +a; }; TECC_NETWORK=anvil TECC_SPAWN_CLOUDFLARED=1 \
+  TECC_CORS_ORIGINS="http://localhost:$UI_PORT,http://127.0.0.1:$UI_PORT,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000" \
+  nohup .venv/bin/python -m tecc_brain.virtual_session.runner > "$STATE/brain.log" 2>&1 &)
 for _ in $(seq 1 40); do curl -sf http://127.0.0.1:8000/health >/dev/null && break; sleep 0.3; done
 curl -sf http://127.0.0.1:8000/health >/dev/null || { echo "The Brain did not start; see $STATE/brain.log"; exit 1; }
 

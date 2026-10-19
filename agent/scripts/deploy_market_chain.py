@@ -53,6 +53,23 @@ def deploy(args: argparse.Namespace) -> None:
     rpc = Rpc(rpc_url, timeout_s=60)
     key = os.environ.get(args.deployer_key_env)
     if key is None and args.network != "anvil":
+        env_file = Path(__file__).resolve().parents[1] / ".env"
+        if env_file.exists():
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if line.strip().startswith("TECC_DEPLOYER_KEY="):
+                    val = line.split("=", 1)[1].strip().strip("'\"")
+                    if val and not val.startswith("your_") and not val.startswith("0x..."):
+                        key = val
+                        break
+        if key is None:
+            wallet_f = Path(__file__).resolve().parents[1] / ".state" / "wallet.json"
+            if wallet_f.exists():
+                try:
+                    wdata = json.loads(wallet_f.read_text(encoding="utf-8"))
+                    key = wdata.get("private_key")
+                except Exception:
+                    pass
+    if key is None and args.network != "anvil":
         sys.exit(f"set {args.deployer_key_env} to a funded private key for {args.network} (it becomes the demo root owner)")
     chain_id = rpc.chain_id()
     owner = Account.from_key(key).address if key else rpc.call("eth_accounts")[0]

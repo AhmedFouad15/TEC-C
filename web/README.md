@@ -7,6 +7,22 @@ Two static pages, no build step:
 
 ## Run
 
+**Whole stack in one command** (local chain + real vault + Brain + website; API keys from `agent/.env`):
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File .\dev_up.ps1     # stop: .\dev_down.ps1
+```
+
+```bash
+# macOS / Linux
+./dev_up.sh                                                # stop: ./dev_down.sh
+```
+
+The Brain also serves this UI itself: http://127.0.0.1:8000/app.html (same origin, no CORS setup needed).
+
+Or by hand:
+
 ```bash
 # 1. the Brain API (optional; without it every screen shows demo data and says so)
 cd agent && .venv/bin/uvicorn tecc_brain.app:app --host 127.0.0.1 --port 8000

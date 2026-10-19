@@ -49,6 +49,7 @@ from tecc_brain.intent.rules import ParseOutcome
 from tecc_brain.learning.store import ProfileStore
 from tecc_brain.learning.update import FeedbackEvent, Signal, learn
 from tecc_brain.market import SnapshotSource
+from tecc_brain.api.vault import resolve_vault
 from tecc_brain.onchain.executor import MarketRouter
 from tecc_brain.models import (
     APPROVAL_PRIOR, AutonomyMode, BrainProfile, Card, CardLabel, ExecutionIntent, Mandate, VaultState, usd_to_onchain,
@@ -221,7 +222,7 @@ def draft_mandate(
     personalization: Personalization | None = None
     if parse.verdict.allowed and parse.mandate is not None:
         estimated_usd, _ = mandate_amount_usd(parse.mandate, SnapshotSource(req.scenario).snapshot())
-        suggested, personalization = personalize(parse.mandate, profile, req.vault.to_state(), ref, estimated_usd)
+        suggested, personalization = personalize(parse.mandate, profile, resolve_vault(req.account, req.vault, "vault" in req.model_fields_set), ref, estimated_usd)
 
     if req.draft_id is None:
         draft = drafts.start(req.account, client, req.text, parse, suggested, personalization)
@@ -310,7 +311,7 @@ def propose(
     text = mandate.raw_text if mandate is not None else req.text
     assert text is not None  # guaranteed by the model_validator above
 
-    vault = req.vault.to_state()
+    vault = resolve_vault(req.account, req.vault, "vault" in req.model_fields_set)
     # Agent 1 is the upgraded sentinel (same as /evaluate_options and the hourly monitor); an optional breaking
     # headline from the request is layered on top of it, as before.
     blended = make_news_hook(sentinel, ref)
@@ -403,24 +404,33 @@ def execute(
         status="breakout_required" if needs_faceid else "pending_signature",
         detail=f"radius left today ${radius_left:,.0f}",
     )
+    limit = proposal.vault.tether_radius_usd
     if needs_faceid:
         from tecc_brain.api.biometrics import get_biometric_manager
+        from tecc_brain.api.vault import open_live_biometric_window
 
-        why = ("the AI Brain requires biometric confirmation for this option" if card.mode == AutonomyMode.BREAKOUT
-               else f"${amount:,.0f} exceeds today's ${radius_left:,.0f} radius")
         verified, _ = get_biometric_manager().is_biometric_window_active(proposal.account)
         if not verified:
+            # FaceID is a step, not a refusal: release the proposal so the same card can be executed after the passkey
+            proposals.release(proposal.id)
+            why = ("the AI Brain requires biometric confirmation for this option" if card.mode == AutonomyMode.BREAKOUT
+                   else f"${amount:,.0f} exceeds today's ${radius_left:,.0f} radius")
             return ExecuteResponse(mode=card.mode, intent=intent, learned=learned,
-                                   message=f"{why[0].upper()}{why[1:]}: confirm with FaceID to break the tether.")
-        # A passkey was verified in the last 5 minutes: the owner approves this one execution on the vault.
-        sent = router.submit(intent, proposal.account, breakout=True)
-        message = (f"Executed with your passkey: ${amount:,.0f} broke the tether once and the vault accepted it."
-                   if sent.status == "submitted" else f"Breakout not executed: {sent.detail}")
-        return ExecuteResponse(mode=card.mode, intent=sent, learned=learned, message=message)
+                                   message=f"{why[0].upper()}{why[1:]}: verify with your passkey (FaceID), then execute again.")
+        # Breaking the tether with a verified passkey: the vault opens its own biometric window (on the local test
+        # chain the owner does it here; on a real network the user's device submits it), and the off-chain tracker
+        # lets this one order past today's radius.
+        # On the live vault the window alone is not enough for the AI's session key: the owner also signs a one-time
+        # approval for this exact execution (router breakout=True → TetherGuardHook.submitSignApproval).
+        open_live_biometric_window(proposal.account)
+        limit = max(limit, router.tether_tracker.get_spent(proposal.account) + amount)
+        intent = intent.model_copy(update={"status": "pending_signature",
+                                           "detail": "tether broken with a verified passkey (FaceID window)"})
 
-    sent = router.submit(intent, proposal.account, limit_usd=proposal.vault.tether_radius_usd)
+    sent = router.submit(intent, proposal.account, limit_usd=limit, breakout=needs_faceid)
     message = {
-        "submitted": f"Executed: ${amount:,.0f} signed with the session key and accepted by the vault.",
+        "submitted": (f"Executed with your passkey: ${amount:,.0f} broke the tether once and the vault accepted it."
+                      if needs_faceid else f"Executed: ${amount:,.0f} signed with the session key and accepted by the vault."),
         "simulated": f"Approved: ${amount:,.0f} routed to the {card.market} market (simulated — no live node configured).",
     }.get(sent.status, f"Not executed: {sent.detail}")
     return ExecuteResponse(mode=card.mode, intent=sent, learned=learned, message=message)

@@ -218,6 +218,16 @@ cd contracts
 forge build --sizes
 ```
 
+### Run the Whole Stack (chain + vault + Brain + website)
+Put your API keys in `agent/.env` (template: `agent/.env.example`), then:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\dev_up.ps1   # Windows  (stop: .\dev_down.ps1)
+```
+```bash
+./dev_up.sh                                              # macOS / Linux  (stop: ./dev_down.sh)
+```
+Dashboard: http://localhost:5500/app.html (also served by the Brain at http://127.0.0.1:8000/app.html).
+
 ### Python Multi-Agent Test Suite
 ```bash
 cd agent

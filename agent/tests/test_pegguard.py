@@ -671,7 +671,8 @@ def test_arbitrage_fastapi_endpoints_toggle_status_assets_and_scan(tmp_path, mon
     body1 = r_scan1.json()
     assert body1["status"] == "scanned"
     assert body1["noted_unprofitable_count"] == 1
-    assert body1["executed_count"] == 1
+    # prices typed into the request are not market data: the authorized wstETH trade is held, never auto-run
+    assert body1["executed_count"] == 0 and body1["held_count"] == 1 and body1["proposal_id"]
     assert "GHO" in body1["active_watermarks"]
 
     # 4. Immediate second scan at the same GHO price (0.9975) skips GHO via watermark!

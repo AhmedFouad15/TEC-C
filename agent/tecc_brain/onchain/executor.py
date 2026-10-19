@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import math
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -622,6 +623,8 @@ class MarketRouter:
         self.arbitrage = arbitrage or PegGuardArbitrageExecutor()
         self.tether_tracker = tether_tracker or CrossChainTetherTracker(daily_limit_usd=daily_limit_usd)
         self.daily_limit_usd = daily_limit_usd
+        # check → submit → record must be atomic, or two concurrent orders can both pass the remaining allowance
+        self._submit_lock = threading.Lock()
 
     def get_executor(self, market: str):
         norm = market.strip().lower().replace(" ", "_").replace("-", "_")
@@ -644,17 +647,25 @@ class MarketRouter:
         breakout: bool = False,
     ) -> ExecutionIntent:
         """`limit_usd`: the account's daily radius when the caller knows it (else the router default).
-        `breakout`: the owner verified a passkey for this execution; it may exceed the radius once (live vault only)."""
+        `breakout`: the owner verified a passkey for this execution; it may exceed the radius once."""
+        with self._submit_lock:
+            return self._submit(intent, account, market, limit_usd, breakout)
+
+    def _submit(
+        self, intent: ExecutionIntent, account: str, market: str | None, limit_usd: float | None, breakout: bool = False
+    ) -> ExecutionIntent:
         m = market or intent.market
         intent = intent.model_copy(update={"market": m})
         limit = self.daily_limit_usd if limit_usd is None else limit_usd
         norm = m.strip().lower()
 
-        if breakout:
-            if norm not in ("crypto", "ethereum", "eth", "sepolia") or not isinstance(self.crypto, ChainExecutor):
-                return intent.model_copy(update={"status": "breakout_required",
-                                                 "detail": "a passkey breakout needs the live Ethereum vault"})
-            return self.crypto.submit(intent, account, breakout=True)  # outside the daily radius by definition
+        if breakout and norm in ("crypto", "ethereum", "eth", "sepolia") and isinstance(self.crypto, ChainExecutor):
+            # live vault: the owner's one-time sign-approval lets the session key break the tether for this execution
+            result = self.crypto.submit(intent, account, breakout=True)
+            if result.status == "submitted":
+                self.tether_tracker.record_spend(account, m, result.amount_usd)
+            return result
+        # other markets (or no live vault): the caller already raised `limit_usd` for this passkey-verified order
 
         # Cross-Chain Tether Radius Check (Aggregated across Ethereum, Arbitrum, FISCO BCOS)
         allowed, reason = self.tether_tracker.check_can_transact(account, intent.amount_usd, limit)

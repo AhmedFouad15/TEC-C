@@ -421,7 +421,23 @@ LOCAL_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1", "testserver"})
 
 
 def allowed_origins() -> list[str]:
-    return os.environ.get("TECC_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    raw = os.environ.get("TECC_CORS_ORIGINS", "")
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    defaults = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "null",
+    ]
+    for d in defaults:
+        if d not in origins:
+            origins.append(d)
+    return origins
 
 
 def _hostname(host_header: str) -> str:
@@ -454,5 +470,18 @@ def require_client(request: Request) -> None:
     if _hostname(request.headers.get("host", "")) not in LOCAL_HOSTNAMES | extra:
         raise HTTPException(403, "unexpected Host header")
     origin = request.headers.get("origin")
-    if origin is not None and origin not in allowed_origins():
+    same_origin = origin == f"{request.url.scheme}://{request.headers.get('host', '')}"
+    is_loopback_origin = False
+    if origin:
+        if origin == "null":
+            is_loopback_origin = True
+        else:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(origin)
+                if parsed.hostname in LOCAL_HOSTNAMES:
+                    is_loopback_origin = True
+            except Exception:
+                pass
+    if origin is not None and not same_origin and not is_loopback_origin and origin not in allowed_origins():
         raise HTTPException(403, "cross-site request refused")

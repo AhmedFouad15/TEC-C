@@ -162,3 +162,25 @@ def test_execute_asks_for_faceid_until_a_passkey_window_is_open(vault_state, mon
     monkeypatch.setattr(biometrics.get_biometric_manager(), "is_biometric_window_active", lambda account: (False, None))
     first = client.post("/api/mandate/execute", json=body).json()
     assert first["intent"]["status"] == "breakout_required" and "FaceID" in first["message"]
+
+
+def test_killswitch_actually_stops_the_session_key_from_executing(vault_state, tmp_path):
+    """Regression (Phase 2 audit): revoking only flipped the hook's authorizedSessionKeys flag, which the account's
+    `execute` never reads, so the Brain kept trading. The killswitch must make a real signed order fail."""
+    from tecc_brain.models import ActionType, CardLabel, ExecutionIntent, usd_to_onchain
+    from tecc_brain.onchain.executor import ChainExecutor, RecordLedger
+
+    market = vault_state
+    client.post("/api/vault/demo/faucet", json={"eth": 0, "usdc": 100})
+    executor = ChainExecutor(Rpc(market.rpc_url), market.deployment, market.session_key, market.mandate,
+                             RecordLedger(tmp_path / "records.json"))
+    order = ExecutionIntent(card_label=CardLabel.BEST, venue_id="aave_v3_usdc", action=ActionType.DEPOSIT,
+                            asset_in="USDC", amount_usd=5.0, amount_onchain=usd_to_onchain(5.0))
+
+    off = client.post("/api/vault/demo/session", json={"authorized": False}).json()
+    assert off["authorized"] is False and off["executor_installed"] is False and off["validator_active"] is False
+    assert executor.submit(order, "demo").status == "failed"  # nothing reaches the chain
+
+    on = client.post("/api/vault/demo/session", json={"authorized": True}).json()
+    assert on["authorized"] is True and on["executor_installed"] and on["validator_active"] and on["hook_authorized"]
+    assert executor.submit(order, "demo").status == "submitted"

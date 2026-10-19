@@ -21,8 +21,8 @@ from tecc_brain.reference import Reference, load_reference
 STATE_FILE = Path(__file__).resolve().parents[2] / ".state" / "contracts.local.json"
 NO_BUNDLER_ENTRYPOINT = "0x000000000000000000000000000000000000dEaD"  # no 4337 bundler: execution uses the executor path
 USDC_DECIMALS = 6
-FUNDED_USDC = 100_000
-FUNDED_ETH_WEI = 10 * 10**18
+FUNDED_USDC = 0
+FUNDED_ETH_WEI = 0
 
 
 class LocalDeployment(BaseModel):
@@ -58,6 +58,7 @@ def deploy_local(
     ref: Reference | None = None,
     deployer_key: bytes | str | None = None,
     fund_eth_wei: int = FUNDED_ETH_WEI,
+    fund_usdc: int = FUNDED_USDC,
 ) -> LocalDeployment:
     """Deploy the suite. On Anvil the node's account 0 signs; on a real network pass `deployer_key` (a funded key,
     which also becomes the root owner) and a small `fund_eth_wei` (or 0 on chains without a native coin)."""
@@ -74,7 +75,8 @@ def deploy_local(
     eth_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(eth_usd), "ETH / USD", key=k)
     usdc_feed = feed.deploy(rpc, owner, 8, usd_to_onchain(1.0), "USDC / USD", key=k)
     usdc = Contract.load("MockERC20").deploy(rpc, owner, "USD Coin", "USDC", USDC_DECIMALS, key=k)
-    usdc.transact(rpc, "mint", account.address, FUNDED_USDC * 10**USDC_DECIMALS, sender=owner, key=k)
+    if fund_usdc > 0:
+        usdc.transact(rpc, "mint", account.address, fund_usdc * 10**USDC_DECIMALS, sender=owner, key=k)
 
     hook.transact(rpc, "setGlobalPriceFeed", NATIVE_ETH, eth_feed.address, sender=owner, key=k)
     hook.transact(rpc, "setGlobalPriceFeed", usdc.address, usdc_feed.address, sender=owner, key=k)

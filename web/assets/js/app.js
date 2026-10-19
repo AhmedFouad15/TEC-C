@@ -45,11 +45,13 @@ const API = (() => {
   const q = new URLSearchParams(location.search).get('api');
   if (q && isLoopbackApi(q)) store.set('tecc_api', new URL(q).origin);
   const saved = store.get('tecc_api');
-  return isLoopbackApi(saved) ? new URL(saved).origin : 'http://127.0.0.1:8000';
+  if (isLoopbackApi(saved)) return new URL(saved).origin;
+  if (isLoopbackApi(location.origin) && location.port === '8000') return location.origin; // served by the Brain itself
+  return 'http://127.0.0.1:8000';
 })();
 const brain = { live: false, checked: false };
 
-async function api(path, { method = 'GET', body, timeout = 15000 } = {}) {
+async function api(path, { method = 'GET', body, timeout = 60000 } = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeout);
   try {
@@ -77,7 +79,7 @@ function setBrainStatus(live, text) {
   brain.live = live; brain.checked = true;
   $('#brain-dot').className = 'dot ' + (live ? 'active' : 'warning');
   $('#top-heartbeat-text').textContent = text;
-  $('#brain-pill').title = live ? `Connected to the Brain at ${API}` : `Brain not reachable at ${API}. Start everything with ./dev_up.sh`;
+  $('#brain-pill').title = live ? `Connected to the Brain at ${API}` : `Brain not reachable at ${API}. Start everything with ./dev_up.sh (or python run_tecc.py)`;
   if (changed) {
     loadRegimes();
     loadProfile();
@@ -93,7 +95,9 @@ function setBrainStatus(live, text) {
 /* =========================================================================================
    Demo presets (used when the Brain is offline)
    ========================================================================================= */
-const ACTIONS = ['Find opportunities', 'Invest', 'Stake', 'Swap', 'Rebalance', 'Reduce risk', 'Exit position', 'Park idle cash'];
+// Only actions the Brain has venues for (data/venues.json: deposit, stake). Swap / Rebalance / Reduce risk / Exit
+// position return when venues for them exist; until then the composer never offers a button that always fails.
+const ACTIONS = ['Find opportunities', 'Invest', 'Stake', 'Park idle cash'];
 const ACTION_PRESETS = {
   'Stake': {
     assets: ['ETH', 'stETH', 'rETH', 'cbETH'], defaultAssets: ['ETH', 'stETH'], market: 'Crypto', network: 'Ethereum L1', pct: 10, tier: 'Tier 2',
@@ -195,8 +199,8 @@ async function loadCatalog() {
     const c = await api('/api/catalog', { timeout: 5000 });
     for (const [id, m] of Object.entries(c.markets || {})) {
       const name = CATALOG_MARKET[id];
-      // the market's own assets stay first (PAXG for commodities); the venues' funding assets are added
-      if (name && Array.isArray(m.assets)) MARKETS[name].assets = [...new Set([...MARKETS[name].assets, ...m.assets.map(String)])];
+      // live: only assets a venue in this market actually accepts (the offline lists include demo-only names)
+      if (name && Array.isArray(m.assets) && m.assets.length) MARKETS[name].assets = [...new Set(m.assets.map(String))];
     }
     selectMarket(state.market, state.network, false);  // re-filter the pills with the live list
   } catch { /* keep the offline lists */ }
@@ -303,6 +307,10 @@ function setSliderPercent(p) {
   $('#slider-thumb').style.left = p + '%';
   $('#slider-tip').textContent = p + '%';
   const d = dollarsForCommand(), use = Math.min(d, tetherLeft());
+  if (state.vault && state.vaultBalance === 0) {
+    $('#slider-caption').innerHTML = `${p}% = $0 · <span style="color:var(--amber)">The vault is empty.</span> <a href="#" onclick="openDepositModal();return false;" style="color:var(--lime);text-decoration:underline">Deposit funds</a> or use the test faucet first.`;
+    updateSlippage(d); updatePrompt(); return;
+  }
   $('#slider-caption').textContent = `${p}% = ${usd(d)} · ${d <= tetherLeft() ? `fits inside the ${usd(tetherLeft())} left in today's radius` : `uses ${usd(use)} of the ${usd(tetherLeft())} left; the rest needs a FaceID breakout`}`;
   updateSlippage(d);
   updatePrompt();
@@ -443,6 +451,7 @@ async function submitCommandToBrain(text) {
   const shown = text || commandText();
   text = text || brainText();
   if (!brain.live) return showToast('The Brain is offline, so nothing was sent. Start it with ./dev_up.sh and try again.');
+  if (state.vault && state.vaultBalance === 0) { showToast('The vault is empty: deposit funds (or use the test faucet) first.'); return openDepositModal(); }
   const btn = $('#submit-btn');
   btn.disabled = true; btn.classList.add('loading');
   const no = nextRequestNo();
@@ -467,8 +476,11 @@ async function submitCommandToBrain(text) {
   } catch (err) {
     savePipeline({ no, text: shown, agents: [{ agent: 'gatekeeper_intake', lines: [`The Brain could not answer: ${err.message}`] }], statuses: ['blocked'], outcome: 'refused', at: Date.now() });
     restorePipeline();
-    showToast(`The Brain could not answer (${err.message}).`);
-    if (err.name === 'AbortError' || err.message === 'Failed to fetch') setBrainStatus(false, 'offline');
+    if (err.message === 'Failed to fetch') { setBrainStatus(false, 'offline'); showToast('The Brain is not reachable: nothing was sent.'); }
+    // the request was sent: something may have executed, so check the vault before sending it again
+    else if (err.name === 'AbortError') showToast('The Brain took longer than 60 s. Check the vault and Morning Review before sending this again.');
+    else showToast(`The Brain refused this request: ${err.message}`);
+    refreshLive();
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
@@ -517,6 +529,7 @@ async function evaluateOptions(shown, no) {
 
 function renderOptions() {
   const o = state.liveOptions;
+  renderBrainReport(o.brain_report);
   $('#source-badge').className = 'badge big badge-live';
   $('#source-badge').textContent = 'Live · injection-proof options';
   $('#opp-request-header').textContent = `“${o.shown}” · sent as ${o.options.length} structured option(s), no free text`;
@@ -623,7 +636,29 @@ function scoreRing(v) {
 }
 function fillRings() { requestAnimationFrame(() => requestAnimationFrame(() => $$('.fg-c').forEach(c => { c.style.strokeDashoffset = c.dataset.off; }))); }
 
+/* The AI Brain's verdict (brain_report): one source of truth for what the AI decided and why */
+const BRAIN_DECISION = {
+  EXECUTE: ['Executes now', 'badge-green'], SPLIT: ['Split across options', 'badge-green'], PROPOSE: ['Needs your approval', 'badge-blue'],
+  REJECT: ['Nothing runs automatically', 'badge-red'], HOLD: ['HOLD · AI unavailable', 'badge-amber'],
+};
+function renderBrainReport(report) {
+  const box = $('#brain-verdict');
+  if (!box) return;
+  if (!report) { box.innerHTML = ''; return; }
+  const [dt, dc] = BRAIN_DECISION[report.decision] || [report.decision, 'badge-blue'];
+  const byAi = report.producer === 'llm';
+  box.innerHTML = `<div class="card glass">
+    <div class="card-title"><span>AI Brain verdict</span>
+      <span><span class="badge ${dc}">${esc(dt)}</span>
+      <span class="badge ${byAi ? 'badge-live' : 'badge-blue'}" title="${byAi ? 'Decided by the AI model, validated tighten-only' : 'Deterministic rules (no model configured, or the model answer was not used)'}">${byAi ? 'AI model' : 'Rules engine'}</span></span></div>
+    <p>${esc(report.user_explanation)}</p>
+    ${report.reason_codes?.length ? `<div class="mini-badges">${report.reason_codes.map(x => `<span class="badge">${esc(x.replace(/_/g, ' ').toLowerCase())}</span>`).join('')}</div>` : ''}
+    ${report.fallback_reason ? `<p class="caption">Model answer not used: ${esc(report.fallback_reason)}. The ${report.decision === 'HOLD' ? 'order is on HOLD' : 'rules decided'}.</p>` : ''}
+    ${report.vetoes_honored?.length ? `<p class="caption">${report.vetoes_honored.length} hard veto(es) honoured.</p>` : ''}
+  </div>`;
+}
 function renderLive(res, text) {
+  renderBrainReport(res.brain_report);
   const d = res.decision;
   $('#source-badge').className = 'badge big badge-live';
   $('#source-badge').textContent = 'Live from the Brain';
@@ -705,6 +740,7 @@ $('#candidates-container').addEventListener('click', e => {
    Opportunities — before any command
    ========================================================================================= */
 function renderOpportunities() {
+  renderBrainReport(null);
   $('#source-badge').className = 'badge big badge-blue';
   $('#source-badge').textContent = brain.live ? 'Waiting for a command' : 'Brain offline';
   $('#opp-request-header').textContent = 'Nothing rated yet. Ask the Brain or submit a command from Home.';
@@ -816,11 +852,16 @@ function renderVaultNumbers() {
   const v = state.vault;
   if (!v) {
     $('#top-vault-val').textContent = '—'; $('#portfolio-total-val').textContent = '—';
+    $('#top-wallet-text').textContent = 'offline'; $('#top-network-text').textContent = '—';
     refreshTether(); return;
   }
   state.tetherTotal = v.policy.radius_usd; state.tetherUsed = v.policy.spent_today_usd; state.tetherRemaining = v.policy.remaining_usd;
   state.streak = v.policy.ratification_streak || 0;
   setVault(v.total_usd);
+  const owner = v.owner_wallet?.address || v.root_owner || '';
+  $('#top-wallet-text').textContent = owner ? owner.slice(0, 6) + '…' + owner.slice(-4) : '—';
+  $('#wallet-pill').title = `Owner (your laptop's EOA): ${owner}\nSmart account vault: ${v.deposit_address}\nAI session key: ${v.session_key?.address || '—'}`;
+  $('#top-network-text').textContent = `${NETWORK_NAME[v.network] || v.network || 'chain'} (${v.chain_id})`;
   // the Brain's passkey window is what lets a breakout or withdrawal through, so the chip follows it
   api('/api/biometrics/status/demo').then(s => setBiometric(!!s.biometric_window_active)).catch(() => setBiometric(false));
   refreshTether();
@@ -1037,7 +1078,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape') $$('.modal-overlay.ac
 
 /* Deposit: the vault's real address (and QR) from the Brain's /api/vault/{account}; the user transfers to it */
 let vaultInfo = null;
-const NETWORK_NAME = { anvil: 'Local test chain (Anvil)', sepolia: 'Ethereum Sepolia', arbitrum: 'Arbitrum', fisco: 'FISCO BCOS' };
+const NETWORK_NAME = { anvil: 'Local Anvil', sepolia: 'Ethereum Sepolia', arbitrum: 'Arbitrum Sepolia', fisco_bcos: 'FISCO BCOS Testnet', fisco: 'FISCO BCOS' };
 async function loadVault() {
   if (!brain.live) { vaultInfo = null; return null; }
   try { vaultInfo = await api('/api/vault/demo', { timeout: 6000 }); } catch { vaultInfo = null; }
