@@ -6,3 +6,4 @@ eth-account==0.14.0
 eth-abi==5.2.0
 apscheduler==3.11.3
 httpx==0.28.1
+qrcode==8.0  # real, scannable QR codes (vault deposit address, phone pairing)
