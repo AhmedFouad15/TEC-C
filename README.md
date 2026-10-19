@@ -1,6 +1,8 @@
 # Tec-C (Tethered Expense Corporate Card)
 ### Autonomous On-Chain Agent Wallet with Mathematical Security Invariants
 
+[![CI](https://github.com/AhmedFouad15/TEC-C/actions/workflows/ci.yml/badge.svg)](https://github.com/AhmedFouad15/TEC-C/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-tec--c.xyz-10b981?logo=vercel)](https://www.tec-c.xyz)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
 [![Foundry](https://img.shields.io/badge/Foundry-170%2F170%20Passing-brightgreen?logo=ethereum)](https://getfoundry.sh/)
 [![Python Brain](https://img.shields.io/badge/Python%20Brain-660%20Tests-blue?logo=python)](https://fastapi.tiangolo.com/)
@@ -15,6 +17,8 @@
 - **Competition:** Shenzhen International FinTech Competition (FinTechathon 2026) — International Track
 - **Topic:** **Topic F — Agent Wallet (Autonomous On-Chain Wallet)**
 - **Co-Hosts:** **Tsinghua University PBCSF** & **WeBank**
+- **Live Production App:** [`https://www.tec-c.xyz`](https://www.tec-c.xyz)
+- **Command Center:** [`https://www.tec-c.xyz/app.html#home`](https://www.tec-c.xyz/app.html#home)
 - **Repository:** [`https://github.com/AhmedFouad15/TEC-C`](https://github.com/AhmedFouad15/TEC-C)
 
 ---
