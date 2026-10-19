@@ -501,7 +501,7 @@ def require_client(request: Request) -> None:
             try:
                 from urllib.parse import urlparse
                 parsed = urlparse(origin)
-                if parsed.hostname in LOCAL_HOSTNAMES:
+                if parsed.hostname in LOCAL_HOSTNAMES and (parsed.port in (8000, 3000, 5500, None) or origin in allowed_origins()):
                     is_loopback_origin = True
             except Exception:
                 pass

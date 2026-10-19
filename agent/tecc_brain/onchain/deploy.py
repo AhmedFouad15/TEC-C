@@ -21,8 +21,8 @@ from tecc_brain.reference import Reference, load_reference
 STATE_FILE = Path(__file__).resolve().parents[2] / ".state" / "contracts.local.json"
 NO_BUNDLER_ENTRYPOINT = "0x000000000000000000000000000000000000dEaD"  # no 4337 bundler: execution uses the executor path
 USDC_DECIMALS = 6
-FUNDED_USDC = 0
-FUNDED_ETH_WEI = 0
+FUNDED_USDC = 100_000
+FUNDED_ETH_WEI = 10 * 10**18
 
 
 class LocalDeployment(BaseModel):
@@ -66,8 +66,12 @@ def deploy_local(
     owner = Account.from_key(deployer_key).address if deployer_key is not None else rpc.call("eth_accounts")[0]
     k = deployer_key
 
+    print("  Deploying PortfolioValuator...", flush=True)
+    valuator = Contract.load("PortfolioValuator").deploy(rpc, owner, key=k)
+    print(f"  PortfolioValuator: {valuator.address}", flush=True)
+
     print("  Deploying TetherGuardHook...", flush=True)
-    hook = Contract.load("TetherGuardHook").deploy(rpc, owner, key=k)
+    hook = Contract.load("TetherGuardHook").deploy(rpc, owner, valuator.address, key=k)
     print(f"  TetherGuardHook: {hook.address}", flush=True)
 
     print("  Deploying SessionKeyValidator...", flush=True)

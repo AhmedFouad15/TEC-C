@@ -98,7 +98,10 @@ class Rpc:
         block = self.call("eth_getBlockByNumber", ["latest", False]) or {}
         if block.get("baseFeePerGas") is not None:
             base_fee = int(block["baseFeePerGas"], 16)
-            chain_id = self.chain_id()
+            try:
+                chain_id = self.chain_id()
+            except Exception:
+                chain_id = 0
             if chain_id == 11155111:  # Ethereum Sepolia: ensure >= 1.5 gwei priority fee for swift block inclusion
                 priority_fee = max(gas_price, 1_500_000_000)
                 max_fee = max(base_fee * 2 + priority_fee, 3_000_000_000)
