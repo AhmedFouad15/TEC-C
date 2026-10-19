@@ -30,6 +30,8 @@ agent/.state/
 .state/
 agent/.tecc_data/
 agent/var/
+*.sqlite3
+*.db
 __pycache__/
 .pytest_cache/
 *.egg-info/

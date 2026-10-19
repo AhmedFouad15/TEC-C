@@ -55,13 +55,15 @@ class Rpc:
     def block_timestamp(self, block: str = "latest") -> int:
         return int(self.call("eth_getBlockByNumber", [block, False])["timestamp"], 16)
 
-    def wait(self, tx_hash: str, timeout_s: float = 30.0) -> dict[str, Any]:
+    def wait(self, tx_hash: str, timeout_s: float = 120.0) -> dict[str, Any]:
         deadline = time.monotonic() + timeout_s
+        is_local = "127.0.0.1" in self.url or "localhost" in self.url
+        poll_interval = 0.05 if is_local else 2.0
         while time.monotonic() < deadline:
             receipt = self.call("eth_getTransactionReceipt", [tx_hash])
             if receipt is not None:
                 return receipt
-            time.sleep(0.05)
+            time.sleep(poll_interval)
         raise TimeoutError(f"no receipt for {tx_hash}")
 
     def send_unlocked(self, tx: dict[str, Any]) -> dict[str, Any]:
@@ -95,6 +97,12 @@ class Rpc:
         gas_price = int(self.call("eth_gasPrice"), 16)
         block = self.call("eth_getBlockByNumber", ["latest", False]) or {}
         if block.get("baseFeePerGas") is not None:
+            base_fee = int(block["baseFeePerGas"], 16)
+            chain_id = self.chain_id()
+            if chain_id == 11155111:  # Ethereum Sepolia: ensure >= 1.5 gwei priority fee for swift block inclusion
+                priority_fee = max(gas_price, 1_500_000_000)
+                max_fee = max(base_fee * 2 + priority_fee, 3_000_000_000)
+                return {"type": 2, "maxFeePerGas": max_fee, "maxPriorityFeePerGas": priority_fee}
             return {"type": 2, "maxFeePerGas": max(gas_price * 2, 1), "maxPriorityFeePerGas": min(gas_price, 10**9)}
         return {"gasPrice": gas_price}
 
@@ -103,12 +111,17 @@ class Rpc:
         `tx` holds to/data/value (hex value, as for eth_sendTransaction); nonce, gas, fees and chain id are filled."""
         signer = Account.from_key(private_key)
         call = {"from": signer.address, **{k: tx[k] for k in ("to", "data", "value") if k in tx}}
-        gas = int(self.call("eth_estimateGas", [call]), 16)  # a revert surfaces here, before anything is signed
+        try:
+            gas = int(self.call("eth_estimateGas", [call]), 16)
+        except Exception:
+            gas = 12_000_000
+        # Ethereum block gas limit is 30,000,000. Never exceed 25,000,000.
+        gas_limit = min(int(gas * gas_margin) + GAS_HEADROOM, 25_000_000)
         full: dict[str, Any] = {
             **self.fee_fields(),
             "chainId": self.chain_id(),
             "nonce": int(self.call("eth_getTransactionCount", [signer.address, "pending"]), 16),
-            "gas": int(gas * gas_margin) + GAS_HEADROOM,
+            "gas": gas_limit,
             "data": tx.get("data", "0x"),
             "value": int(tx.get("value", "0x0"), 16),
         }

@@ -45,8 +45,22 @@ def deploy(args: argparse.Namespace) -> None:
         from tecc_brain.onchain.fisco_node import ensure_fisco_node_running
         ensure_fisco_node_running(args.rpc or "http://127.0.0.1:8555")
 
+    env_file = Path(__file__).resolve().parents[1] / ".env"
+    if not args.rpc and env_file.exists():
+        var_name = RPC_ENV.get(args.network)
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            if var_name and line.strip().startswith(f"{var_name}="):
+                val = line.split("=", 1)[1].strip().strip("'\"")
+                if val and not val.startswith("your_"):
+                    args.rpc = val
+                    break
+
     rpc_url = args.rpc or os.environ.get(RPC_ENV[args.network]) or (
-        "http://127.0.0.1:8545" if args.network == "anvil" else ("http://127.0.0.1:8555" if args.network == "fisco_bcos" else None)
+        "http://127.0.0.1:8545" if args.network == "anvil" else (
+            "https://ethereum-sepolia-rpc.publicnode.com" if args.network == "sepolia" else (
+                "http://127.0.0.1:8555" if args.network == "fisco_bcos" else None
+            )
+        )
     )
     if not rpc_url:
         sys.exit(f"pass --rpc or set {RPC_ENV[args.network]}")
@@ -79,7 +93,7 @@ def deploy(args: argparse.Namespace) -> None:
     print(f"[{args.network}] chain id {chain_id}, deployer/root owner {owner}")
 
     native = not args.no_native_coin
-    fund_usdc = args.fund_usdc if args.fund_usdc is not None else (100_000 if local else 0)
+    fund_usdc = args.fund_usdc if args.fund_usdc is not None else (100_000 if local else 10_000)
     dep = deploy_local(
         rpc, eth_usd=args.eth_usd, radius_usd=args.radius, ceiling_usd=args.ceiling, tier=args.tier,
         deployer_key=key, fund_eth_wei=eth(args.fund_account_eth) if (native or local) else 0,
@@ -96,6 +110,23 @@ def deploy(args: argparse.Namespace) -> None:
     provision_session_key(rpc, dep, mandate, fund_wei=eth(args.fund_session_eth) if (native or local) else 0, owner_key=key)
     path = save_market(MarketFile(network=args.network, rpc_url=rpc_url, deployment=dep, mandate=mandate,
                                   session_key="0x" + bytes(session.key).hex()))
+    if args.network == "sepolia":
+        shared_sepolia = Path(__file__).resolve().parents[2] / "shared" / "contracts.sepolia.json"
+        if shared_sepolia.exists():
+            try:
+                import json
+                sdata = json.loads(shared_sepolia.read_text(encoding="utf-8"))
+                sdata["deployedAddresses"]["TetherGuardHook"] = dep.hook
+                sdata["deployedAddresses"]["SessionKeyValidator"] = dep.validator
+                sdata["deployedAddresses"]["TecAccount"] = dep.account
+                sdata["deployedAddresses"]["USDC"] = dep.usdc
+                sdata["deployedAddresses"]["ETHUSDFeed"] = dep.eth_feed
+                sdata["deployedAddresses"]["USDCUSDFeed"] = dep.usdc_feed
+                sdata["venues"] = dep.venues
+                shared_sepolia.write_text(json.dumps(sdata, indent=2), encoding="utf-8")
+                print(f"  updated             {shared_sepolia}")
+            except Exception as e:
+                print(f"  warning: could not update {shared_sepolia}: {e}")
     print(f"  TecAccount          {dep.account}")
     print(f"  TetherGuardHook     {dep.hook}")
     print(f"  SessionKeyValidator {dep.validator}")
