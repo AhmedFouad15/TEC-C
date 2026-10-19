@@ -57,13 +57,13 @@ app.include_router(virtual_session_admin_router, dependencies=[Depends(require_c
 from pathlib import Path
 from fastapi.responses import HTMLResponse
 
-FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
-    """Serves the interactive demo frontend for the Tec-C Agent Wallet."""
-    index_file = FRONTEND_DIR / "index.html"
+    """Serves the interactive web UI for the Tec-C Agent Wallet."""
+    index_file = WEB_DIR / "index.html"
     if index_file.exists():
         return HTMLResponse(index_file.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>Tec-C Brain API</h1>")
