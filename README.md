@@ -248,7 +248,7 @@ cd agent
 
 #### To Launch Everything:
 
-Open PowerShell in the project directory (`C:\Users\Ahmed\OneDrive\Desktop\china`) and run [`dev_up.ps1`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/dev_up.ps1):
+Open PowerShell in the project root directory and run [`dev_up.ps1`](./dev_up.ps1):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\dev_up.ps1
@@ -262,7 +262,7 @@ powershell -ExecutionPolicy Bypass -File .\dev_up.ps1
 
 #### To Stop Everything:
 
-Run [`dev_down.ps1`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/dev_down.ps1):
+Run [`dev_down.ps1`](./dev_down.ps1):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\dev_down.ps1
