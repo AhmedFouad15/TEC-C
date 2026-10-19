@@ -85,3 +85,4 @@ Caching is safe across updates because each page loads its CSS/JS with a version
 - [ ] Hovering **Credits** in the footer shows the photo credits
 - [ ] **Get started** goes to the GitHub repo (no Brain on the public site)
 - [ ] `https://your-domain.com/app.html` opens the Command Center in demo mode
+- [x] Auto-deployment verified on Vercel
