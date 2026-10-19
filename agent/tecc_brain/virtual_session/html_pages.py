@@ -711,8 +711,14 @@ def render_phone_ui_html(session: dict[str, Any]) -> str:
 
           <button id="btnBio" class="btn btn-primary" onclick="registerBiometric()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 0-10 10v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-4a6 6 0 1 1 12 0v4a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2a10 10 0 0 0-10-10z"/><circle cx="9" cy="11" r="1"/><circle cx="15" cy="11" r="1"/></svg>
-            <span>Authenticate with Face ID / Fingerprint</span>
+            <span>Authenticate with Face ID</span>
           </button>
+
+          <div class="faceid" id="phoneFaceId" style="display: none; margin: 16px auto;">
+            <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg>
+            <span class="scanline"></span>
+          </div>
+          <div id="phoneFaceIdStatus" style="display: none; text-align: center; color: var(--lime); font-size: 13px; font-weight: 600; margin-bottom: 12px;">Scanning Face ID… look at your camera</div>
 
           <div class="divider"><span>OR AUTHENTICATE WITH PIN</span></div>
 
@@ -785,6 +791,13 @@ def render_phone_ui_html(session: dict[str, Any]) -> str:
     }}
 
     async function registerBiometric() {{
+      const faceBox = document.getElementById('phoneFaceId');
+      const statusEl = document.getElementById('phoneFaceIdStatus');
+      const btnBio = document.getElementById('btnBio');
+      if (faceBox) {{ faceBox.style.display = 'grid'; faceBox.classList.remove('ok'); }}
+      if (statusEl) {{ statusEl.style.display = 'block'; statusEl.textContent = 'Scanning Face ID… look at your camera'; }}
+      if (btnBio) btnBio.style.display = 'none';
+
       try {{
         const optRes = await fetch('/webauthn/register/options', {{
           method: 'POST',
@@ -814,9 +827,15 @@ def render_phone_ui_html(session: dict[str, Any]) -> str:
           body: JSON.stringify(regPayload)
         }});
         if (!vRes.ok) throw new Error('Passkey registration failed');
+        if (faceBox) faceBox.classList.add('ok');
+        if (statusEl) statusEl.textContent = 'Face ID verified!';
+        await new Promise(r => setTimeout(r, 400));
         renderAwaitingApproval();
       }} catch (err) {{
-        renderPairing('Biometric prompt cancelled or unavailable on this device. You can enter your Security PIN or the 6-digit code above to authenticate.');
+        if (faceBox) faceBox.style.display = 'none';
+        if (statusEl) statusEl.style.display = 'none';
+        if (btnBio) btnBio.style.display = 'flex';
+        renderPairing('Face ID prompt cancelled or unavailable on this device. You can enter your Security PIN or the 6-digit code above to authenticate.');
       }}
     }}
 
