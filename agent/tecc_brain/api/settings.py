@@ -68,3 +68,34 @@ def get_settings() -> SettingsView:
 def set_x_search(req: XSearchUpdate) -> XSearchSetting:
     grok.set_x_search(req.enabled)
     return _x_search()
+
+
+class PinStatus(BaseModel):
+    configured: bool
+    configured_at: float | None = None
+    last_used_at: float | None = None
+
+
+class PinUpdate(BaseModel):
+    pin: str = Field(min_length=4, max_length=32, description="4 to 32 digit/character security PIN")
+
+
+@router.get("/pin", response_model=PinStatus)
+def get_pin_status() -> PinStatus:
+    from tecc_brain.security_pin import get_pin_info
+    return PinStatus(**get_pin_info())
+
+
+@router.post("/pin", response_model=PinStatus)
+def update_pin(req: PinUpdate) -> PinStatus:
+    from tecc_brain.security_pin import get_pin_info, set_pin
+    set_pin(req.pin)
+    return PinStatus(**get_pin_info())
+
+
+@router.delete("/pin")
+def delete_pin() -> dict[str, str]:
+    from tecc_brain.security_pin import remove_pin
+    remove_pin()
+    return {"status": "ok"}
+

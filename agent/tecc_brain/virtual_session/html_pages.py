@@ -529,16 +529,62 @@ def render_phone_ui_html(session: dict[str, Any]) -> str:
       connectWebSocket();
     }}
 
-    function renderPairing() {{
+    function renderPairing(hint) {{
       const area = document.getElementById('contentArea');
+      const hintHtml = hint
+        ? '<div id="pinHint" style="font-size: 13px; color: #fbbf24; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 10px; margin-top: 12px; text-align: center;">' + hint + '</div>'
+        : '<div id="pinHint" style="font-size: 12px; color: var(--text-muted); margin-top: 10px; text-align: center;">Enter your Security PIN (set in Settings) or the 6-digit code above.</div>';
+
       area.innerHTML = `
         <div class="card">
           <div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">Pair with Laptop</div>
           <div style="font-size: 14px; color: var(--text-muted);">Confirm this 6-digit code matches the code on your laptop screen:</div>
           <div class="code-box">${{session.pair_code}}</div>
-          <button class="btn btn-primary" onclick="registerBiometric()">Authenticate with Face ID / Fingerprint</button>
+
+          <button id="btnBio" class="btn btn-primary" onclick="registerBiometric()">Authenticate with Face ID / Fingerprint</button>
+
+          <div style="text-align: center; margin: 18px 0 12px; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px;">
+            — Or authenticate with PIN —
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <input type="password" id="pinInput" maxlength="16" inputmode="numeric" placeholder="Enter PIN or pairing code"
+              style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--card-border); background: #1e293b; color: #fff; font-size: 16px; text-align: center; letter-spacing: 4px;"
+              onkeydown="if(event.key==='Enter') authenticateWithPin()">
+            <button class="btn btn-primary" style="width: auto; padding: 12px 20px;" onclick="authenticateWithPin()">Verify</button>
+          </div>
+          ` + hintHtml + `
         </div>
       `;
+    }}
+
+    async function authenticateWithPin() {{
+      const pin = (document.getElementById('pinInput')?.value || '').trim();
+      const hint = document.getElementById('pinHint');
+      if (!pin) {{
+        if (hint) {{
+          hint.style.color = '#f87171';
+          hint.textContent = 'Please enter your Security PIN or the 6-digit pairing code.';
+        }}
+        return;
+      }}
+      try {{
+        const res = await fetch('/webauthn/pin/verify', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ session_id: session.id, pin: pin }})
+        }});
+        const data = await res.json().catch(() => ({{}}));
+        if (!res.ok) throw new Error(data.detail || 'PIN verification failed');
+        renderAwaitingApproval();
+      }} catch (err) {{
+        if (hint) {{
+          hint.style.color = '#f87171';
+          hint.textContent = err.message;
+        }} else {{
+          alert(err.message);
+        }}
+      }}
     }}
 
     function renderAwaitingApproval() {{
@@ -547,7 +593,7 @@ def render_phone_ui_html(session: dict[str, Any]) -> str:
         <div class="card" style="text-align: center;">
           <div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">Waiting for Laptop Approval</div>
           <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 16px;">
-            Biometric credentials registered! Click <strong>Approve</strong> on your laptop to complete setup.
+            Credentials registered! Click <strong>Approve</strong> on your laptop to complete setup.
           </div>
           <div class="code-box">${{session.pair_code}}</div>
         </div>
@@ -596,7 +642,7 @@ def render_phone_ui_html(session: dict[str, Any]) -> str:
         if (!vRes.ok) throw new Error('Passkey registration failed');
         renderAwaitingApproval();
       }} catch (err) {{
-        alert('Biometric registration error: ' + err.message);
+        renderPairing('Biometric prompt cancelled or device PIN missing. You can enter your Security PIN or the 6-digit code above to authenticate.');
       }}
     }}
 

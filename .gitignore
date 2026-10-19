@@ -30,6 +30,7 @@ just to enhance/
 # Tec-C Brain (agent)
 agent/.venv/
 agent/.state/
+.state/
 agent/.tecc_data/
 agent/var/
 __pycache__/

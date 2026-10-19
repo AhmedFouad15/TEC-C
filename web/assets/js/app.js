@@ -120,6 +120,7 @@ function setBrainStatus(live, text) {
     loadPegGuard();
     refreshLive();
     loadSessions();
+    loadSecurityStatus();
     maybeShowQuizBanner();
     if (live) showToast('Brain connected: commands now run through the real pipeline.');
   }
@@ -282,6 +283,7 @@ function switchTab(tab) {
   if (tab === 'portfolio') drawTrend();
   if (tab === 'virtual-session') loadSessions();
   if (tab === 'review') { refreshLive(); }
+  if (tab === 'settings') loadSecurityStatus();
 }
 $$('.nav-item').forEach(n => n.addEventListener('click', e => { e.preventDefault(); switchTab(n.dataset.tab); }));
 addEventListener('hashchange', () => switchTab(location.hash.slice(1)));
@@ -1137,6 +1139,96 @@ async function passkeyUnlock(reason = 'Confirm with your passkey') {
     if (err?.name === 'NotAllowedError') showToast('Passkey cancelled.');
     else showToast(`Passkey failed: ${err.message}`);
     return false;
+  }
+}
+
+/* =========================================================================================
+   System Authenticator & Security PIN (Settings)
+   ========================================================================================= */
+async function loadSecurityStatus() {
+  const pk = savedPasskey();
+  const bioBadge = $('#bio-enrolled-badge');
+  if (bioBadge) {
+    if (pk) {
+      bioBadge.textContent = 'Enrolled (' + (pk.label || 'Passkey') + ')';
+      bioBadge.className = 'badge badge-green';
+    } else {
+      bioBadge.textContent = 'Not enrolled';
+      bioBadge.className = 'badge';
+    }
+  }
+
+  const pinBadge = $('#pin-status-badge');
+  const btnSet = $('#btn-set-pin');
+  const btnRemove = $('#btn-remove-pin');
+  const desc = $('#pin-status-desc');
+  if (!brain.live) {
+    if (pinBadge) { pinBadge.textContent = 'Brain offline'; pinBadge.className = 'badge'; }
+    return;
+  }
+
+  try {
+    const pinInfo = await api('/api/settings/pin');
+    if (pinInfo && pinInfo.configured) {
+      if (pinBadge) { pinBadge.textContent = 'Active'; pinBadge.className = 'badge badge-green'; }
+      if (btnSet) btnSet.textContent = 'Change PIN';
+      if (btnRemove) btnRemove.style.display = 'inline-flex';
+      const dt = pinInfo.configured_at ? new Date(pinInfo.configured_at * 1000).toLocaleDateString() : '';
+      if (desc) desc.textContent = 'Configured' + (dt ? ' on ' + dt : '') + '. Active for phone sessions & breakouts.';
+    } else {
+      if (pinBadge) { pinBadge.textContent = 'Not set'; pinBadge.className = 'badge badge-amber'; }
+      if (btnSet) btnSet.textContent = 'Create Security PIN';
+      if (btnRemove) btnRemove.style.display = 'none';
+      if (desc) desc.textContent = 'Instant fallback when remote devices do not have Windows Hello / phone PIN configured.';
+    }
+  } catch (e) {
+    if (pinBadge) { pinBadge.textContent = 'Offline'; pinBadge.className = 'badge'; }
+  }
+}
+
+function openPinModal() {
+  $('#input-new-pin').value = '';
+  $('#input-confirm-pin').value = '';
+  openModal('modal-pin');
+}
+
+async function saveSecurityPin() {
+  const p1 = $('#input-new-pin').value.trim();
+  const p2 = $('#input-confirm-pin').value.trim();
+  if (p1.length < 4) return showToast('PIN must be at least 4 characters/digits.');
+  if (p1 !== p2) return showToast('PIN confirmation does not match.');
+  try {
+    await api('/api/settings/pin', { method: 'POST', body: { pin: p1 } });
+    closeModal('modal-pin');
+    showToast('Security PIN saved successfully! Mobile sessions can now use this PIN.');
+    loadSecurityStatus();
+  } catch (err) {
+    showToast(`Could not save PIN: ${err.message}`);
+  }
+}
+
+async function removeSecurityPin() {
+  if (!confirm('Remove system security PIN? Remote devices without OS biometrics will need to use pairing codes.')) return;
+  try {
+    await api('/api/settings/pin', { method: 'DELETE' });
+    showToast('Security PIN removed.');
+    loadSecurityStatus();
+  } catch (err) {
+    showToast(`Could not remove PIN: ${err.message}`);
+  }
+}
+
+async function enrollDevicePasskey() {
+  if (!brain.live) return showToast('Start the Brain before enrolling passkeys.');
+  try {
+    showToast('Triggering device biometric enrollment (FaceID / Fingerprint)…');
+    const pk = await registerPasskey();
+    await ensureRegistered(pk);
+    showToast('FaceID / Fingerprint enrolled and registered successfully!');
+    loadSecurityStatus();
+  } catch (err) {
+    if (err?.name === 'NotAllowedError') showToast('Biometric enrollment cancelled.');
+    else showToast(`Enrollment failed: ${err.message}`);
   }
 }
 

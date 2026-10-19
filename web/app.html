@@ -492,12 +492,65 @@
           <div class="note-line">λ is loss aversion, τ is the trust the Brain has earned from your reviews. Both move only through feedback, never through a note's wording.</div>
         </div>
       </div>
+
+      <div class="card glass" style="margin-top: 20px;">
+        <div class="card-title">
+          <span>System <em>Authenticator</em> &amp; Hardware Security</span>
+          <span class="badge badge-blue" id="auth-status-badge">PIN &amp; Biometrics</span>
+        </div>
+        <p class="caption">Configure FaceID / TouchID passkeys and your backup Security PIN. These credentials authenticate remote phone sessions, external withdrawals, and leash breakouts.</p>
+
+        <div class="grid-2" style="margin-top: 16px;">
+          <div style="background: rgba(255,255,255,0.03); padding: 18px; border-radius: 12px; border: 1px solid var(--glass-line);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <b>FaceID / Fingerprint (WebAuthn)</b>
+              <span class="badge" id="bio-enrolled-badge">Not enrolled</span>
+            </div>
+            <div class="caption" style="margin-bottom: 14px;">Cryptographic NIST P-256 passkey bound to this device's hardware enclave.</div>
+            <div class="row-wrap">
+              <button class="pill-btn strong" id="btn-enroll-bio" onclick="enrollDevicePasskey()">Enroll FaceID / Fingerprint</button>
+              <button class="pill-btn" onclick="toggleBiometricWindow()">Test 5m window</button>
+            </div>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.03); padding: 18px; border-radius: 12px; border: 1px solid var(--glass-line);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <b>Security PIN Authenticator</b>
+              <span class="badge" id="pin-status-badge">Not configured</span>
+            </div>
+            <div class="caption" id="pin-status-desc" style="margin-bottom: 14px;">Instant fallback when remote devices do not have Windows Hello / phone PIN configured.</div>
+            <div class="row-wrap">
+              <button class="pill-btn strong" id="btn-set-pin" onclick="openPinModal()">Create Security PIN</button>
+              <button class="pill-btn danger" id="btn-remove-pin" onclick="removeSecurityPin()" style="display: none;">Remove PIN</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
 
   </main>
 
   <!-- ================= MODALS ================= -->
+  <div class="modal-overlay" id="modal-pin">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">System <em>Security PIN</em></div><button class="modal-close" onclick="closeModal('modal-pin')">×</button></div>
+      <p class="caption">Set a 4 to 12 digit Security PIN. This PIN allows mobile devices to pair instantly with virtual sessions even if they don't have device-level biometrics or PIN configured.</p>
+      <label class="field">
+        <span class="section-label">Enter Security PIN</span>
+        <input type="password" id="input-new-pin" maxlength="12" inputmode="numeric" placeholder="e.g. 123456" autocomplete="new-password">
+      </label>
+      <label class="field">
+        <span class="section-label">Confirm Security PIN</span>
+        <input type="password" id="input-confirm-pin" maxlength="12" inputmode="numeric" placeholder="Repeat PIN" autocomplete="new-password">
+      </label>
+      <div class="row-wrap" style="margin-top: 16px;">
+        <button class="btn-primary grow" onclick="saveSecurityPin()"><span>Save Security PIN</span><span class="btn-shine"></span></button>
+        <button class="pill-btn" onclick="closeModal('modal-pin')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="modal-deposit">
     <div class="modal">
       <div class="modal-head"><div class="modal-title">Deposit to your <em>vault</em></div><button class="modal-close" onclick="closeModal('modal-deposit')">×</button></div>

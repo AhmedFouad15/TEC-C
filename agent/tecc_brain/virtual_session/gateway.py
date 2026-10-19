@@ -127,6 +127,17 @@ class TradeExecuteReq(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class PinVerifyReq(BaseModel):
+    session_id: str
+    pin: str
+
+
+class PinStepupReq(BaseModel):
+    action: str
+    pin: str
+    params: dict[str, Any] | None = None
+
+
 def gateway_account() -> str:
     """The wallet this laptop serves. One owner per machine: the phone acts for that account only."""
     return os.environ.get("TECC_VIRTUAL_SESSION_ACCOUNT", "demo")
@@ -330,6 +341,89 @@ def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Session not found")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/webauthn/pin/verify")
+    def pin_verify(req: PinVerifyReq, request: Request, response: Response) -> dict[str, Any]:
+        """POST /webauthn/pin/verify: Fallback system PIN authentication when device biometric/PIN setup is missing."""
+        from tecc_brain.biometrics.passkey import generate_p256_keypair
+        from tecc_brain.security_pin import is_pin_configured, verify_pin
+
+        svc = _get_service()
+        sess = svc.db.get_session(req.session_id)
+        if not sess:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if sess["state"] != "PENDING":
+            raise HTTPException(status_code=400, detail=f"Cannot register in state '{sess['state']}'")
+
+        ip, country = _client_ip_country(request)
+        _check_rate_limit(f"{req.session_id}:{ip}")
+
+        # Check against system security PIN, or allow the 6-digit pair code shown on screen
+        pin_valid = verify_pin(req.pin) or (sess.get("pair_code") and req.pin.strip() == str(sess.get("pair_code")).strip())
+        if not pin_valid:
+            if not is_pin_configured():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Security PIN is not set yet. Configure it in Command Center > Safety / Settings, or enter the 6-digit pairing code shown on screen.",
+                )
+            raise HTTPException(status_code=401, detail="Invalid Security PIN")
+
+        # Generate internal passkey coordinates for this paired session
+        _, qx_val, qy_val = generate_p256_keypair()
+        cred_id = f"pin-{req.session_id[:16]}".encode("utf-8")
+
+        updated_sess = svc.db.store_credential(
+            session_id=req.session_id,
+            credential_id=cred_id,
+            qx=qx_val,
+            qy=qy_val,
+            sign_count=1,
+            transports=["internal", "pin"],
+            user_agent=request.headers.get("user-agent"),
+            ip=ip,
+            country=country,
+        )
+        cookie_token = svc.db.issue_cookie(req.session_id)
+        response.set_cookie(
+            key=COOKIE_NAME,
+            value=cookie_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            path="/",
+        )
+        return {
+            "status": "ok",
+            "state": updated_sess["state"],
+            "cookie_issued": True,
+            "session_id": req.session_id,
+        }
+
+    @app.post("/webauthn/pin/stepup")
+    def pin_stepup(
+        req: PinStepupReq,
+        request: Request,
+        sess: dict[str, Any] = Depends(require_active_session_cookie),
+    ) -> dict[str, Any]:
+        """POST /webauthn/pin/stepup: Verifies security PIN for step-up actions (e.g. trading from phone)."""
+        from tecc_brain.security_pin import verify_pin
+        from tecc_brain.virtual_session.webauthn_engine import compute_action_hash
+
+        svc = _get_service()
+        ip, _ = _client_ip_country(request)
+        _check_rate_limit(f"{sess['id']}:{ip}")
+
+        if not verify_pin(req.pin):
+            raise HTTPException(status_code=401, detail="Invalid Security PIN")
+
+        action_hash = compute_action_hash(req.action, req.params)
+        token = svc.db.issue_stepup_token(session_id=sess["id"], action_hash=action_hash, ttl_seconds=60)
+        return {
+            "status": "ok",
+            "stepup_token": token,
+            "expires_in_seconds": 60,
+            "action": req.action,
+        }
 
     @app.post("/webauthn/login/options")
     def login_options(req: LoginOptionsReq, request: Request) -> dict[str, Any]:
