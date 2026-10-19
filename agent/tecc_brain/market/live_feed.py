@@ -197,7 +197,20 @@ class LiveMarketDataSource:
             "coingecko:tether": "USDT",
             "coingecko:pax-gold": "PAXG",
             "coingecko:staked-ether": "stETH",
+            "coingecko:wrapped-steth": "wstETH",
             "coingecko:dai": "DAI",
+            "coingecko:frax": "FRAX",
+            "coingecko:ethena-usde": "USDe",
+            "coingecko:crvusd": "crvUSD",
+            "coingecko:gho": "GHO",
+            "coingecko:liquity-usd": "LUSD",
+            "coingecko:paypal-usd": "PYUSD",
+            "coingecko:euro-coin": "EURC",
+            "coingecko:rocket-pool-eth": "rETH",
+            "coingecko:coinbase-wrapped-staked-eth": "cbETH",
+            "coingecko:coinbase-wrapped-btc": "cbBTC",
+            "coingecko:tbtc": "tBTC",
+            "coingecko:tether-gold": "XAUT",
         }
         ids = ",".join(mapping.keys())
         prices = {}
@@ -289,6 +302,34 @@ class LiveMarketDataSource:
         self._last_snapshot = snapshot
         self._last_fetched = now
         return snapshot
+
+    def get_live_peg_ratios(self) -> dict[str, float]:
+        """Returns normalized price ratios R_direct(t) for all 25 PegGuard catalog assets."""
+        from tecc_brain.pegguard.engine import PEGGUARD_ASSET_CATALOG
+
+        try:
+            snap = self.snapshot()
+        except Exception as e:
+            logger.debug("Failed to take live snapshot for peg ratios: %s", e)
+            snap = self.fallback_source.snapshot()
+
+        eth_usd = snap.prices_usd.get("ETH", 2500.0)
+        btc_usd = snap.prices_usd.get("WBTC", snap.prices_usd.get("BTC", 65000.0))
+
+        ratios: dict[str, float] = {}
+        for sym, spec in PEGGUARD_ASSET_CATALOG.items():
+            if sym in snap.pegs and snap.pegs[sym].price > 0:
+                ratios[sym] = snap.pegs[sym].price
+            elif spec.anchor_asset == "USD" and sym in snap.prices_usd:
+                ratios[sym] = round(snap.prices_usd[sym], 5)
+            elif spec.anchor_asset == "ETH" and sym in snap.prices_usd and eth_usd > 0:
+                ratios[sym] = round(snap.prices_usd[sym] / eth_usd, 5)
+            elif spec.anchor_asset == "BTC" and sym in snap.prices_usd and btc_usd > 0:
+                ratios[sym] = round(snap.prices_usd[sym] / btc_usd, 5)
+            else:
+                ratios[sym] = spec.p_par
+
+        return ratios
 
 
 __all__ = [

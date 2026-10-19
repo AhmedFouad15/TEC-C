@@ -368,6 +368,21 @@ def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
         from tecc_brain.security_pin import is_pin_configured, verify_pin
 
         svc = _get_service()
+        if req.session_id == "command-center":
+            pin_valid = verify_pin(req.pin)
+            if not pin_valid:
+                if not is_pin_configured():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Security PIN is not set yet. Configure it in Command Center > Safety / Settings.",
+                    )
+                raise HTTPException(status_code=401, detail="Invalid Security PIN")
+            from tecc_brain.biometrics import get_biometric_manager
+            from tecc_brain.api.vault import open_live_biometric_window
+            get_biometric_manager().open_biometric_window("demo")
+            open_live_biometric_window("demo")
+            return {"status": "ok", "state": "AUTHENTICATED", "detail": "5-minute biometric window open"}
+
         sess = svc.db.get_session(req.session_id)
         if not sess:
             raise HTTPException(status_code=404, detail="Session not found")

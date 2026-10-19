@@ -181,3 +181,30 @@ def get_status(account: Account) -> BiometricAccountStatusResponse:
         biometric_window_active=active,
         biometric_window_valid_until=until,
     )
+
+
+class PinUnlockRequest(BaseModel):
+    account: Account = "demo"
+    pin: str = Field(min_length=4, max_length=32)
+
+
+@router.post("/pin/unlock", response_model=BiometricVerificationResult)
+def pin_unlock(req: PinUnlockRequest) -> BiometricVerificationResult:
+    """Unlocks the 5-minute biometric window using the verified Security PIN."""
+    from tecc_brain.security_pin import is_pin_configured, verify_pin
+    if not is_pin_configured():
+        raise HTTPException(status_code=400, detail="Security PIN is not configured yet. Configure it in Settings.")
+    if not verify_pin(req.pin):
+        raise HTTPException(status_code=401, detail="Invalid Security PIN")
+
+    mgr = get_biometric_manager()
+    mgr.open_biometric_window(req.account)
+    from tecc_brain.api.vault import open_live_biometric_window
+    open_live_biometric_window(req.account)
+
+    return BiometricVerificationResult(
+        account=req.account,
+        verified=True,
+        verification_path="pin_fallback",
+        chain_target="arbitrum_l2",
+    )

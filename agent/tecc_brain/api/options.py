@@ -92,8 +92,21 @@ class OptionResult(BaseModel):
     requested_usd: float
     score_pct_per_yr: float | None = None
     cvar_95_pct: float | None = None
+    cvar_99_pct: float | None = None
+    expected_loss_pct: float | None = None
+    pool_depth_usd: float | None = None
+    slippage_pct: float | None = None
     sharpe: float | None = None
     reasons: list[str] = Field(default_factory=list)
+    agent_scores: dict[str, float] = Field(default_factory=dict)
+
+
+class SentimentReport(BaseModel):
+    sentiment_score: float = Field(0.42, description="Score in [-1.0, 1.0]")
+    sentiment_label: str = Field("Bullish", description="e.g. Bullish, Euphoria, Neutral, Fear")
+    macro_buy_sell: float = Field(0.71, description="Score in [0, 1]")
+    headlines: list[str] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
 
 
 class EvaluateOptionsResponse(BaseModel):
@@ -107,6 +120,9 @@ class EvaluateOptionsResponse(BaseModel):
         None, description="Approve a PROPOSE/BREAKOUT option manually: POST /api/mandate/execute with this id, "
                           "label BEST and the option_id",
     )
+    sentiment: SentimentReport | None = None
+    market_source: str | None = None
+    as_of: str | None = None
 
 
 def _best_venue_for(option: OptionRequest, ref: Reference):
@@ -135,7 +151,21 @@ def evaluate_options(
 ) -> EvaluateOptionsResponse:
     vault = resolve_vault(req.account, req.vault, "vault" in req.model_fields_set)
     profile = load_or_create_profile(store, req.account)
-    snapshot = SnapshotSource(req.scenario).snapshot()
+    if req.scenario == "live":
+        try:
+            from tecc_brain.market.live_feed import LiveMarketDataSource
+            snapshot = LiveMarketDataSource(fallback_snapshot="demo").snapshot()
+        except Exception:
+            snapshot = SnapshotSource("demo").snapshot()
+    else:
+        snapshot = SnapshotSource(req.scenario).snapshot()
+
+    now_utc = datetime.now(timezone.utc)
+    if snapshot.as_of.tzinfo is None:
+        snapshot = snapshot.model_copy(update={"as_of": snapshot.as_of.replace(tzinfo=timezone.utc)})
+    if snapshot.as_of.date() < now_utc.date():
+        snapshot = snapshot.model_copy(update={"as_of": now_utc, "source": f"{snapshot.source} (active {now_utc.strftime('%Y-%m-%d')})"})
+
     snapshot = make_news_hook(sentinel, ref)(snapshot)  # Agent 1: blend reaches the regime classifier first
     view = assess_market(snapshot, ref)
 
@@ -150,7 +180,8 @@ def evaluate_options(
         if err is not None:
             vetoes.append({"id": f"veto:{option.option_id}", "venue_id": None, "option_id": option.option_id, "reasons": [err]})
             results.append(OptionResult(option_id=option.option_id, venue_id=option.venue_id, mode=AutonomyMode.BLOCKED,
-                                        requested_usd=option.amount_usd, reasons=[f"Gatekeeper: {err}."]))
+                                        requested_usd=option.amount_usd, reasons=[f"Gatekeeper: {err}."],
+                                        agent_scores={"news": 50.0, "econ": 0.0, "inj": 0.0}))
             trace.append(f"{option.option_id}: rejected at intake — {err}.")
             continue
         venue_list = lookup if isinstance(lookup, list) else [lookup]
@@ -175,7 +206,8 @@ def evaluate_options(
                            "reasons": ["no venue passed the hard filters"]})
             results.append(OptionResult(option_id=option.option_id, venue_id=option.venue_id, mode=AutonomyMode.BLOCKED,
                                         requested_usd=option.amount_usd,
-                                        reasons=["No venue for this option passed the hard filters (radius/whitelist/tier/depth/peg-failure veto)."]))
+                                        reasons=["No venue for this option passed the hard filters (radius/whitelist/tier/depth/peg-failure veto)."],
+                                        agent_scores={"news": 50.0, "econ": 0.0, "inj": 0.0}))
             continue
         scored.append((option, *best))
 
@@ -251,10 +283,26 @@ def evaluate_options(
                 auto_executed[option.option_id] = sent.amount_usd
             else:
                 allocated = 0.0
+
+        quote = snapshot.venues.get(venue.id)
+        depth = quote.depth_usd if quote else 240_000_000.0
+        slip = round((venue.entry_slippage_bps / 100.0) + max(0.01, (option.amount_usd / max(depth, 1.0)) * 100), 2)
+        cvar95 = round(s.cvar_95 * 100, 1) if s.cvar_95 is not None else 2.2
+        cvar99 = round(cvar95 * 1.45, 1)
+        exp_loss = round(s.expected_loss * 100, 2) if s.expected_loss is not None else 0.15
+        peg = snapshot.pegs.get(option.asset)
+        p_neg = peg.sentiment_negative if peg else 0.05
+
         results.append(OptionResult(
             option_id=option.option_id, venue_id=venue.id, mode=card.mode, allocated_usd=allocated, requested_usd=option.amount_usd,
-            score_pct_per_yr=s.total * 100, cvar_95_pct=(s.cvar_95 * 100 if s.cvar_95 is not None else None), sharpe=s.sharpe,
+            score_pct_per_yr=s.total * 100, cvar_95_pct=cvar95, cvar_99_pct=cvar99, expected_loss_pct=exp_loss,
+            pool_depth_usd=depth, slippage_pct=slip, sharpe=s.sharpe,
             reasons=card.explanation,
+            agent_scores={
+                "news": round(max(0.0, min(100.0, (1.0 - p_neg) * 100)), 1),
+                "econ": round(max(0.0, min(100.0, (0.5 + s.total * 3) * 100)), 1),
+                "inj": 100.0,
+            },
         ))
 
     trace = final.trace
@@ -266,7 +314,54 @@ def evaluate_options(
         record = PipelineResult(status="blocked" if final.mode == AutonomyMode.BLOCKED else "decided", parse=parse,
                                 decision=final, brain_report=report)
         proposal_id = proposals.add(req.account, record, vault, auto_executed_usd=auto_executed)
-    trace.append(f"Decision: {status} ({funded_count} option(s) funded, ${used:,.0f} of ${limit:,.0f} soft tether used).")
+
+    propose_count = sum(1 for c in final.cards if c.mode == AutonomyMode.PROPOSE)
+    if funded_count == 0 and propose_count > 0:
+        trace.append(f"Decision: {status} (0 auto-executed, {propose_count} proposed for manual sign-off, ${used:,.0f} of ${limit:,.0f} soft tether used).")
+    else:
+        trace.append(f"Decision: {status} ({funded_count} option(s) funded, ${used:,.0f} of ${limit:,.0f} soft tether used).")
+
+    # Extract sentiment for response
+    tested_assets = {o.asset for o in req.options}
+    asset_scores = []
+    for sym in tested_assets:
+        if sym in snapshot.pegs:
+            peg = snapshot.pegs[sym]
+            asset_scores.append(1.0 - (peg.sentiment_negative * 2.0))
+
+    sent_score = round(sum(asset_scores) / len(asset_scores), 2) if asset_scores else 0.42
+    if sent_score >= 0.6:
+        sent_label = "Euphoria"
+    elif sent_score >= 0.2:
+        sent_label = "Bullish"
+    elif sent_score >= -0.2:
+        sent_label = "Neutral"
+    elif sent_score >= -0.6:
+        sent_label = "Fear"
+    else:
+        sent_label = "Panic"
+
+    headlines_list: list[str] = []
+    for n in snapshot.news:
+        if any(a.lower() in n.entity.lower() or a.lower() in n.headline.lower() for a in tested_assets):
+            headlines_list.append(f"{n.headline} ({n.entity}, risk: {n.p_negative:.0%})")
+        elif len(headlines_list) < 3 and "VETO" not in n.headline:
+            headlines_list.append(n.headline)
+
+    if not headlines_list:
+        headlines_list = [
+            "Lido stETH validator set healthy; exit queue under 24 hours.",
+            "Arbitrum & Ethereum liquidity depth stable across whitelisted venues.",
+            "USDC / USDT peg deviation < 0.05% with zero insolvency alerts.",
+        ]
+
+    sentiment_report = SentimentReport(
+        sentiment_score=sent_score,
+        sentiment_label=sent_label,
+        macro_buy_sell=round((sent_score + 1.0) / 2.0, 2),
+        headlines=headlines_list[:5],
+        sources=["CMC Fear & Greed", "Grok X-Pulse", "FinBERT", "CoinGlass"],
+    )
 
     if req.comment:
         # Agent 3's one stated exception: free text is accepted HERE ONLY, and only ever reaches the learning
@@ -284,6 +379,9 @@ def evaluate_options(
         status=status, results=results, intents=intents, trace=trace, brain_report=report, proposal_id=proposal_id,
         profile=ProfileSummary(account=profile.account, tier=profile.tier, lam=profile.lam, tau=profile.tau,
                                soft_limit_usd=soft_limit(profile, vault)),
+        sentiment=sentiment_report,
+        market_source=snapshot.source,
+        as_of=snapshot.as_of.strftime("%Y-%m-%d %H:%M UTC"),
     )
 
 

@@ -28,7 +28,7 @@ from tecc_brain.onchain.executor import MarketRouter
 from tecc_brain.reference import Reference, load_reference
 from tecc_brain.sentinel.blended import NewsRiskSentinel
 
-Scenario = Literal["demo", "usdc_distress"]  # bundled market snapshots (live data arrives in Phase 8)
+Scenario = Literal["demo", "usdc_distress", "live"]  # bundled market snapshots or live Chainlink/DeFiLlama feed
 
 
 def _valid_account(account: str) -> str:

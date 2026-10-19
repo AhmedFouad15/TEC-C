@@ -59,11 +59,26 @@ class ToggleArbitrageRequest(BaseModel):
     enabled: bool = Field(description="True to enable continuous PegGuard de-peg arbitrage; False to disable at any time")
 
 
+class LastScanTelemetry(BaseModel):
+    timestamp: str | None = None
+    timestamp_unix: float | None = None
+    seconds_ago: float | None = None
+    scanned_count: int = 0
+    depegged_count: int = 0
+    executed_count: int = 0
+    held_count: int = 0
+    skipped_by_watermark_count: int = 0
+    noted_unprofitable_count: int = 0
+    status: str = "idle"
+    summary: str = "No scans yet"
+
+
 class ArbitrageStatusResponse(BaseModel):
     account: str
     enabled: bool
     monitored_assets_count: int
     active_watermarks: dict[str, UnprofitableWatermark]
+    last_scan: LastScanTelemetry | None = None
 
 
 class ScanArbitrageRequest(BaseModel):
@@ -92,6 +107,7 @@ def toggle_arbitrage(
         enabled=enabled,
         monitored_assets_count=len(PEGGUARD_ASSET_CATALOG),
         active_watermarks=scanner.get_watermarks(req.account),
+        last_scan=scanner.get_last_scan(req.account),
     )
 
 
@@ -106,6 +122,7 @@ def arbitrage_status(
         enabled=scanner.is_enabled(account),
         monitored_assets_count=len(PEGGUARD_ASSET_CATALOG),
         active_watermarks=scanner.get_watermarks(account),
+        last_scan=scanner.get_last_scan(account),
     )
 
 

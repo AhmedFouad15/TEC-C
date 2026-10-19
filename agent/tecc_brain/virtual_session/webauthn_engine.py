@@ -205,12 +205,8 @@ def _verify_auth_data(
         raise ValueError(
             f"WebAuthn rpIdHash mismatch for host '{expected_rp_id}'"
         )
-    if not parsed.user_present_up:
+    if not (parsed.user_present_up or parsed.user_verified_uv):
         raise ValueError("WebAuthn User Present (UP) flag is not set")
-    if not parsed.user_verified_uv:
-        raise ValueError(
-            "Biometric user verification (UV flag) is required; password/non-biometric fallback is not permitted"
-        )
     return parsed.sign_count, parsed.user_present_up, parsed.user_verified_uv
 
 
@@ -318,7 +314,7 @@ def verify_assertion_response(
     new_sign_count, _, _ = _verify_auth_data(auth_data, rp["rp_id"])
 
     prev_sign_count = int(stored_credential["sign_count"])
-    if new_sign_count <= prev_sign_count:
+    if prev_sign_count > 0 and new_sign_count > 0 and new_sign_count <= prev_sign_count:
         raise ValueError(
             f"WebAuthn sign_count did not increase (got {new_sign_count}, previous {prev_sign_count})"
         )

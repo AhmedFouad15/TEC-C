@@ -153,6 +153,10 @@ class PegGuardAutonomousScanner:
         self._enabled_by_account: dict[str, bool] = {}
         # account -> symbol -> UnprofitableWatermark
         self._watermarks: dict[str, dict[str, UnprofitableWatermark]] = {}
+        # 24/7 autonomous background worker fields
+        self._stop_events: dict[str, threading.Event] = {}
+        self._background_threads: dict[str, threading.Thread] = {}
+        self._last_scan: dict[str, dict[str, Any]] = {}
 
     @property
     def executor(self) -> "PegGuardArbitrageExecutor":
@@ -184,6 +188,12 @@ class PegGuardAutonomousScanner:
             profile = load_or_create_profile(self.store, account)
             updated = profile.model_copy(update={"arbitrage_enabled": flag})
             self.store.save(updated)
+
+        if flag:
+            self.start_background_scanner(account)
+        else:
+            self.stop_background_scanner(account)
+
         return flag
 
     def enable(self, account: str) -> bool:
@@ -191,6 +201,161 @@ class PegGuardAutonomousScanner:
 
     def disable(self, account: str) -> bool:
         return self.set_enabled(account, False)
+
+    def start_background_scanner(self, account: str, interval_seconds: float | None = None) -> None:
+        """Starts a 24/7 background worker running scan_tick every 30-60s using live feeds for `account`."""
+        import os
+
+        if interval_seconds is None:
+            try:
+                interval_seconds = float(os.environ.get("TECC_ARBITRAGE_INTERVAL_SECONDS", "30.0"))
+            except Exception:
+                interval_seconds = 30.0
+
+        with self._scan_lock:
+            existing_thread = self._background_threads.get(account)
+            if existing_thread is not None and existing_thread.is_alive():
+                return
+
+            stop_event = threading.Event()
+            self._stop_events[account] = stop_event
+            thread = threading.Thread(
+                target=self._background_worker_loop,
+                args=(account, stop_event, interval_seconds),
+                daemon=True,
+                name=f"pegguard-scanner-{account}",
+            )
+            self._background_threads[account] = thread
+            thread.start()
+
+    def stop_background_scanner(self, account: str) -> None:
+        """Stops the 24/7 background worker for `account`."""
+        with self._scan_lock:
+            stop_event = self._stop_events.pop(account, None)
+            if stop_event is not None:
+                stop_event.set()
+            self._background_threads.pop(account, None)
+
+    def stop_all_background_scanners(self) -> None:
+        with self._scan_lock:
+            for account in list(self._stop_events.keys()):
+                self.stop_background_scanner(account)
+
+    def get_last_scan(self, account: str) -> dict[str, Any]:
+        """Returns the latest scan telemetry for `account`, calculating seconds_ago dynamically."""
+        import time
+
+        scan = self._last_scan.get(account)
+        if not scan:
+            is_on = self.is_enabled(account)
+            return {
+                "timestamp": None,
+                "timestamp_unix": None,
+                "seconds_ago": None,
+                "scanned_count": len(PEGGUARD_ASSET_CATALOG),
+                "depegged_count": 0,
+                "executed_count": 0,
+                "held_count": 0,
+                "skipped_by_watermark_count": 0,
+                "noted_unprofitable_count": 0,
+                "status": "scanning" if is_on else "idle",
+                "summary": "Scanning live · 25 assets" if is_on else "Scanner paused",
+            }
+
+        res = dict(scan)
+        ts = scan.get("timestamp_unix")
+        if ts:
+            res["seconds_ago"] = max(0.0, round(time.time() - ts, 1))
+        return res
+
+    def _background_worker_loop(self, account: str, stop_event: threading.Event, interval_seconds: float) -> None:
+        import time
+        import logging
+        from tecc_brain.market.live_feed import LiveMarketDataSource
+
+        logger = logging.getLogger("tecc_brain.pegguard")
+        ds = LiveMarketDataSource(timeout=3.5)
+
+        # Run immediately upon start, then every interval_seconds
+        while not stop_event.is_set():
+            if not self.is_enabled(account):
+                break
+
+            try:
+                # 1. Fetch live normalized prices across the 25-asset catalog
+                live_ratios = ds.get_live_peg_ratios()
+
+                # 2. Resolve vault & dependencies safely
+                from tecc_brain.api.deps import get_proposals, get_ref
+                from tecc_brain.api.vault import resolve_vault
+                from tecc_brain.models import VaultIn
+
+                vault = resolve_vault(account, VaultIn())
+                proposals = get_proposals()
+                ref = get_ref()
+
+                # 3. Execute one autonomous scan pass with live market prices
+                report = self.scan_tick(
+                    account,
+                    price_overrides=live_ratios,
+                    vault=vault,
+                    ref=ref,
+                    proposals=proposals,
+                    prices_from_caller=False,
+                )
+
+                # 4. Record telemetry for frontend display
+                now_ts = time.time()
+                depeg_symbols = [o.symbol for o in report.outcomes if o.depegged]
+                summary = (
+                    f"{report.scanned_count} assets · 0 de-pegs"
+                    if report.depegged_count == 0
+                    else f"{report.scanned_count} assets · {report.depegged_count} de-peg(s): {', '.join(depeg_symbols[:3])}"
+                )
+                self._last_scan[account] = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp_unix": now_ts,
+                    "scanned_count": report.scanned_count,
+                    "depegged_count": report.depegged_count,
+                    "executed_count": report.executed_count,
+                    "held_count": report.held_count,
+                    "skipped_by_watermark_count": report.skipped_by_watermark_count,
+                    "noted_unprofitable_count": report.noted_unprofitable_count,
+                    "status": "scanned",
+                    "summary": summary,
+                }
+
+                # 5. Log notable depegs / executions to MonitorEvent log
+                if report.outcomes:
+                    try:
+                        from tecc_brain.monitor.hourly import MonitorEvent, get_event_log
+
+                        log = get_event_log()
+                        for out in report.outcomes:
+                            if out.status in ("executed", "held_for_approval", "noted_unprofitable"):
+                                log.add(
+                                    MonitorEvent(
+                                        account=account,
+                                        symbol=out.symbol,
+                                        trigger=f"pegguard_{out.status}",
+                                        buy_sell_score=round(out.decision.layer4.token_score_t, 3)
+                                        if out.decision
+                                        else 0.5,
+                                        regime=out.decision.layer2.regime_name if out.decision else "depegged",
+                                        at=datetime.now(timezone.utc),
+                                        pipeline_status=out.status,
+                                        summary=out.detail,
+                                    )
+                                )
+                    except Exception:
+                        pass
+
+            except Exception as e:
+                logger.warning("PegGuard background scan tick exception: %s", e)
+
+            # Sleep for interval_seconds unless stop is signalled
+            if stop_event.wait(timeout=interval_seconds):
+                break
 
     def get_watermarks(self, account: str) -> dict[str, UnprofitableWatermark]:
         return dict(self._watermarks.get(account, {}))

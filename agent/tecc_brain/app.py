@@ -26,6 +26,19 @@ async def lifespan(_: FastAPI):
 
     start_scheduler()  # no-op unless TECC_ENABLE_HOURLY_MONITOR=1
 
+    # Auto-resume PegGuard 24/7 background scanner if enabled in profile
+    try:
+        from tecc_brain.api.arbitrage import get_arbitrage_scanner
+        from tecc_brain.api.deps import get_store
+        arb_scanner = get_arbitrage_scanner()
+        store = get_store()
+        for acct in ("demo",):
+            if arb_scanner.is_enabled(acct):
+                arb_scanner.start_background_scanner(acct)
+    except Exception as e:
+        import logging
+        logging.getLogger("tecc_brain").warning(f"Could not auto-start PegGuard scanner: {e}")
+
     # Run the Virtual Session Mobile Gateway concurrently on port 8001
     import asyncio
     import uvicorn
@@ -39,6 +52,11 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         stop_scheduler()
+        try:
+            from tecc_brain.api.arbitrage import get_arbitrage_scanner
+            get_arbitrage_scanner().stop_all_background_scanners()
+        except Exception:
+            pass
         gateway_server.should_exit = True
         try:
             await gateway_server.shutdown()

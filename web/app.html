@@ -199,6 +199,10 @@
               <span class="small">Status: <b id="arb-state-text" class="muted">—</b></span>
               <label class="switch"><input type="checkbox" id="arb-toggle" onchange="togglePegGuardArbitrage()"><span></span></label>
             </div>
+            <div id="arb-telemetry-row" class="row-between mt8" style="border-top: 1px solid rgba(255,255,255,0.07); padding-top: 7px; font-size: 0.76rem;">
+              <span id="arb-telemetry-text" class="muted">Last scan: —</span>
+              <span id="arb-telemetry-pulse" class="dot active" style="display:none;" title="Scanning 24/7 in background"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -245,8 +249,8 @@
             <defs><linearGradient id="dg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#cde38a" stop-opacity=".35"/><stop offset="1" stop-color="#cde38a" stop-opacity="0"/></linearGradient></defs>
             <path class="dist-fill" d="M0 75 C40 75 60 60 90 30 C110 10 130 10 150 30 C180 60 200 72 230 75 L280 75 L280 80 L0 80Z" fill="url(#dg)"/>
             <path class="dist-line" d="M0 75 C40 75 60 60 90 30 C110 10 130 10 150 30 C180 60 200 72 230 75 L280 75" fill="none" stroke="#cde38a" stroke-width="2"/>
-            <path d="M200 72 C215 74 225 75 235 75 L280 75 L280 78 L200 78 Z" fill="#ff6b5e" opacity=".7"/>
-            <line x1="200" y1="10" x2="200" y2="78" stroke="#ff6b5e" stroke-dasharray="4 3"/>
+            <path id="dist-tail" d="M200 72 C215 74 225 75 235 75 L280 75 L280 78 L200 78 Z" fill="#ff6b5e" opacity=".7"/>
+            <line id="dist-cutoff" x1="200" y1="10" x2="200" y2="78" stroke="#ff6b5e" stroke-dasharray="4 3"/>
           </svg>
           <div class="caption mt8" id="slippage-text"></div>
           <ul class="explain" id="explain-list"></ul>
@@ -273,9 +277,9 @@
         <div class="weights">
           <div class="row-between"><span class="section-label m0">Agent weights</span><span class="caption">drag to rebalance</span></div>
           <div class="weight-grid">
-            <label>News &amp; NLP <b id="weight-news-val">30%</b><input type="range" min="10" max="60" value="30" data-weight="news"></label>
-            <label>Econometrics <b id="weight-econ-val">45%</b><input type="range" min="20" max="70" value="45" data-weight="econ"></label>
-            <label>Injection defence <b id="weight-inj-val">25%</b><input type="range" min="10" max="50" value="25" data-weight="inj"></label>
+            <label>News &amp; NLP <b id="weight-news-val">30%</b><input type="range" min="5" max="80" value="30" data-weight="news"></label>
+            <label>Econometrics <b id="weight-econ-val">45%</b><input type="range" min="5" max="80" value="45" data-weight="econ"></label>
+            <label>Injection defence <b id="weight-inj-val">25%</b><input type="range" min="5" max="80" value="25" data-weight="inj"></label>
           </div>
         </div>
         <div>
