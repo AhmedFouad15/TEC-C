@@ -26,6 +26,7 @@ just to enhance/
 # Tec-C Brain (agent)
 agent/.venv/
 agent/.state/
+agent/.tecc_data/
 agent/var/
 __pycache__/
 .pytest_cache/

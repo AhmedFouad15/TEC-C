@@ -2,7 +2,7 @@
 # Start the whole Tec-C stack on this machine, then open the website.
 #   1. a local blockchain (Anvil, chain 31337) that remembers its state between runs
 #   2. the real vault on it (TecAccount + TetherGuardHook + session key), deployed once
-#   3. the Brain API on http://127.0.0.1:8000 (connected to that vault)
+#   3. the Brain API on http://127.0.0.1:8000 (connected to that vault) and the virtual-session phone gateway on :8001
 #   4. the website on http://localhost:5500 (localhost, not an IP: passkeys / FaceID need a host name)
 # Stop everything with ./dev_down.sh
 set -euo pipefail
@@ -51,12 +51,12 @@ else
 fi
 
 # 3. Brain (always restarted so it picks up the deployment)
-lsof -ti tcp:8000 | xargs kill 2>/dev/null || true
+lsof -ti tcp:8000 tcp:8001 | xargs kill 2>/dev/null || true
 sleep 0.5
-say "Starting the Brain API on http://127.0.0.1:8000 …"
-(cd "$AGENT" && TECC_NETWORK=anvil \
+say "Starting the Brain API on http://127.0.0.1:8000 (and the phone gateway on :8001) …"
+(cd "$AGENT" && TECC_NETWORK=anvil TECC_SPAWN_CLOUDFLARED=1 \
   TECC_CORS_ORIGINS="http://localhost:$UI_PORT,http://127.0.0.1:$UI_PORT,http://localhost:3000,http://127.0.0.1:3000" \
-  nohup .venv/bin/uvicorn tecc_brain.app:app --host 127.0.0.1 --port 8000 > "$STATE/brain.log" 2>&1 &)
+  nohup .venv/bin/python -m tecc_brain.virtual_session.runner > "$STATE/brain.log" 2>&1 &)  # Brain :8000 + phone gateway :8001
 for _ in $(seq 1 40); do curl -sf http://127.0.0.1:8000/health >/dev/null && break; sleep 0.3; done
 curl -sf http://127.0.0.1:8000/health >/dev/null || { echo "The Brain did not start; see $STATE/brain.log"; exit 1; }
 
