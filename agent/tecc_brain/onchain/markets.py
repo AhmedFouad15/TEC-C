@@ -72,9 +72,19 @@ def live_chain_executor(network: str) -> ChainExecutor | None:
     return ChainExecutor(Rpc(m.rpc_url), m.deployment, m.session_key, m.mandate, _ledger(network))
 
 
+def active_deployed_network() -> str:
+    env_net = os.environ.get("TECC_NETWORK", "").strip().lower()
+    if env_net and load_market(env_net) is not None:
+        return env_net
+    for cand in ("fisco_bcos", "arbitrum", "sepolia", "anvil"):
+        if load_market(cand) is not None:
+            return cand
+    return env_net or "anvil"
+
+
 def build_router(daily_limit_usd: float = 500.0, crypto_network: str | None = None) -> MarketRouter:
     """Live executors for every market that has been deployed; honest simulations for the rest."""
-    crypto_network = crypto_network or os.environ.get("TECC_NETWORK", "anvil")
+    crypto_network = crypto_network or active_deployed_network()
     executors = {}
     for market, cls, network in (
         ("commodities", ArbitrumCommoditiesExecutor, "arbitrum"),
@@ -93,4 +103,4 @@ def build_router(daily_limit_usd: float = 500.0, crypto_network: str | None = No
     )
 
 
-__all__ = ["MarketFile", "NETWORKS", "build_router", "live_chain_executor", "load_market", "market_path", "save_market"]
+__all__ = ["MarketFile", "NETWORKS", "active_deployed_network", "build_router", "live_chain_executor", "load_market", "market_path", "save_market"]

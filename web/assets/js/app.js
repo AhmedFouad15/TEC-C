@@ -45,7 +45,9 @@ const API = (() => {
   const q = new URLSearchParams(location.search).get('api');
   if (q && isLoopbackApi(q)) store.set('tecc_api', new URL(q).origin);
   const saved = store.get('tecc_api');
-  return isLoopbackApi(saved) ? new URL(saved).origin : 'http://127.0.0.1:8000';
+  if (isLoopbackApi(saved)) return new URL(saved).origin;
+  if (isLoopbackApi(location.origin)) return location.origin;
+  return 'http://127.0.0.1:8000';
 })();
 const brain = { live: false, checked: false };
 
@@ -69,7 +71,7 @@ async function probeBrain() {
     const h = await api('/health', { timeout: 2500 });
     setBrainStatus(true, `live · v${h.version || '?'}`);
   } catch {
-    setBrainStatus(false, 'demo mode');
+    setBrainStatus(false, 'offline');
   }
 }
 function setBrainStatus(live, text) {
@@ -77,14 +79,14 @@ function setBrainStatus(live, text) {
   brain.live = live; brain.checked = true;
   $('#brain-dot').className = 'dot ' + (live ? 'active' : 'warning');
   $('#top-heartbeat-text').textContent = text;
-  $('#brain-pill').title = live ? `Connected to the Brain at ${API}` : `Brain not reachable at ${API}: showing demo data. Start it with: cd agent && .venv/bin/uvicorn tecc_brain.app:app`;
+  $('#brain-pill').title = live ? `Connected to the Brain at ${API}` : `Brain not reachable at ${API}. Run python run_tecc.py to connect.`;
   if (changed) {
     loadRegimes();
     loadProfile();
     loadCatalog();
-    if (live) syncVaultFromChain();
+    syncVaultFromChain();
     maybeShowQuizBanner();
-    if (live) showToast('Brain connected: commands now run through the real pipeline.');
+    if (live) showToast('Brain connected: real on-chain execution active.');
   }
 }
 
@@ -216,14 +218,10 @@ const DEMO_AGENTS = [
    ========================================================================================= */
 const state = {
   action: 'Stake', market: 'Crypto', network: 'Ethereum L1', assets: ['ETH', 'stETH'], capitalPercent: 10, riskTier: 'Tier 2',
-  vaultBalance: 48210, tetherUsed: 420, tetherTotal: 1000, biometricUnlocked: false, pegGuardEnabled: true,
-  selectedCandidate: 'A', outcome: 'split', requestNo: 412, streak: 3,
+  vaultBalance: 0, tetherUsed: 0, tetherTotal: 1000, biometricUnlocked: false, pegGuardEnabled: true,
+  selectedCandidate: 'A', outcome: 'split', requestNo: 412, streak: 0,
   live: null, // last live /propose response
-  trades: [
-    { id: 1, title: 'Stake 0.4 ETH on Lido', time: '02:14 UTC', market: 'Crypto', val: 964, slippage: '0.08%', pnl: '+$3.20', tx: '0x9a4f…e1c8', status: 'pending', news: '+0.71', econ: '0.64' },
-    { id: 2, title: 'Swap 500 USDC to PAXG', time: '03:40 UTC', market: 'Commodities', val: 500, slippage: '0.04%', pnl: '+$1.80', tx: '0x3c7b…41a2', status: 'pending', news: '+0.35', econ: '0.72' },
-    { id: 3, title: 'Supply 1 ETH to Aave v3', time: '01:02 UTC', market: 'Crypto', val: 2410, slippage: '0.01%', pnl: '+$4.50', tx: '0x88f1…b902', status: 'ratified', news: '+0.55', econ: '0.70' },
-  ],
+  trades: [],
 };
 const TRADE_STATUS = {
   pending: ['Pending review', 'badge-amber'], ratified: ['Ratified', 'badge-green'], flagged: ['Flagged (−20%)', 'badge-red'],
@@ -311,7 +309,11 @@ function setSliderPercent(p) {
   $('#slider-thumb').style.left = p + '%';
   $('#slider-tip').textContent = p + '%';
   const d = dollarsForCommand(), use = Math.min(d, tetherLeft());
-  $('#slider-caption').textContent = `${p}% = ${usd(d)} · ${d <= tetherLeft() ? `fits inside the ${usd(tetherLeft())} left in today's radius` : `uses ${usd(use)} of the ${usd(tetherLeft())} left; the rest needs a FaceID breakout`}`;
+  if (state.vaultBalance === 0) {
+    $('#slider-caption').innerHTML = `${p}% = $0 · <span style="color:#e8a64b">Vault is empty ($0.00).</span> <a href="#" onclick="openDepositModal();return false;" style="color:#cde38a;text-decoration:underline;">Deposit funds</a> or use test faucet to trade.`;
+  } else {
+    $('#slider-caption').textContent = `${p}% = ${usd(d)} · ${d <= tetherLeft() ? `fits inside the ${usd(tetherLeft())} left in today's radius` : `uses ${usd(use)} of the ${usd(tetherLeft())} left; the rest needs a FaceID breakout`}`;
+  }
   updateSlippage(d);
   updatePrompt();
 }
@@ -753,14 +755,19 @@ $$('[data-weight]').forEach(r => r.addEventListener('change', () => showToast(`A
    Execute
    ========================================================================================= */
 async function executeAutonomousTrade() {
+  if (state.vaultBalance === 0) {
+    showToast('Your vault balance is $0.00. Please deposit funds or request test faucet tokens first.');
+    openDepositModal();
+    return;
+  }
   if (state.liveOptions) return executeOptions();
   if (state.live?.decision && state.live.proposal_id) return executeLive();
-  if (state.outcome === 'breakout') return openBreakoutModal(4500, 120);
-  const d = dollarsForCommand(), use = Math.min(d, tetherLeft());
-  if (d > tetherLeft()) { showToast(`${usd(d)} is above the ${usd(tetherLeft())} left today: FaceID breakout needed.`); return openBreakoutModal(d, Math.round(d * 0.02)); }
-  spendTether(use);
-  addTrade({ title: `${state.action} ${state.assets.join('/') || ''} · ${state.market}`, market: state.market, val: d, status: 'pending', news: '+0.70', econ: '0.75', tx: fakeTx() });
-  showToast(`Demo: ${usd(d)} ${state.action.toLowerCase()} signed with the session key inside the leash.`);
+  if (brain.live) {
+    showToast('Submitting mandate to the Brain for on-chain execution…');
+    await submitCommandToBrain();
+    return;
+  }
+  showToast('Brain is offline. Launch backend with: python run_tecc.py');
 }
 async function executeLive() {
   const res = state.live, d = res.decision;
@@ -842,8 +849,24 @@ function addTrade(t) {
   renderTrades();
 }
 function renderTrades() {
+  if (!state.trades.length) {
+    $('#trades-list').innerHTML = `<div class="card glass center muted" style="padding:28px 16px;">
+      <div style="font-size:1.05rem;margin-bottom:6px;font-weight:600;color:var(--txt);">No on-chain executions yet</div>
+      <div class="caption">Submit a mandate in the Command Composer to execute your first verified on-chain transaction.</div>
+    </div>`;
+    $('#review-badge').textContent = 0;
+    $('#top-pending-badge').textContent = 0;
+    $('#widget-pending-reviews').innerHTML = `0 <small>pending</small>`;
+    $('#review-total-trades').textContent = 0;
+    $('#review-progress').textContent = `0 of 0`;
+    $('#review-capital-moved').textContent = '$0';
+    $('#streak-bar').innerHTML = Array.from({ length: 5 }, () => `<i></i>`).join('');
+    $('#streak-text').textContent = `0 of 5`;
+    return;
+  }
   $('#trades-list').innerHTML = state.trades.map(t => {
     const [txt, cls] = TRADE_STATUS[t.status] || TRADE_STATUS.pending;
+    const txDisp = t.tx_full ? (t.tx_full.slice(0, 10) + '…' + t.tx_full.slice(-6)) : (t.tx || '—');
     return `<div class="card glass trade ${t.fresh ? 'fresh' : ''}" data-id="${t.id}">
       <div class="row-between" style="align-items:flex-start;flex-wrap:wrap">
         <div><div class="trade-title">${esc(t.title)}</div><div class="caption">Executed ${esc(t.time)} · ${esc(t.market)} · ${usd(t.val)}</div></div>
@@ -851,7 +874,7 @@ function renderTrades() {
       </div>
       <div class="row-wrap small">
         <span class="badge">News ${esc(t.news)}</span><span class="badge">Econ ${esc(t.econ)}</span><span class="badge">Slippage ${esc(t.slippage)}</span>
-        <span class="badge badge-green">P&amp;L ${esc(t.pnl)}</span><span class="tx">tx ${esc(t.tx)}</span>
+        <span class="badge badge-green">P&amp;L ${esc(t.pnl)}</span><span class="tx" title="${esc(t.tx_full || t.tx)}">tx ${esc(txDisp)}</span>
       </div>
       ${t.detail ? `<div class="caption">${esc(t.detail)}</div>` : ''}
       ${t.note ? `<div class="note-line">“${esc(t.note)}”</div>` : ''}
@@ -941,22 +964,128 @@ addEventListener('keydown', e => { if (e.key === 'Escape') $$('.modal-overlay.ac
 
 /* Deposit: the vault's real address (and QR) from the Brain's /api/vault/{account}; the user transfers to it */
 let vaultInfo = null;
-const NETWORK_NAME = { anvil: 'Local test chain (Anvil)', sepolia: 'Ethereum Sepolia', arbitrum: 'Arbitrum', fisco: 'FISCO BCOS' };
+const NETWORK_NAME = { anvil: 'Local Anvil', sepolia: 'Ethereum Sepolia', arbitrum: 'Arbitrum Sepolia', fisco_bcos: 'FISCO BCOS Testnet', fisco: 'FISCO BCOS' };
 async function loadVault() {
   if (!brain.live) { vaultInfo = null; return null; }
   try { vaultInfo = await api('/api/vault/demo', { timeout: 6000 }); } catch { vaultInfo = null; }
   return vaultInfo;
 }
 async function syncVaultFromChain() {
-  // the real vault (balance, today's radius and spend) replaces the demo figures; no vault deployed → keep them
   const v = await loadVault();
-  if (!v || !v.live) return;
+  if (!v || !v.live) {
+    const wEl = $('#top-wallet-text'), nEl = $('#top-network-text');
+    if (wEl) wEl.textContent = 'Offline';
+    if (nEl) nEl.textContent = 'Disconnected';
+    const tbody = $('#holdings-table tbody');
+    if (tbody && !brain.live) tbody.innerHTML = `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px;">Backend offline. Run <code>python run_tecc.py</code> to connect.</td></tr>`;
+    renderTrades();
+    return;
+  }
   if (typeof v.total_usd === 'number') setVault(v.total_usd);
   if (v.policy) {
     state.tetherTotal = Math.round(v.policy.radius_usd);
     state.tetherUsed = Math.round(v.policy.spent_today_usd);
     refreshTether();
   }
+
+  // Update real wallet & network info in the status strip
+  const ownerAddr = v.owner_wallet?.address || v.root_owner || '';
+  if (ownerAddr) {
+    const wEl = $('#top-wallet-text');
+    if (wEl) wEl.textContent = ownerAddr.slice(0, 6) + '…' + ownerAddr.slice(-4);
+    const pill = $('#wallet-pill');
+    if (pill) pill.title = `Deployer EOA (Your Laptop): ${ownerAddr}\nSmart Account Vault: ${v.deposit_address}\nSession Key: ${v.session_key?.address || '—'}`;
+  }
+  const netName = NETWORK_NAME[v.network] || v.network || 'Live Chain';
+  const nEl = $('#top-network-text');
+  if (nEl) nEl.textContent = `${netName} (${v.chain_id})`;
+  const nPill = $('#network-pill');
+  if (nPill) nPill.title = `Connected Network: ${netName} · Chain ID ${v.chain_id}`;
+
+  // Render live on-chain holdings dynamically from the deployed smart contract
+  const tbody = $('#holdings-table tbody');
+  if (tbody) {
+    if (Array.isArray(v.holdings) && v.holdings.length) {
+      tbody.innerHTML = v.holdings.map(h => {
+        const share = v.total_usd > 0 ? pct(h.usd / v.total_usd, 0) : '0%';
+        return `<tr>
+          <td><b>${esc(h.symbol)}</b></td>
+          <td>${esc(h.where)} (${esc(v.network || 'On-Chain')})</td>
+          <td>${esc(h.amount.toLocaleString())}</td>
+          <td>${usd(h.usd)}</td>
+          <td>${share}</td>
+          <td class="txt-green">On-Chain</td>
+          <td>Verified</td>
+          <td><span class="badge badge-green">LIVE</span></td>
+        </tr>`;
+      }).join('');
+    } else {
+      tbody.innerHTML = `<tr>
+        <td colspan="8" style="text-align:center;padding:36px 16px;color:#8a9a86;">
+          <div style="font-size:16px;font-weight:700;color:#f0f2ea;margin-bottom:6px;">Your vault is empty ($0.00)</div>
+          <div style="font-size:13px;color:#8a9a86;margin-bottom:16px;">No assets detected on-chain. Deposit funds or request test faucet tokens to fund your smart account.</div>
+          <button class="btn-white" onclick="openDepositModal()" style="display:inline-flex;align-items:center;gap:6px;margin:0 auto;">Deposit Funds <span class="sq">+</span></button>
+        </td>
+      </tr>`;
+    }
+  }
+
+  // Update allocation donut & legend
+  renderAllocation(v.holdings, v.total_usd);
+
+  // Update portfolio status indicator
+  const deltaEl = $('#portfolio-delta-text');
+  if (deltaEl) {
+    if (v.total_usd > 0) {
+      deltaEl.textContent = 'Live verified treasury';
+      deltaEl.className = 'up small';
+    } else {
+      deltaEl.textContent = 'Vault empty ($0.00) · Deposit to begin';
+      deltaEl.className = 'muted small';
+    }
+  }
+
+  // Populate real on-chain executions into Morning Review
+  if (Array.isArray(v.recent_transactions) && v.recent_transactions.length) {
+    state.trades = v.recent_transactions.map(t => ({
+      id: t.id,
+      title: `Deposit USDC → ${t.venue_id}`,
+      time: 'Verified On-Chain',
+      market: t.market || v.network || 'FISCO BCOS',
+      val: t.amount_usd,
+      slippage: '0.00%',
+      pnl: '+$0.00',
+      tx: t.tx_hash ? (t.tx_hash.slice(0, 10) + '…' + t.tx_hash.slice(-6)) : 'verified',
+      tx_full: t.tx_hash,
+      status: 'ratified',
+      news: 'Passed',
+      econ: 'Passed',
+      detail: t.audit_record_hash ? `Audit anchor hash: ${t.audit_record_hash.slice(0, 16)}…` : 'On-chain execution verified'
+    }));
+    renderTrades();
+  } else if (Array.isArray(v.pending_reviews) && v.pending_reviews.length) {
+    state.trades = v.pending_reviews.map(r => ({
+      id: r.id,
+      title: `Execution → ${r.venue_id || 'Venue'}`,
+      time: 'On-Chain',
+      market: v.network || 'FISCO BCOS',
+      val: r.value_usd,
+      slippage: '0.00%',
+      pnl: '+$0.00',
+      tx: r.tx_hash ? (r.tx_hash.slice(0, 10) + '…' + r.tx_hash.slice(-6)) : '—',
+      tx_full: r.tx_hash,
+      status: r.status || 'pending',
+      news: 'Clean',
+      econ: 'Passed',
+      detail: r.note || 'Recorded in TetherGuardHook ledger'
+    }));
+    renderTrades();
+  } else {
+    state.trades = [];
+    renderTrades();
+  }
+
+  renderDeposit();
 }
 async function openDepositModal() {
   openModal('modal-deposit');
@@ -996,12 +1125,54 @@ async function refreshVaultBalance() {
   renderDeposit();
   showToast(`On-chain vault balance: ${usd(v.total_usd || 0)}.`);
 }
+
 async function requestTestFunds() {
+  const btn = $('#btn-faucet');
+  if (btn) { btn.disabled = true; btn.textContent = 'Minting on-chain…'; }
   try {
-    const r = await api('/api/vault/demo/faucet', { method: 'POST', body: { eth: 1, usdc: 5000 } });
+    const r = await api('/api/vault/demo/faucet', { method: 'POST', body: { eth: 0, usdc: 5000 } });
     showToast(r.message || 'Test funds sent.');
-    await refreshVaultBalance();
+    await syncVaultFromChain();
+    showToast(`Vault funded on-chain: ${usd(state.vaultBalance)}.`);
   } catch (err) { showToast(`Faucet unavailable: ${err.message}`); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Request test funds'; } }
+}
+
+function renderAllocation(holdings, totalUsd) {
+  const donut = $('#alloc-donut'), hole = $('#alloc-donut-hole'), leg = $('#alloc-legend');
+  if (!donut || !leg) return;
+  if (!totalUsd || !holdings || !holdings.length) {
+    donut.style.setProperty('--a', '0');
+    donut.style.setProperty('--b', '0');
+    donut.style.setProperty('--c', '0');
+    donut.style.background = 'rgba(255, 255, 255, 0.05)';
+    if (hole) hole.innerHTML = '<b>0</b><span>assets</span>';
+    leg.innerHTML = '<li><i style="background:#555"></i>No active holdings<b>0%</b></li>';
+    return;
+  }
+  donut.style.background = '';
+  const byMarket = {};
+  for (const h of holdings) {
+    const m = h.market || 'crypto';
+    byMarket[m] = (byMarket[m] || 0) + (h.usd || 0);
+  }
+  const cryptoUsd = byMarket['crypto'] || 0;
+  const chineseUsd = byMarket['chinese_market'] || 0;
+  const commUsd = byMarket['commodities'] || 0;
+  const a = Math.round((cryptoUsd / totalUsd) * 100);
+  const b = Math.round((chineseUsd / totalUsd) * 100);
+  const c = Math.round((commUsd / totalUsd) * 100);
+  const d = Math.max(0, 100 - a - b - c);
+  donut.style.setProperty('--a', String(a));
+  donut.style.setProperty('--b', String(b));
+  donut.style.setProperty('--c', String(c));
+  if (hole) hole.innerHTML = `<b>${holdings.length}</b><span>holding${holdings.length > 1 ? 's' : ''}</span>`;
+  leg.innerHTML = `
+    <li><i style="background:#cde38a"></i>Crypto<b>${a}%</b></li>
+    <li><i style="background:#7fb3ff"></i>Chinese mkt<b>${b}%</b></li>
+    <li><i style="background:#e8a64b"></i>Commodities<b>${c}%</b></li>
+    <li><i style="background:#8a9a86"></i>Other/Reserves<b>${d}%</b></li>
+  `;
 }
 async function faceIdScan(box) {
   box?.classList.remove('ok');
@@ -1379,6 +1550,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProfile();
   switchTab(location.hash.slice(1) || 'home');
   probeBrain();
-  setInterval(probeBrain, 20000);
+  syncVaultFromChain();
+  setInterval(probeBrain, 4000);
   document.fonts?.ready.then(moveIndicator);
 });

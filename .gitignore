@@ -13,6 +13,10 @@ contracts/.ignore/
 .env
 .env.*
 !.env.example
+agent/.env
+agent/.env.*
+*wallet*.json
+*.wallet.json
 
 # Operating System files
 .DS_Store

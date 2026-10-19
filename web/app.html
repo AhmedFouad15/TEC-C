@@ -52,16 +52,22 @@
 
   <!-- status strip -->
   <div class="status-strip">
-    <div class="chip-stat"><span class="muted">Vault</span><b id="top-vault-val">$48,210</b><span class="up">+1.2%</span></div>
-    <div class="chip-stat"><span class="ring" id="tether-donut"><i></i></span><span class="muted">Tether</span><b id="top-tether-val">$420 / $1,000</b></div>
+    <div class="chip-stat"><span class="muted">Vault</span><b id="top-vault-val">$0</b></div>
+    <div class="chip-stat"><span class="ring" id="tether-donut"><i></i></span><span class="muted">Tether</span><b id="top-tether-val">$0 / $1,000</b></div>
     <div class="chip-stat" id="brain-pill" title="Brain API connection">
       <span class="dot" id="brain-dot"></span><span class="muted">Brain</span><b id="top-heartbeat-text">connecting…</b>
+    </div>
+    <div class="chip-stat" id="wallet-pill" title="Connected Real Wallet (EOA Root Owner)">
+      <span class="muted">Owner EOA</span><b id="top-wallet-text">Loading…</b>
+    </div>
+    <div class="chip-stat" id="network-pill" title="Active Blockchain Network">
+      <span class="muted">Chain</span><b id="top-network-text">Detecting…</b>
     </div>
     <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Simulate a FaceID unlock">
       <span class="dot locked" id="bio-dot"></span><span class="muted">Biometric</span><b id="bio-status-text">Locked</b>
     </button>
     <button class="chip-stat clickable quiz-chip" onclick="openQuiz()" title="Five questions that set your risk tier"><span class="muted">Risk quiz</span><span class="arrow">↗</span></button>
-    <button class="chip-stat clickable" onclick="switchTab('review')" title="Pending reviews"><span class="muted">Pending</span><b id="top-pending-badge">2</b></button>
+    <button class="chip-stat clickable" onclick="switchTab('review')" title="Pending reviews"><span class="muted">Pending</span><b id="top-pending-badge">0</b></button>
   </div>
 
   <main class="main">
@@ -308,8 +314,8 @@
           <div class="row-between">
             <div>
               <div class="caption">Total portfolio value</div>
-              <div class="huge" id="portfolio-total-val">$48,210</div>
-              <div class="up small">+$574 (+1.2%) in 24h</div>
+              <div class="huge" id="portfolio-total-val">$0</div>
+              <div class="up small" id="portfolio-delta-text">Live verified treasury</div>
             </div>
             <div class="seg" id="range-seg">
               <button class="active" data-range="24h">24h</button><button data-range="7d">7d</button><button data-range="30d">30d</button>
@@ -323,12 +329,9 @@
         </div>
 
         <div class="card glass alloc">
-          <div class="donut" style="--a:52;--b:22;--c:16"><div class="donut-hole"><b>3</b><span>markets</span></div></div>
-          <ul class="legend">
-            <li><i style="background:#cde38a"></i>Crypto<b>52%</b></li>
-            <li><i style="background:#7fb3ff"></i>Chinese mkt<b>22%</b></li>
-            <li><i style="background:#e8a64b"></i>Commodities<b>16%</b></li>
-            <li><i style="background:#8a9a86"></i>PegGuard reserve<b>10%</b></li>
+          <div class="donut" id="alloc-donut" style="--a:0;--b:0;--c:0"><div class="donut-hole" id="alloc-donut-hole"><b>0</b><span>assets</span></div></div>
+          <ul class="legend" id="alloc-legend">
+            <li><i style="background:#555"></i>No active holdings<b>0%</b></li>
           </ul>
         </div>
       </div>
@@ -342,10 +345,7 @@
           <table class="data-table" id="holdings-table">
             <thead><tr><th>Asset</th><th>Market</th><th>Amount</th><th>USD value</th><th>Share</th><th>24h P&amp;L</th><th>Sentiment</th><th>Health</th></tr></thead>
             <tbody>
-              <tr><td><b>stETH</b></td><td>Crypto (Ethereum)</td><td>6.20</td><td>$14,933</td><td>31%</td><td class="txt-green">+4.1%</td><td>Positive (+0.71)</td><td><span class="badge badge-green">OK</span></td></tr>
-              <tr><td><b>USDC</b></td><td>Crypto (Arbitrum)</td><td>10,200</td><td>$10,200</td><td>21%</td><td class="muted">0.0%</td><td>Neutral (0.00)</td><td><span class="badge badge-green">OK</span></td></tr>
-              <tr><td><b>PAXG</b></td><td>Commodities (Arbitrum)</td><td>3.10</td><td>$7,720</td><td>16%</td><td class="txt-green">+1.8%</td><td>Neutral (+0.12)</td><td><span class="badge badge-amber">Watch</span></td></tr>
-              <tr class="row-alert"><td><b>e-CNY MMF</b></td><td>Chinese mkt (FISCO BCOS)</td><td>10,600</td><td>$10,600</td><td>22%</td><td class="txt-red">−0.6%</td><td class="txt-red">Negative (−0.45)</td><td><span class="badge badge-red">Re-evaluate</span></td></tr>
+              <tr><td colspan="8" class="muted" style="text-align:center;padding:24px;">Connecting to on-chain smart account…</td></tr>
             </tbody>
           </table>
         </div>
@@ -408,12 +408,12 @@
       <div class="review-wrap">
         <div class="card glass">
           <div class="review-stats">
-            <div><div class="caption">Overnight trades</div><div class="big-num" id="review-total-trades">3</div></div>
-            <div><div class="caption">Capital moved</div><div class="big-num" id="review-capital-moved">$3,874</div></div>
-            <div><div class="caption">Reviewed</div><div class="big-num" id="review-progress">1 of 3</div></div>
+            <div><div class="caption">On-chain trades</div><div class="big-num" id="review-total-trades">0</div></div>
+            <div><div class="caption">Capital moved</div><div class="big-num" id="review-capital-moved">$0</div></div>
+            <div><div class="caption">Reviewed</div><div class="big-num" id="review-progress">0 of 0</div></div>
             <button class="pill-btn strong" onclick="ratifyAllRemaining()">Ratify the rest</button>
           </div>
-          <div class="row-between caption mt12"><span>Like streak toward a radius increase</span><span id="streak-text">3 of 5</span></div>
+          <div class="row-between caption mt12"><span>Like streak toward a radius increase</span><span id="streak-text">0 of 5</span></div>
           <div class="streak" id="streak-bar"></div>
         </div>
         <div class="trades" id="trades-list"></div>

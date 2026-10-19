@@ -37,7 +37,11 @@ class Rpc:
 
     def call(self, method: str, params: list[Any] | None = None) -> Any:
         body = json.dumps({"jsonrpc": "2.0", "id": next(self._ids), "method": method, "params": params or []}).encode()
-        req = urllib.request.Request(self.url, data=body, headers={"Content-Type": "application/json"})
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Tec-C/1.0",
+        }
+        req = urllib.request.Request(self.url, data=body, headers=headers)
         with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:  # noqa: S310 — URL scheme checked above
             payload = json.loads(resp.read())
         if "error" in payload:
