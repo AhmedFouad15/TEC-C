@@ -482,13 +482,31 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border: 0; bord
 .modal-close:hover { transform: rotate(90deg); background: var(--glass-2); }
 .amount-row { display: flex; align-items: center; gap: 12px; }
 .amount-row input { max-width: none; }
-.faceid { position: relative; align-self: center; width: 84px; height: 84px; border-radius: 22px; display: grid; place-items: center; background: rgba(127, 179, 255, .08); border: 1px solid rgba(127, 179, 255, .3); overflow: hidden; }
-.faceid svg { width: 46px; height: 46px; fill: none; stroke: var(--blue); stroke-width: 1.6; stroke-linecap: round; }
+.faceid {
+  position: relative; align-self: center; width: 92px; height: 92px; border-radius: 24px;
+  display: grid; place-items: center; background: rgba(12, 19, 16, 0.95);
+  border: 1.5px solid rgba(127, 179, 255, 0.4);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.8), 0 0 20px rgba(127, 179, 255, 0.16);
+  overflow: hidden; transition: border-color .3s, background-color .3s, box-shadow .3s;
+}
+.faceid svg {
+  width: 50px; height: 50px; fill: none; stroke: var(--blue); stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(127, 179, 255, 0.45));
+}
 .faceid circle { fill: var(--blue); }
-.faceid .scanline { position: absolute; left: 8px; right: 8px; height: 2px; top: 10px; background: var(--blue); box-shadow: 0 0 12px var(--blue); animation: scan 1.8s ease-in-out infinite alternate; }
-@keyframes scan { to { top: 72px; } }
-.faceid.ok { border-color: var(--green); background: rgba(111, 211, 154, .12); }
-.faceid.ok svg { stroke: var(--green); } .faceid.ok circle { fill: var(--green); } .faceid.ok .scanline { display: none; }
+.faceid .scanline {
+  position: absolute; left: 10px; right: 10px; height: 2.5px; top: 12px;
+  background: var(--blue); box-shadow: 0 0 14px var(--blue), 0 0 3px #fff; border-radius: 2px;
+  animation: scan 1.6s ease-in-out infinite alternate;
+}
+@keyframes scan { from { top: 12px; } to { top: 76px; } }
+.faceid.ok {
+  border-color: var(--green); background: rgba(14, 28, 20, 0.95);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.8), 0 0 24px rgba(111, 211, 154, 0.3);
+}
+.faceid.ok svg { stroke: var(--green); filter: drop-shadow(0 0 6px rgba(111, 211, 154, 0.5)); }
+.faceid.ok circle { fill: var(--green); }
+.faceid.ok .scanline { display: none; }
 .pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .pillar { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 16px; background: rgba(0, 0, 0, .2); border: 1px solid var(--glass-line); font-size: 13px; }
 .pillar .badge { align-self: flex-start; }

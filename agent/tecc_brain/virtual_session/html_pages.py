@@ -147,7 +147,7 @@ def render_laptop_admin_html(sessions: list[dict[str, Any]], audit_log: list[dic
     <div class="header">
       <div>
         <div class="title">Virtual Session Manager</div>
-        <div class="subtitle">Secure remote phone access via Cloudflare Quick-Tunnel & Face ID / Touch ID</div>
+        <div class="subtitle">Secure remote phone access via Cloudflare Quick-Tunnel & Face ID</div>
       </div>
       <div>
         <button class="btn btn-danger" onclick="triggerKillswitch()">Kill Switch (Revoke All)</button>
@@ -591,6 +591,32 @@ def render_phone_ui_html(session: dict[str, Any]) -> str:
     }}
     .hint-amber {{ background: rgba(232, 166, 75, 0.12); border: 1px solid rgba(232, 166, 75, 0.35); color: #fbd38d; }}
     .hint-red {{ background: rgba(255, 107, 94, 0.12); border: 1px solid rgba(255, 107, 94, 0.35); color: #fca5a5; }}
+    .faceid {{
+      position: relative; align-self: center; width: 92px; height: 92px; border-radius: 24px;
+      display: grid; place-items: center; background: rgba(12, 19, 16, 0.95);
+      border: 1.5px solid rgba(127, 179, 255, 0.4);
+      box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.8), 0 0 20px rgba(127, 179, 255, 0.16);
+      overflow: hidden; margin: 16px auto;
+      transition: border-color .3s, background-color .3s, box-shadow .3s;
+    }}
+    .faceid svg {{
+      width: 50px; height: 50px; fill: none; stroke: #7fb3ff; stroke-width: 1.8;
+      stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(127, 179, 255, 0.45));
+    }}
+    .faceid circle {{ fill: #7fb3ff; }}
+    .faceid .scanline {{
+      position: absolute; left: 10px; right: 10px; height: 2.5px; top: 12px;
+      background: #7fb3ff; box-shadow: 0 0 14px #7fb3ff, 0 0 3px #fff; border-radius: 2px;
+      animation: scan 1.6s ease-in-out infinite alternate;
+    }}
+    @keyframes scan {{ from {{ top: 12px; }} to {{ top: 76px; }} }}
+    .faceid.ok {{
+      border-color: #6fd39a; background: rgba(14, 28, 20, 0.95);
+      box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.8), 0 0 24px rgba(111, 211, 154, 0.3);
+    }}
+    .faceid.ok svg {{ stroke: #6fd39a; filter: drop-shadow(0 0 6px rgba(111, 211, 154, 0.5)); }}
+    .faceid.ok circle {{ fill: #6fd39a; }}
+    .faceid.ok .scanline {{ display: none; }}
   </style>
 </head>
 <body>

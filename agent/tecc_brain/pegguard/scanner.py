@@ -274,7 +274,7 @@ class PegGuardAutonomousScanner:
         from tecc_brain.market.live_feed import LiveMarketDataSource
 
         logger = logging.getLogger("tecc_brain.pegguard")
-        ds = LiveMarketDataSource(timeout=3.5)
+        ds = getattr(self, "_live_data_source", None) or LiveMarketDataSource(timeout=3.5)
 
         # Run immediately upon start, then every interval_seconds
         while not stop_event.is_set():
@@ -286,11 +286,10 @@ class PegGuardAutonomousScanner:
                 live_ratios = ds.get_live_peg_ratios()
 
                 # 2. Resolve vault & dependencies safely
-                from tecc_brain.api.deps import get_proposals, get_ref
+                from tecc_brain.api.deps import VaultIn, get_proposals, get_ref
                 from tecc_brain.api.vault import resolve_vault
-                from tecc_brain.models import VaultIn
 
-                vault = resolve_vault(account, VaultIn())
+                vault = resolve_vault(account, VaultIn(), False)
                 proposals = get_proposals()
                 ref = get_ref()
 

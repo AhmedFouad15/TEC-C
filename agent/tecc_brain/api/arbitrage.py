@@ -44,6 +44,8 @@ def get_arbitrage_scanner(
     router: MarketRouter = Depends(get_router),
     anchors: AuditAnchorService = Depends(get_anchors),
 ) -> PegGuardAutonomousScanner:
+    if not isinstance(store, ProfileStore):
+        store = get_store()
     if not isinstance(router, MarketRouter):  # called directly (not via FastAPI): resolve the shared router
         router = get_router()
     if not isinstance(anchors, AuditAnchorService):

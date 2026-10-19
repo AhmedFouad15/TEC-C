@@ -1099,7 +1099,7 @@ async function refreshLive() {
   if (!brain.live) { state.vault = null; renderVaultNumbers(); renderTrades(); renderDecisions(); return; }
   try { state.vault = await api('/api/vault/demo', { timeout: 8000 }); vaultInfo = state.vault; }
   catch { state.vault = null; }
-  renderVaultNumbers(); renderTrades(); renderDecisions(); loadWatchdogLog();
+  renderVaultNumbers(); renderTrades(); renderDecisions(); loadWatchdogLog(); loadPegGuard();
 }
 function renderVaultNumbers() {
   const v = state.vault;
@@ -1316,8 +1316,22 @@ async function ensureRegistered(pk) { // the Brain keeps passkeys in memory: re-
   if (st.passkeys.some(k => k.qx.toLowerCase() === pk.qx.toLowerCase() && k.qy.toLowerCase() === pk.qy.toLowerCase())) return;
   await api('/api/biometrics/register', { method: 'POST', body: { account: 'demo', key_id: 'browser-' + pk.id.slice(0, 12), device_label: `Passkey on ${pk.label}`, qx: pk.qx, qy: pk.qy } });
 }
-/* Ask for Touch ID / FaceID and open the 5-minute window. Resolves true when the Brain accepted the signature. */
-async function passkeyUnlock(reason = 'Confirm with your passkey') {
+function openFaceIdModal(titleHtml, subtitle) {
+  if ($('#faceid-prompt-title')) $('#faceid-prompt-title').innerHTML = titleHtml || 'Face ID <em>Authentication</em>';
+  if ($('#faceid-prompt-subtitle')) $('#faceid-prompt-subtitle').textContent = subtitle || 'Verifying hardware Face ID credentials…';
+  if ($('#faceid-prompt-status')) $('#faceid-prompt-status').textContent = 'Scanning Face ID… look at your camera';
+  $('#faceid-p')?.classList.remove('ok');
+  openModal('modal-faceid');
+}
+function closeFaceIdModal() {
+  closeModal('modal-faceid');
+}
+function cancelFaceIdScan() {
+  closeFaceIdModal();
+}
+
+/* Ask for Face ID and open the 5-minute window. Resolves true when the Brain accepted the signature. */
+async function passkeyUnlock(reason = 'Confirm with your passkey', opts = {}) {
   if (location.hostname === '127.0.0.1' && location.protocol === 'http:') {
     const portStr = location.port ? `:${location.port}` : '';
     const newUrl = `${location.protocol}//localhost${portStr}${location.pathname}${location.search}${location.hash}`;
@@ -1328,14 +1342,27 @@ async function passkeyUnlock(reason = 'Confirm with your passkey') {
   }
   if (!brain.live) { showToast('Passkeys are checked by the Brain: start it first.'); return false; }
 
+  const inlineBox = opts.inlineBox || null;
+  const statusEl = opts.statusEl || null;
+
+  if (inlineBox) {
+    inlineBox.style.display = 'grid';
+    inlineBox.classList.remove('ok');
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Scanning Face ID… look at your camera'; }
+  } else {
+    openFaceIdModal('Face ID <em>Authentication</em>', reason);
+  }
+
   if (!window.PublicKeyCredential || !window.isSecureContext) {
+    if (inlineBox) { inlineBox.style.display = 'none'; if (statusEl) statusEl.style.display = 'none'; }
+    else closeFaceIdModal();
     return await unlockWithPinPrompt('Passkeys require HTTPS/localhost. Enter your Security PIN:');
   }
 
   try {
     let pk = savedPasskey();
     if (!pk) {
-      showToast('First time: create a passkey for this vault (Touch ID / FaceID).');
+      showToast('First time: create a passkey for this vault (Face ID).');
       pk = await registerPasskey();
     }
     await ensureRegistered(pk);
@@ -1350,14 +1377,28 @@ async function passkeyUnlock(reason = 'Confirm with your passkey') {
       account: 'demo', authenticator_data_hex: hex(a.response.authenticatorData), client_data_hash_hex: hex(cdHash), r, s, qx: pk.qx, qy: pk.qy, require_uv: false,
     } });
     if (!v.verified) {
+      if (inlineBox) { inlineBox.style.display = 'none'; if (statusEl) statusEl.style.display = 'none'; }
+      else closeFaceIdModal();
       showToast(`Passkey refused: ${v.rejection_reason || 'not verified'}`);
       return await unlockWithPinPrompt('Passkey refused. Enter your Security PIN to unlock:');
     }
+    if (inlineBox) {
+      inlineBox.classList.add('ok');
+      if (statusEl) statusEl.textContent = 'Face ID verified!';
+      await sleep(350);
+    } else {
+      $('#faceid-p')?.classList.add('ok');
+      if ($('#faceid-prompt-status')) $('#faceid-prompt-status').textContent = 'Face ID verified!';
+      await sleep(350);
+      closeFaceIdModal();
+    }
     setBiometric(true);
-    showToast('Passkey verified: 5-minute window open.');
+    showToast('Face ID verified: 5-minute window open.');
     return true;
   } catch (err) {
-    return await unlockWithPinPrompt('FaceID / Passkey prompt cancelled. Enter your Security PIN:');
+    if (inlineBox) { inlineBox.style.display = 'none'; if (statusEl) statusEl.style.display = 'none'; }
+    else closeFaceIdModal();
+    return await unlockWithPinPrompt('Face ID / Passkey prompt cancelled. Enter your Security PIN:');
   }
 }
 
@@ -1465,13 +1506,19 @@ async function enrollDevicePasskey() {
     return;
   }
   if (!brain.live) return showToast('Start the Brain before enrolling passkeys.');
+  openFaceIdModal('Enroll <em>Face ID</em>', 'Scan your Face ID to register your hardware passkey…');
   try {
-    showToast('Triggering device biometric enrollment (FaceID / Fingerprint)…');
+    showToast('Triggering device biometric enrollment (Face ID)…');
     const pk = await registerPasskey();
     await ensureRegistered(pk);
-    showToast('FaceID / Fingerprint enrolled and registered successfully!');
+    $('#faceid-p')?.classList.add('ok');
+    if ($('#faceid-prompt-status')) $('#faceid-prompt-status').textContent = 'Face ID registered!';
+    await sleep(400);
+    closeFaceIdModal();
+    showToast('Face ID enrolled and registered successfully!');
     loadSecurityStatus();
   } catch (err) {
+    closeFaceIdModal();
     if (err?.name === 'NotAllowedError') showToast('Biometric enrollment cancelled.');
     else {
       showToast(`Enrollment failed: ${err.message}`);
@@ -1554,17 +1601,26 @@ async function authenticateAndWithdraw() {
   const btn = $('#btn-withdraw-faceid'), amt = Math.max(0, parseFloat($('#withdraw-amount').value) || 0), to = $('#withdraw-addr').value.trim();
   if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return showToast('Enter a full 0x… address to send to.');
   if (!amt) return showToast('Enter an amount.');
-  btn.disabled = true; btn.firstElementChild.textContent = 'Waiting for your passkey…';
+  const faceBox = $('#faceid-w'), statusEl = $('#withdraw-faceid-status');
+  btn.disabled = true; btn.firstElementChild.textContent = 'Scanning Face ID…';
   try {
-    if (!state.biometricUnlocked && !(await passkeyUnlock('Approve the withdrawal'))) return;
+    if (!state.biometricUnlocked) {
+      const ok = await passkeyUnlock('Approve the withdrawal', { inlineBox: faceBox, statusEl: statusEl });
+      if (!ok) return;
+    }
     btn.firstElementChild.textContent = 'Asking the vault…';
-    // the vault itself refuses unless a passkey (FaceID / Touch ID) window was verified first
+    // the vault itself refuses unless a passkey (Face ID) window was verified first
     const r = await api('/api/vault/demo/withdraw', { method: 'POST', body: { to, asset: 'USDC', amount: amt } });
     closeModal('modal-withdraw');
     txToast(r.message || 'Sent.', r.tx_hash);
     refreshLive();
   } catch (err) { showToast(`The vault refused: ${err.message}`); }
-  finally { btn.disabled = false; btn.firstElementChild.textContent = 'Scan FaceID & transfer'; }
+  finally {
+    btn.disabled = false;
+    btn.firstElementChild.textContent = 'Scan Face ID & transfer';
+    if (faceBox) faceBox.style.display = 'none';
+    if (statusEl) statusEl.style.display = 'none';
+  }
 }
 let breakoutTimer = null, pendingLiveBreakout = null; // the execute function to retry once the passkey is verified
 function openBreakoutModal(val, profit, order = '') {
@@ -1583,24 +1639,37 @@ function openBreakoutModal(val, profit, order = '') {
   }, 1000);
 }
 async function approveBreakoutTrade() {
-  // no fake scan: the request goes to the Brain, which answers whether a passkey-verified breakout can run
-  clearInterval(breakoutTimer);
-  closeModal('modal-breakout');
   const retry = pendingLiveBreakout;
-  pendingLiveBreakout = null;
-  if (!retry) return;
-  if (state.biometricUnlocked || await passkeyUnlock('Approve breaking the leash')) await retry();
+  const faceBox = $('#faceid-b'), statusEl = $('#breakout-faceid-status');
+  const btn = $('#btn-breakout-approve');
+  if (btn) { btn.disabled = true; btn.firstElementChild.textContent = 'Scanning Face ID…'; }
+  try {
+    if (!state.biometricUnlocked) {
+      const ok = await passkeyUnlock('Approve breaking the leash', { inlineBox: faceBox, statusEl: statusEl });
+      if (!ok) return;
+    }
+    clearInterval(breakoutTimer);
+    closeModal('modal-breakout');
+    pendingLiveBreakout = null;
+    if (retry) await retry();
+  } catch (err) {
+    showToast(`Breakout error: ${err.message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.firstElementChild.textContent = 'Scan Face ID & approve'; }
+    if (faceBox) faceBox.style.display = 'none';
+    if (statusEl) statusEl.style.display = 'none';
+  }
 }
 function setBiometric(on) {
   state.biometricUnlocked = on;
-  $('#modal-breakout .btn-primary span')?.replaceChildren(on ? 'Execute (passkey verified)' : 'Approve with your passkey');
+  $('#modal-breakout .btn-primary span')?.replaceChildren(on ? 'Execute (Face ID verified)' : 'Scan Face ID & approve');
   $('#bio-dot').className = 'dot ' + (on ? 'active' : 'locked');
   $('#bio-status-text').textContent = on ? 'Unlocked (5m)' : 'Locked';
   clearTimeout(setBiometric.t);
   if (on) setBiometric.t = setTimeout(() => setBiometric(false), 5 * 60 * 1000);
 }
 function toggleBiometricWindow() {
-  if (state.biometricUnlocked) return showToast('A verified passkey window is open right now.');
+  if (state.biometricUnlocked) return showToast('A verified Face ID window is open right now.');
   passkeyUnlock('Open the 5-minute window');
 }
 
@@ -2073,5 +2142,6 @@ document.addEventListener('DOMContentLoaded', () => {
   probeBrain();
   setInterval(probeBrain, 20000);
   setInterval(() => { if (brain.live && !document.hidden) refreshLive(); }, 15000);
+  setInterval(() => { if (state.pegGuardEnabled) updatePegGuardTelemetryUI(); }, 1000);
   document.fonts?.ready.then(moveIndicator);
 });

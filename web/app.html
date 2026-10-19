@@ -63,7 +63,7 @@
     <div class="chip-stat clickable" id="brain-pill" onclick="configureBrainApi()" title="Brain API connection (click to configure)">
       <span class="dot" id="brain-dot"></span><span class="muted">Brain</span><b id="top-heartbeat-text">connecting…</b>
     </div>
-    <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Verify with your passkey (FaceID / Windows Hello) to open the 5-minute window">
+    <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Verify with your passkey (Face ID / Windows Hello) to open the 5-minute window">
       <span class="dot locked" id="bio-dot"></span><span class="muted">Biometric</span><b id="bio-status-text">Locked</b>
     </button>
     <button class="chip-stat clickable quiz-chip" onclick="openQuiz()" title="Five questions that set your risk tier"><span class="muted">Risk quiz</span><span class="arrow">↗</span></button>
@@ -502,17 +502,17 @@
           <span>System <em>Authenticator</em> &amp; Hardware Security</span>
           <span class="badge badge-blue" id="auth-status-badge">PIN &amp; Biometrics</span>
         </div>
-        <p class="caption">Configure FaceID / TouchID passkeys and your backup Security PIN. These credentials authenticate remote phone sessions, external withdrawals, and leash breakouts.</p>
+        <p class="caption">Configure Face ID passkeys and your backup Security PIN. These credentials authenticate remote phone sessions, external withdrawals, and leash breakouts.</p>
 
         <div class="grid-2" style="margin-top: 16px;">
           <div style="background: rgba(255,255,255,0.03); padding: 18px; border-radius: 12px; border: 1px solid var(--glass-line);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <b>FaceID / Fingerprint (WebAuthn)</b>
+              <b>Face ID (WebAuthn)</b>
               <span class="badge" id="bio-enrolled-badge">Not enrolled</span>
             </div>
             <div class="caption" style="margin-bottom: 14px;">Cryptographic NIST P-256 passkey bound to this device's hardware enclave.</div>
             <div class="row-wrap">
-              <button class="pill-btn strong" id="btn-enroll-bio" onclick="enrollDevicePasskey()">Enroll FaceID / Fingerprint</button>
+              <button class="pill-btn strong" id="btn-enroll-bio" onclick="enrollDevicePasskey()">Enroll Face ID</button>
               <button class="pill-btn" onclick="toggleBiometricWindow()">Test 5m window</button>
             </div>
           </div>
@@ -582,11 +582,12 @@
   <div class="modal-overlay" id="modal-withdraw">
     <div class="modal">
       <div class="modal-head"><div class="modal-title">Biometric <em>withdrawal</em></div><button class="modal-close" onclick="closeModal('modal-withdraw')">×</button></div>
-      <div class="alert">The AI session key has <b>zero</b> authority to send funds out. External transfers need your hardware passkey (FaceID / TouchID, WebAuthn P-256).</div>
+      <div class="alert">The AI session key has <b>zero</b> authority to send funds out. External transfers need your hardware passkey (Face ID, WebAuthn P-256).</div>
       <label class="field"><span class="section-label">Recipient address</span><input type="text" id="withdraw-addr" placeholder="0x… your cold wallet" autocomplete="off"></label>
       <label class="field"><span class="section-label">Amount (USDC)</span><input type="number" id="withdraw-amount" value="100" step="50" min="0"></label>
-      <div class="faceid" id="faceid-w"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg><span class="scanline"></span></div>
-      <div class="row-wrap"><button class="btn-primary grow" id="btn-withdraw-faceid" onclick="authenticateAndWithdraw()"><span>Scan FaceID &amp; transfer</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-withdraw')">Cancel</button></div>
+      <div class="faceid" id="faceid-w" style="display: none; margin: 16px auto;"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg><span class="scanline"></span></div>
+      <div class="caption text-center" id="withdraw-faceid-status" style="display: none; margin-top: -6px; margin-bottom: 12px; color: var(--lime); font-size: 13px; font-weight: 600; text-align: center;">Scanning Face ID… look at your camera</div>
+      <div class="row-wrap"><button class="btn-primary grow" id="btn-withdraw-faceid" onclick="authenticateAndWithdraw()"><span>Scan Face ID &amp; transfer</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-withdraw')">Cancel</button></div>
     </div>
   </div>
 
@@ -599,8 +600,24 @@
         <dt>Window</dt><dd><span id="breakout-countdown">30</span> s remaining</dd>
         <dt>Needs</dt><dd><span class="badge badge-amber">Hardware biometric</span></dd>
       </dl>
-      <div class="faceid"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg><span class="scanline"></span></div>
-      <div class="row-wrap"><button class="btn-primary grow" onclick="approveBreakoutTrade()"><span>Request the breakout</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-breakout')">Reject</button></div>
+      <div class="faceid" id="faceid-b" style="display: none; margin: 16px auto;"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg><span class="scanline"></span></div>
+      <div class="caption text-center" id="breakout-faceid-status" style="display: none; margin-top: -6px; margin-bottom: 12px; color: var(--lime); font-size: 13px; font-weight: 600; text-align: center;">Scanning Face ID… look at your camera</div>
+      <div class="row-wrap"><button class="btn-primary grow" id="btn-breakout-approve" onclick="approveBreakoutTrade()"><span>Scan Face ID &amp; approve</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-breakout')">Reject</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-faceid">
+    <div class="modal" style="text-align: center; max-width: 380px;">
+      <div class="modal-head" style="justify-content: center; position: relative;">
+        <div class="modal-title" id="faceid-prompt-title">Face ID <em>Authentication</em></div>
+        <button class="modal-close" style="position: absolute; right: 0;" onclick="cancelFaceIdScan()">×</button>
+      </div>
+      <p class="caption" id="faceid-prompt-subtitle" style="margin: 8px 0 16px;">Verifying hardware Face ID credentials…</p>
+      <div class="faceid" id="faceid-p" style="margin: 14px auto 16px;"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/></svg><span class="scanline"></span></div>
+      <div class="caption" id="faceid-prompt-status" style="font-size: 13px; color: var(--lime); font-weight: 600;">Scanning Face ID… look at your camera</div>
+      <div class="row-wrap" style="justify-content: center; margin-top: 18px;">
+        <button class="pill-btn" onclick="cancelFaceIdScan()">Cancel</button>
+      </div>
     </div>
   </div>
 
