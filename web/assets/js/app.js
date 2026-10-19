@@ -1093,7 +1093,14 @@ function derToRS(der) { // ASN.1 SEQUENCE { INTEGER r, INTEGER s } → hex r, lo
 function savedPasskey() { try { return JSON.parse(store.get(PK_KEY) || 'null'); } catch { return null; } }
 async function registerPasskey() {
   if (!window.PublicKeyCredential) throw new Error('this browser has no passkey support');
-  if (location.hostname === '127.0.0.1') throw new Error('open the dashboard on http://localhost:5500 (passkeys need a host name, not an IP)');
+  if (location.hostname === '127.0.0.1') {
+    const portStr = location.port ? `:${location.port}` : '';
+    const newUrl = `${location.protocol}//localhost${portStr}${location.pathname}${location.search}${location.hash}`;
+    showToast('Switching to localhost for Passkey support…');
+    await sleep(600);
+    location.replace(newUrl);
+    throw new Error('Passkeys require a hostname (e.g. localhost or tec-c.xyz). Redirecting to localhost…');
+  }
   const cred = await navigator.credentials.create({ publicKey: {
     challenge: crypto.getRandomValues(new Uint8Array(32)),
     rp: { name: 'Tec-C vault', id: location.hostname },
@@ -1116,6 +1123,14 @@ async function ensureRegistered(pk) { // the Brain keeps passkeys in memory: re-
 }
 /* Ask for Touch ID / FaceID and open the 5-minute window. Resolves true when the Brain accepted the signature. */
 async function passkeyUnlock(reason = 'Confirm with your passkey') {
+  if (location.hostname === '127.0.0.1') {
+    const portStr = location.port ? `:${location.port}` : '';
+    const newUrl = `${location.protocol}//localhost${portStr}${location.pathname}${location.search}${location.hash}`;
+    showToast('Switching to localhost for Passkey support…');
+    await sleep(600);
+    location.replace(newUrl);
+    return false;
+  }
   if (!brain.live) { showToast('Passkeys are checked by the Brain: start it first.'); return false; }
   try {
     let pk = savedPasskey();
@@ -1136,8 +1151,21 @@ async function passkeyUnlock(reason = 'Confirm with your passkey') {
     showToast('Passkey verified: 5-minute window open.');
     return true;
   } catch (err) {
-    if (err?.name === 'NotAllowedError') showToast('Passkey cancelled.');
-    else showToast(`Passkey failed: ${err.message}`);
+    if (err?.name === 'NotAllowedError' || err?.message?.includes('Passkey') || err?.message?.includes('passkey')) {
+      const pin = prompt('FaceID / Device passkey unavailable or cancelled.\nEnter your Security PIN to unlock the 5-minute window:');
+      if (pin) {
+        try {
+          await api('/webauthn/pin/verify', { method: 'POST', body: { session_id: 'command-center', pin } });
+          setBiometric(true);
+          showToast('Security PIN verified: 5-minute window open.');
+          return true;
+        } catch (e) {
+          showToast('Invalid Security PIN.');
+          return false;
+        }
+      }
+    }
+    showToast(`Passkey cancelled.`);
     return false;
   }
 }
@@ -1219,6 +1247,14 @@ async function removeSecurityPin() {
 }
 
 async function enrollDevicePasskey() {
+  if (location.hostname === '127.0.0.1') {
+    const portStr = location.port ? `:${location.port}` : '';
+    const newUrl = `${location.protocol}//localhost${portStr}${location.pathname}${location.search}${location.hash}`;
+    showToast('Switching to localhost for Passkey support…');
+    await sleep(600);
+    location.replace(newUrl);
+    return;
+  }
   if (!brain.live) return showToast('Start the Brain before enrolling passkeys.');
   try {
     showToast('Triggering device biometric enrollment (FaceID / Fingerprint)…');
