@@ -40,6 +40,8 @@ The two pages share one story: **a jaguar in the dark, then a calm, misty forest
 | Colours | ink `#0b0d0a`, amber `#e8a64b` | sage `#9aa88f`, white text and cards, lime accent `#cde38a` |
 | Surfaces | full-bleed photos | white cards (landing) and frosted "glass" cards (dashboard) |
 
+Both pages have a **soft dark edge across the top of the screen** (as in the Pyko reference): almost black at the very top, fading out over about 46% of the screen height. It's a still gradient, so it costs nothing to draw.
+
 Rule followed throughout: after the hero, every section keeps the same light palette and only the background design changes (moss ring, misty photo band, white rules). Foreground elements always contrast clearly with the background.
 
 ## 3. Landing page (`index.html`)
@@ -116,9 +118,13 @@ The first version of the transition lagged because every scroll frame forced the
 - fireflies use a pre-rendered glow sprite (no per-frame gradients), there are fewer of them, and they stop during the transition;
 - forest animations stay paused until the forest is visible, and off-screen sections are skipped (`content-visibility: auto`);
 - fog and forest images are pre-decoded while the hero shows;
-- on the dashboard, the background behind the glass cards is kept still (no parallax, no breathing moss), so the cards don't re-blur every frame.
+- on the dashboard, the background behind the glass cards is kept still (no parallax, no breathing moss), so the cards don't re-blur every frame;
+- **no live frosted-glass blur (`backdrop-filter`) anywhere on the landing.** Re-blurring the animated forest behind the territory cards, marquee and footer froze the first scroll into the forest for several seconds. Those surfaces are now tinted, semi-opaque colours that look almost the same.
 
-**Measured** with an automated scroll through the whole transition on a fresh load: **60 fps, no frames over 25 ms** (before: hitches of up to ~450 ms).
+**Measured** on a fresh load with an automated scroll:
+- through the whole transition: **60 fps, no frames over 25 ms** (before: hitches of up to ~450 ms);
+- the whole landing page, hero to footer: **59 fps, 3 of 298 frames over 25 ms** (before: a 12-second freeze);
+- dashboard screens: **60 fps, no frames over 25 ms**.
 
 ## 7. Assets and licences
 
@@ -149,7 +155,8 @@ Images are resized, compressed and colour-graded in CSS.
 3. Wired the dashboard to the live Brain API with a demo fallback.
 4. Voice-note feedback: light, airy forest sections after the hero; the jaguar only in the hero; removed the "ugly line".
 5. The transition went from iris (felt cheap) to a running jaguar into a cave (felt bad) to **mist**.
-6. Fixed ring clipping and sizing at smaller window heights.
+6. Fixed ring clipping and sizing; the moss rings are now sized by window height so they are never cropped.
 7. Added Backtests, the injection-proof options flow and the risk quiz.
 8. Security fix: loopback-only `?api=`.
-9. Performance pass: 60 fps transition.
+9. Performance passes: 60 fps transition, then the forest sections (removed live backdrop blur).
+10. Soft dark top edge on both pages, made longer and darker after feedback.
