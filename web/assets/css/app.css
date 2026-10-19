@@ -574,3 +574,8 @@ html, body { overflow-x: clip; }
 .bg-photo { transform: scale(1.05); transition: none; }
 .cursor-glow { z-index: 3; }  /* above the glass, so moving it never invalidates their blur */
 .quiz-chip { border-color: rgba(205, 227, 138, .45); }
+
+/* soft, merged dark edge at the top of the screen (like the Pyko reference); a still gradient, so no blur cost */
+.top-shade { position: fixed; left: 0; right: 0; top: 0; height: 34vh; z-index: 1; pointer-events: none;
+  background: linear-gradient(180deg, rgba(8, 11, 8, .82) 0%, rgba(8, 11, 8, .70) 7%, rgba(8, 11, 8, .56) 16%, rgba(8, 11, 8, .42) 27%, rgba(8, 11, 8, .29) 40%, rgba(8, 11, 8, .17) 55%, rgba(8, 11, 8, .08) 72%, rgba(8, 11, 8, .02) 88%, rgba(8, 11, 8, 0) 100%); }
+.topbar { background: linear-gradient(rgba(8, 11, 8, .55), rgba(8, 11, 8, 0)); }
