@@ -81,9 +81,8 @@ function setBrainStatus(live, text) {
   if (changed) {
     loadRegimes();
     loadProfile();
+    loadCatalog();
     maybeShowQuizBanner();
-    btLoaded = false;
-    if ($('#panel-backtests').classList.contains('active')) loadBacktests();
     if (live) showToast('Brain connected: commands now run through the real pipeline.');
   }
 }
@@ -114,7 +113,7 @@ const ACTION_PRESETS = {
     ],
   },
   'Park idle cash': {
-    assets: ['USDC', 'e-CNY MMF', 'USDT', 'USDY'], defaultAssets: ['USDC', 'e-CNY MMF'], market: 'Chinese market', network: 'FISCO BCOS / Arbitrum', pct: 25, tier: 'Tier 1',
+    assets: ['USDC', 'e-CNY MMF', 'USDT', 'USDY'], defaultAssets: ['USDC', 'e-CNY MMF'], market: 'Any', network: 'All three markets', pct: 25, tier: 'Tier 1',
     headlines: ['PBOC operations support the 1Y Shibor benchmark (2h ago · positive)', 'Consortium-chain MMFs report zero duration risk (4h ago · positive)', 'USDC lending on Arbitrum normalizes to 4.8% (8h ago · neutral)'],
     newsScore: 0.48, sharpe: 1.42, cvar95: -0.2, cvar99: -0.4,
     candidates: [
@@ -144,7 +143,7 @@ const ACTION_PRESETS = {
     ],
   },
   'Rebalance': {
-    assets: ['All in market', 'ETH', 'USDC', 'PAXG'], defaultAssets: ['All in market'], market: 'Any', network: 'Multi-chain', pct: 20, tier: 'Tier 2',
+    assets: ['All in market', 'ETH', 'USDC', 'PAXG'], defaultAssets: ['All in market'], market: 'Any', network: 'All three markets', pct: 20, tier: 'Tier 2',
     headlines: ['Cross-asset covariance stable over 30 days (2h ago · positive)', 'Gold–equity correlation falls to −0.14 (5h ago · positive)', 'Consortium MMF rate anchors portfolio variance (8h ago · neutral)'],
     newsScore: 0.58, sharpe: 1.24, cvar95: -2.1, cvar99: -4.1,
     candidates: [
@@ -164,16 +163,41 @@ const ACTION_PRESETS = {
     ],
   },
   'Find opportunities': {
-    assets: ['All in market', 'ETH', 'stETH', 'USDC', 'PAXG'], defaultAssets: ['All in market'], market: 'Any', network: 'All chains', pct: 10, tier: 'Tier 2',
+    assets: ['All in market', 'ETH', 'stETH', 'USDC', 'PAXG'], defaultAssets: ['All in market'], market: 'Any', network: 'All three markets', pct: 10, tier: 'Tier 2',
     headlines: ['LST secondary spreads widen across chains (1h ago · positive)', 'Shibor MMF a strong hurdle for parking (3h ago · positive)', 'Staking beats lending by 80 bps (6h ago · neutral)'],
     newsScore: 0.71, sharpe: 0.95, cvar95: -3.1, cvar99: -5.4,
     candidates: [
       { id: 'A', title: 'Stake ETH on Lido', badge: 'Rank 1', cls: 'badge-green', info: 'Crypto · best risk-adjusted excess yield', news: '+0.71', econ: '0.64', inj: 'Pass', score: 0.68, rationale: 'Blue-chip yield with deep liquidity.' },
-      { id: 'B', title: 'PegGuard de-peg arbitrage', badge: 'Rank 2', cls: 'badge-green', info: 'Arbitrage · 18 bps discount · +$84', news: '+0.55', econ: '0.80', inj: 'Pass', score: 0.66, rationale: 'The regime model says the peg holds; the discount is carry.' },
+      { id: 'B', title: 'Curve stETH/ETH pool', badge: 'Rank 2', cls: 'badge-green', info: 'Crypto · LST pool · 3.9% APY', news: '+0.55', econ: '0.71', inj: 'Pass', score: 0.66, rationale: 'Staking yield plus trading fees; slightly more exit cost than direct staking.' },
       { id: 'C', title: 'Aave v3 USDC on Arbitrum', badge: 'Rank 3', cls: 'badge-blue', info: 'Crypto · lending · 4.8% APY', news: '+0.52', econ: '0.78', inj: 'Pass', score: 0.63, rationale: 'Collateralized lending yield with no price beta.' },
     ],
   },
 };
+
+/* What each market actually holds. The live list comes from the Brain's /api/catalog (venues per market);
+   this is the offline fallback. PegGuard is not here on purpose: it is a background switch, not a market. */
+const MARKETS = {
+  'Crypto': { sub: 'Ethereum L1', assets: ['ETH', 'stETH', 'rETH', 'cbETH', 'USDC', 'USDT'] },
+  'Chinese market': { sub: 'FISCO BCOS', assets: ['e-CNY MMF', 'USDC', 'USDT'] },
+  'Commodities': { sub: 'Arbitrum One', assets: ['PAXG', 'USDC'] },
+};
+const CATALOG_MARKET = { crypto: 'Crypto', chinese_market: 'Chinese market', commodities: 'Commodities' };
+function marketAssets(name) {
+  if (MARKETS[name]) return MARKETS[name].assets;
+  return ['All in market', ...new Set(Object.values(MARKETS).flatMap(m => m.assets))];  // Any
+}
+async function loadCatalog() {
+  if (!brain.live) return;
+  try {
+    const c = await api('/api/catalog', { timeout: 5000 });
+    for (const [id, m] of Object.entries(c.markets || {})) {
+      const name = CATALOG_MARKET[id];
+      // the market's own assets stay first (PAXG for commodities); the venues' funding assets are added
+      if (name && Array.isArray(m.assets)) MARKETS[name].assets = [...new Set([...MARKETS[name].assets, ...m.assets.map(String)])];
+    }
+    selectMarket(state.market, state.network, false);  // re-filter the pills with the live list
+  } catch { /* keep the offline lists */ }
+}
 
 const DEMO_AGENTS = [
   { agent: 'gatekeeper_intake', title: 'Gatekeeper · intake', lines: ['Firewall: no injected instructions found.', 'Privacy sieve: amounts masked before any cloud model.'] },
@@ -225,7 +249,6 @@ function switchTab(tab) {
   if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
   scrollTo({ top: 0, behavior: 'smooth' });
   if (tab === 'portfolio') drawTrend();
-  if (tab === 'backtests') loadBacktests();
 }
 $$('.nav-item').forEach(n => n.addEventListener('click', e => { e.preventDefault(); switchTab(n.dataset.tab); }));
 addEventListener('hashchange', () => switchTab(location.hash.slice(1)));
@@ -247,8 +270,7 @@ function selectAction(name, toast = true) {
   $$('#action-pills .pill-btn').forEach(b => b.classList.toggle('active', b.dataset.action === name));
   $('#active-action-badge').textContent = `${name} mandate`;
   state.assets = [...p.defaultAssets];
-  renderAssetPills(p.assets);
-  selectMarket(p.market, p.network, false);
+  selectMarket(p.market, MARKETS[p.market]?.sub || p.network, false);  // filters the assets to that market
   setSliderPercent(p.pct);
   selectTier(p.tier, false);
   if (!state.live) renderOpportunities();
@@ -267,6 +289,12 @@ $('#asset-pills').addEventListener('click', e => {
 function selectMarket(name, sub, toast = true) {
   state.market = name; state.network = sub;
   $$('#market-grid .market-card').forEach(c => c.classList.toggle('active', c.dataset.market === name));
+  // only the assets that exist in this market: the Chinese market never offers ETH
+  const list = marketAssets(name);
+  state.assets = state.assets.filter(a => list.includes(a));
+  if (!state.assets.length) state.assets = [list[0]];
+  renderAssetPills(list);
+  $('#asset-scope-note').textContent = name === 'Any' ? '· across all three markets' : `· available in ${name} (${sub})`;
   updatePrompt();
   if (toast) showToast(`Market: ${name} (${sub})`);
 }
@@ -859,25 +887,58 @@ function closeModal(id) { $('#' + id)?.classList.remove('active'); clearInterval
 $$('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); }));
 addEventListener('keydown', e => { if (e.key === 'Escape') $$('.modal-overlay.active').forEach(o => closeModal(o.id)); });
 
-const RATES = { ETH: 2410.5, USDC: 1, 'e-CNY': 0.14 };
-function openDepositModal() { updateDepositAssetOptions(); openModal('modal-deposit'); }
-function updateDepositAssetOptions() {
-  const n = $('#deposit-network').value;
-  $('#deposit-asset-symbol').textContent = n === 'Ethereum' ? 'ETH' : n === 'FISCO' ? 'e-CNY' : 'USDC';
-  $('#deposit-amount').value = n === 'Ethereum' ? '1.0' : n === 'FISCO' ? '10000' : '1000';
-  updateDepositUSDConversion();
+/* Deposit: the vault's real address (and QR) from the Brain's /api/vault/{account}; the user transfers to it */
+let vaultInfo = null;
+const NETWORK_NAME = { anvil: 'Local test chain (Anvil)', sepolia: 'Ethereum Sepolia', arbitrum: 'Arbitrum', fisco: 'FISCO BCOS' };
+async function loadVault() {
+  if (!brain.live) { vaultInfo = null; return null; }
+  try { vaultInfo = await api('/api/vault/demo', { timeout: 6000 }); } catch { vaultInfo = null; }
+  return vaultInfo;
 }
-function updateDepositUSDConversion() {
-  const amt = parseFloat($('#deposit-amount').value) || 0, sym = $('#deposit-asset-symbol').textContent;
-  $('#deposit-usd-conversion').textContent = `≈ ${usd(amt * RATES[sym])} at the oracle price`;
+async function openDepositModal() {
+  openModal('modal-deposit');
+  $('#deposit-addr').textContent = 'Connecting to your vault…';
+  await loadVault();
+  renderDeposit();
 }
-function confirmDeposit() {
-  const amt = parseFloat($('#deposit-amount').value) || 0, sym = $('#deposit-asset-symbol').textContent;
-  const v = Math.round(amt * RATES[sym]);
-  if (v <= 0) return showToast('Enter an amount first.');
-  setVault(state.vaultBalance + v);
-  closeModal('modal-deposit');
-  showToast(`Deposit confirmed: +${usd(v)} credited to the vault.`);
+const safeSvg = s => (typeof s === 'string' && /^\s*<svg[\s>]/i.test(s) && !/<script|<foreignObject|\son\w+\s*=|javascript:/i.test(s)) ? s : '';
+function renderDeposit() {
+  const sel = $('#deposit-network'), v = vaultInfo;
+  $('#btn-faucet').hidden = !(v && v.dev_chain);
+  if (!v || !v.deposit_address) {
+    sel.innerHTML = '<option>Not connected</option>'; sel.disabled = true;
+    $('#deposit-qr').innerHTML = '<div class="qr-empty">QR</div>';
+    $('#deposit-addr').textContent = brain.live ? 'No vault deployed yet. Run ./dev_up.sh to deploy one.' : 'Your vault address appears when the Brain is connected to your vault (./dev_up.sh).';
+    $('#btn-copy-addr').disabled = true;
+    $('#deposit-accepts').textContent = '';
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = `<option value="${esc(v.network)}">${esc(NETWORK_NAME[v.network] || v.network)} · chain ${esc(v.chain_id)}</option>`;
+  $('#deposit-qr').innerHTML = safeSvg(v.deposit_qr_svg) || '<div class="qr-empty">QR</div>';
+  $('#deposit-addr').textContent = v.deposit_address;
+  $('#btn-copy-addr').disabled = false;
+  $('#deposit-accepts').innerHTML = `Accepts <b>ETH</b> and <b>USDC</b>${v.contracts?.usdc ? ` (token <code>${esc(v.contracts.usdc.slice(0, 6))}…${esc(v.contracts.usdc.slice(-4))}</code>)` : ''} on this network.`;
+}
+async function copyDepositAddress() {
+  const a = vaultInfo?.deposit_address;
+  if (!a) return;
+  try { await navigator.clipboard.writeText(a); showToast('Vault address copied.'); }
+  catch { showToast('Copy blocked by the browser: select the address and copy it.'); }
+}
+async function refreshVaultBalance() {
+  const v = await loadVault();
+  if (!v) return showToast('The Brain is offline, so the on-chain balance can\'t be read right now.');
+  if (typeof v.total_usd === 'number') setVault(v.total_usd);
+  renderDeposit();
+  showToast(`On-chain vault balance: ${usd(v.total_usd || 0)}.`);
+}
+async function requestTestFunds() {
+  try {
+    const r = await api('/api/vault/demo/faucet', { method: 'POST', body: { eth: 1, usdc: 5000 } });
+    showToast(r.message || 'Test funds sent.');
+    await refreshVaultBalance();
+  } catch (err) { showToast(`Faucet unavailable: ${err.message}`); }
 }
 async function faceIdScan(box) {
   box?.classList.remove('ok');
@@ -937,7 +998,7 @@ function toggleBiometricWindow() {
 }
 
 /* =========================================================================================
-   Home widgets & scenarios
+   Home widgets
    ========================================================================================= */
 function togglePegGuardArbitrage() {
   state.pegGuardEnabled = $('#arb-toggle').checked;
@@ -945,23 +1006,13 @@ function togglePegGuardArbitrage() {
   $('#arb-status-badge').className = 'badge ' + (state.pegGuardEnabled ? 'badge-amber' : 'badge-red');
   $('#arb-state-text').textContent = state.pegGuardEnabled ? 'Enabled' : 'Idle';
   $('#arb-state-text').className = state.pegGuardEnabled ? 'txt-green' : 'muted';
-  showToast(state.pegGuardEnabled ? 'PegGuard scanning again.' : 'PegGuard paused.');
+  renderPegGuardNote();
+  showToast(state.pegGuardEnabled ? 'PegGuard on: guarding every peg in the background.' : 'PegGuard off.');
 }
-function runScenarioA() {
-  if (800 > tetherLeft()) return showToast(`Only ${usd(tetherLeft())} left today: this would need a breakout.`);
-  spendTether(800);
-  addTrade({ title: 'Deposit 800 USDC into Compound v3', market: 'Crypto', val: 800, status: 'pending', news: '+0.52', econ: '0.81', tx: fakeTx(), pnl: '+$0.25' });
-  showToast('Scenario A: $800 harvested silently inside the leash. It is waiting in your morning review.');
-}
-function simulateElasticityStep(kind) {
-  if (kind === 'reward') setLeash(state.tetherTotal * 1.1, 'Trust reward: leash +10% to {t}.');
-  else setLeash(state.tetherTotal * 0.8, 'Mistake penalty: leash −20% to {t}.');
-}
-async function runScenarioD() {
-  showToast('PegGuard: the synthetic dollar slipped to $0.982.');
-  await sleep(1300);
-  showToast('Circuit breaker: 6,000 units swapped into USDC at $0.982. Capital protected.');
-  addTrade({ title: 'PegGuard exit: 6,000 synth-USD → USDC', market: 'Arbitrage', val: 5892, status: 'pending', news: '−0.82', econ: '0.91', tx: fakeTx(), pnl: '−$108' });
+function renderPegGuardNote() {
+  $('#pegguard-note').innerHTML = state.pegGuardEnabled
+    ? '🛡 <b>PegGuard is on</b> and guards every peg in the background. It isn\'t a market you pick.'
+    : '🛡 PegGuard is off. Switch it on in the PegGuard card to guard pegs in the background.';
 }
 function executeWatchdogDerisk() {
   const card = $('#watchdog-alert-card');
@@ -1185,98 +1236,6 @@ setInterval(() => {
 }, 1000);
 
 /* =========================================================================================
-   Backtests: /api/backtest, /api/backtest/{episode}
-   ========================================================================================= */
-const STRATS = {
-  tec_c: ['Tec-C Brain', 'Regime model: exits when P(failure) rises, holds through noise.'],
-  sentiment_veto: ['News veto', 'Sells after the headlines turn negative.'],
-  mean_reversion: ['Buy the dip', 'Doubles down whenever the price falls below the peg.'],
-};
-const EPISODE_NAMES = { ust_2022: 'UST · May 2022', usdc_svb_2023: 'USDC · SVB, Mar 2023', steth_celsius_2022: 'stETH · Celsius, Jun 2022' };
-let btLoaded = false, btEpisode = null;
-
-async function loadBacktests() {
-  if (!brain.live) {
-    $('#bt-seg').innerHTML = '';
-    $('#bt-title').textContent = 'Start the Brain to replay the episodes';
-    $('#bt-strats').innerHTML = `<div class="card glass"><div class="caption">Backtests run on the Brain itself (agent/), so they need the API.<br><code>cd agent && .venv/bin/uvicorn tecc_brain.app:app</code></div></div>`;
-    return;
-  }
-  if (btLoaded) return;
-  try {
-    const eps = await api('/api/backtest');
-    btLoaded = true;
-    $('#bt-seg').innerHTML = eps.map(e => `<button data-ep="${esc(e)}">${esc(EPISODE_NAMES[e] || e)}</button>`).join('');
-    runBacktest(eps.includes('ust_2022') ? 'ust_2022' : eps[0]);
-  } catch (err) { showToast(`Backtests unavailable: ${err.message}`); }
-}
-$('#bt-seg').addEventListener('click', e => { const b = e.target.closest('[data-ep]'); if (b) runBacktest(b.dataset.ep); });
-
-async function runBacktest(ep) {
-  btEpisode = ep;
-  $$('#bt-seg button').forEach(b => b.classList.toggle('active', b.dataset.ep === ep));
-  let r;
-  try { r = await api('/api/backtest/' + encodeURIComponent(ep), { method: 'POST' }); }
-  catch (err) { return showToast(`Backtest failed: ${err.message}`); }
-  if (btEpisode !== ep) return; // a newer click won
-  $('#bt-title').innerHTML = `${esc(r.title)} <em>replay</em>`;
-  $('#bt-asset').textContent = r.asset;
-  drawBacktest(r);
-  const order = ['tec_c', 'sentiment_veto', 'mean_reversion'].filter(k => r.strategies[k]);
-  const best = Math.max(...order.map(k => r.strategies[k].pnl_pct));
-  $('#bt-strats').innerHTML = order.map((k, i) => {
-    const st = r.strategies[k], [name, how] = STRATS[k] || [k, ''];
-    const when = st.exited_at ? `exited ${esc(st.exited_at)}` : st.bought_at ? `bought more ${esc(st.bought_at)}` : 'held to the end';
-    return `<div class="card glass bt-strat ${k === 'tec_c' ? 'is-brain' : ''}" style="animation-delay:${i * 90}ms">
-      <div class="row-between"><b>${esc(name)}</b>${st.pnl_pct === best ? '<span class="badge badge-live">best</span>' : ''}</div>
-      <div class="bt-pnl ${st.pnl_pct >= 0 ? 'txt-green' : 'txt-red'}">${st.pnl_pct >= 0 ? '+' : '−'}${Math.abs(st.pnl_pct * 100).toFixed(1)}%</div>
-      <div class="caption">${usd(st.invested_usd)} → ${usd(st.final_value_usd)} · ${when}</div>
-      <div class="caption">${esc(how)}</div>
-    </div>`;
-  }).join('');
-  const verb = { hold: 'hold', exit: 'exit', buy: 'buy', 'hold_no_new_deposits': 'no new deposits' };
-  $('#bt-steps tbody').innerHTML = r.steps.map(s => {
-    const resp = s.response.replace(/_/g, ' ').toLowerCase();
-    const cell = a => { const v = (s.actions[a] || '').toLowerCase(); return `<td class="${v === 'exit' ? 'txt-green' : v === 'buy' ? 'txt-red' : 'muted'}">${esc(verb[v] || v || '—')}</td>`; };
-    return `<tr><td>${esc(s.date)}</td><td>${esc(s.event)}</td><td>${s.price.toFixed(4)}</td><td>${(s.probs.p_normal * 100).toFixed(0)}%</td>
-      <td><span class="badge ${s.response === 'EXIT' ? 'badge-red' : s.response === 'HOLD' ? 'badge-green' : 'badge-amber'}">${esc(resp)}</span></td>
-      ${cell('tec_c')}${cell('sentiment_veto')}${cell('mean_reversion')}</tr>`;
-  }).join('');
-}
-
-function drawBacktest(r) {
-  const W = 640, H = 260, P = { l: 46, r: 14, t: 16, b: 34 }, n = r.steps.length;
-  const xs = i => P.l + (n === 1 ? 0 : i * (W - P.l - P.r) / (n - 1));
-  const prices = r.steps.map(s => s.price), lo = Math.min(...prices), hi = Math.max(...prices);
-  const pad = (hi - lo) * 0.12 || 0.01, y0 = lo - pad, y1 = hi + pad;
-  const yp = v => P.t + (1 - (v - y0) / (y1 - y0)) * (H - P.t - P.b);
-  const yq = v => P.t + (1 - v) * (H - P.t - P.b);
-  const area = (fn, base) => `M${xs(0)} ${base(0)} ` + r.steps.map((s, i) => `L${xs(i)} ${fn(s)}`).join(' ') + ` L${xs(n - 1)} ${base(n - 1)} ` +
-    r.steps.slice().reverse().map((s, j) => `L${xs(n - 1 - j)} ${base(n - 1 - j)}`).join(' ') + ' Z';
-  const failTop = s => yq(s.probs.p_failure), distTop = s => yq(s.probs.p_failure + s.probs.p_distress), bottom = () => yq(0);
-  const failArea = `M${xs(0)} ${bottom()} ` + r.steps.map((s, i) => `L${xs(i)} ${failTop(s)}`).join(' ') + ` L${xs(n - 1)} ${bottom()} Z`;
-  const distArea = `M${xs(0)} ${bottom()} ` + r.steps.map((s, i) => `L${xs(i)} ${distTop(s)}`).join(' ') + ` L${xs(n - 1)} ${bottom()} Z`;
-  const line = r.steps.map((s, i) => `${i ? 'L' : 'M'}${xs(i)} ${yp(s.price)}`).join(' ');
-  const marks = [];
-  const markAt = (date, label, cls) => {
-    const i = r.steps.findIndex(s => s.date === date);
-    if (i >= 0) marks.push(`<g class="bt-mark ${cls}"><line x1="${xs(i)}" x2="${xs(i)}" y1="${P.t}" y2="${H - P.b}"/><text x="${xs(i) + 4}" y="${P.t + 12 + marks.length * 13}">${esc(label)}</text></g>`);
-  };
-  const st = r.strategies;
-  if (st.tec_c?.exited_at) markAt(st.tec_c.exited_at, 'Tec-C exits', 'm-brain');
-  if (st.sentiment_veto?.exited_at) markAt(st.sentiment_veto.exited_at, 'news veto sells', 'm-veto');
-  if (st.mean_reversion?.bought_at) markAt(st.mean_reversion.bought_at, 'dip buyer buys', 'm-dip');
-  const ticks = [y0 + pad, (y0 + y1) / 2, y1 - pad].map(v => `<text class="bt-axis" x="${P.l - 6}" y="${yp(v) + 4}" text-anchor="end">${v.toFixed(3)}</text><line class="bt-grid" x1="${P.l}" x2="${W - P.r}" y1="${yp(v)}" y2="${yp(v)}"/>`).join('');
-  const dates = r.steps.map((s, i) => (i === 0 || i === n - 1 || n <= 8) ? `<text class="bt-axis" x="${xs(i)}" y="${H - 12}" text-anchor="middle">${esc(s.date.slice(5))}</text>` : '').join('');
-  $('#bt-chart').innerHTML = `${ticks}${dates}
-    <path d="${distArea}" fill="rgba(232,166,75,.38)"/><path d="${failArea}" fill="rgba(255,107,94,.5)"/>
-    <path class="bt-line" d="${line}" fill="none" stroke="#cde38a" stroke-width="2.5" stroke-linejoin="round"/>
-    ${r.steps.map((s, i) => `<circle cx="${xs(i)}" cy="${yp(s.price)}" r="3.5" fill="#0c120e" stroke="#cde38a" stroke-width="1.5"><title>${esc(s.date)}: ${esc(s.event)} · ${s.price}</title></circle>`).join('')}
-    ${marks.join('')}`;
-  void area;
-}
-
-/* =========================================================================================
    Onboarding quiz: /api/profile/quiz, /api/profile/onboard
    ========================================================================================= */
 let quiz = null, quizAnswers = {}, quizStep = 0;
@@ -1343,6 +1302,7 @@ function maybeShowQuizBanner() { $('#quiz-banner').hidden = store.get('tecc_quiz
    ========================================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
   renderActionPills();
+  renderPegGuardNote();
   maybeShowQuizBanner();
   selectAction('Stake', false);
   renderPipeline(DEMO_AGENTS, ['done', 'done', 'done', 'running', '', '']);

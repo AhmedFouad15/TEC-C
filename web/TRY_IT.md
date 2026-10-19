@@ -41,10 +41,11 @@ To stop everything, press `Ctrl + C` in both terminals.
 | Move the mouse over the hero | The photo shifts slightly (parallax) and a soft light follows the cursor |
 | **Scroll down slowly** | Mist rolls in from both sides, the jaguar disappears into it, the mist thins and the light forest appears |
 | Keep scrolling | "Become the calmest *version of your wallet*" with a turning moss ring and floating cards |
-| Keep scrolling | The scrolling marquee, then **4 stat cards** counting up ($500, 6, 4, and 0 counting *down*) |
-| Keep scrolling | A sentence lights up word by word as you scroll |
-| Keep scrolling | **Six minds** (the 6 agents), **Four forests** (hover a card: it turns white), **the oath**, then **"Into the forest."** |
-| Click **Get started**, **Open the Command Center** or the **→ circle** top right | Opens the dashboard |
+| Keep scrolling | The scrolling marquee, then **4 stat cards** counting up (−20%, 6, 3, and 0 counting *down*) |
+| Keep scrolling | A sentence lights up word by word while a rangefinder turns and locks on (amber "strike" at the end) |
+| Keep scrolling | **Six minds** (the 6 agents), **Three forests and PegGuard** (hover a card: it turns white), **the oath**, then **"Into the forest."** |
+| Click **Get started**, **Open the Command Center** or the **→ circle** top right | Opens the dashboard if the Brain answers; if the Brain is down, you land on the GitHub repo instead (fail-safe) |
+| Footer: hover **Credits** | The photo credits pop up (tap on a phone) |
 
 Shortcuts for testing:
 - `http://127.0.0.1:3000/?skip`: skip the loading screen
@@ -55,7 +56,7 @@ Shortcuts for testing:
 
 ## 2. Dashboard: http://127.0.0.1:3000/app.html
 
-The top navigation has **Home · Opportunities · Portfolio · Backtests · Review · Scenarios · Sessions · Safety**.
+The top navigation has **Home · Opportunities · Portfolio · Review · Sessions · Safety**.
 
 ### 2.1 Talk to the Brain in your own words (free text)
 
@@ -104,19 +105,7 @@ What you should see on **Opportunities**:
 | **Trigger an emergency sweep now** | The Brain's hourly monitor runs now and a message reports the result |
 | Alert card → **De-risk** or **Dismiss** | The alert turns green, or slides away |
 
-### 2.4 Backtests (the pitch evidence)
-
-Click **Backtests**. Each episode replays a real crash day by day with the same $10,000:
-
-| Episode (buttons top right) | Tec-C Brain | Sell on bad news | Buy the dip |
-|---|---|---|---|
-| **UST · May 2022** | **−1.0%** (exits 05-07) | −5.0% | **−89.7%** |
-| **USDC · SVB, Mar 2023** | **+6.8%** | −12.0% | +6.8% |
-| **stETH · Celsius, Jun 2022** | **+4.7%** | −3.1% | +3.1% |
-
-On the chart, the green line is the price, red is the probability of failure the Brain saw, and amber is distress. Dashed lines mark the day each strategy sold or bought. The table underneath shows every day.
-
-### 2.5 Morning review
+### 2.4 Morning review
 
 Click **Review** (the badge shows how many are pending):
 - **＋ Like & ratify:** the streak bar fills; when everything is reviewed, the daily leash grows +10%.
@@ -126,7 +115,7 @@ Click **Review** (the badge shows how many are pending):
 
 Trades you executed live (sections 2.1 and 2.2) appear here too, and reviewing them is sent to the Brain so it learns.
 
-### 2.6 Risk quiz
+### 2.5 Risk quiz
 
 Open it from the **"New here?"** banner on Home, the **Risk quiz ↗** pill in the status bar, or **Safety → Retake the risk quiz**.
 - Answer 5 questions; each click moves to the next.
@@ -137,22 +126,21 @@ Open it from the **"New here?"** banner on Home, the **Risk quiz ↗** pill in t
   ```
   It comes back automatically on the next request.
 
-### 2.7 Safety (settings)
+### 2.6 Safety (settings)
 
 - **Learned profile** (live): tier, λ (loss aversion), τ (trust), soft limit.
 - **Hold to revoke the AI session key:** press and **hold** the red button. It fills up, then shows "revoked ✓" (a simulated killswitch).
 
-### 2.8 Everything else (simulated, for the story)
+### 2.7 Everything else (simulated, for the story)
 
 | Where | Try |
 |---|---|
-| Top right **Deposit +** | Pick a network, type an amount; **Deposit to the vault** raises the Vault value |
+| Top right **Deposit +** | Shows your vault's real address and QR code (from `/api/vault/demo`), with **Copy address**. After sending, **I've sent it: refresh my balance** reads the on-chain balance. On the local chain, **Get test funds** sends 1 ETH + 5,000 USDC |
+| Composer → **Market** | Assets follow the market: **Chinese market** offers USDC, USDT and e-CNY MMF (never ETH); **Commodities** offers PAXG and USDC |
 | Top right **Withdraw** | **Scan FaceID & transfer**: a scan animation, then the vault goes down and Biometric shows **Unlocked (5m)** |
 | Status pill **Biometric** | Toggles the 5-minute FaceID window |
-| **Scenarios** | A: silent $800 harvest · B: $4,500 breakout (FaceID modal with a 30 s countdown) · C: ±leash · D: PegGuard circuit breaker · E: opens Sessions |
 | **Sessions** | Phone gateway status and a QR code |
-| **3 pillars & invariants ↗** pill | The architecture summary and the 4 things the AI can never do |
-| **Home → PegGuard switch** | Turns the arbitrage scanner on or off |
+| **Home → PegGuard switch** | PegGuard isn't a market: this switch turns the background de-peg guard on or off, and the note under the composer's markets follows it |
 | **Agent weights** sliders (Opportunities, Zone C) | Rebalance news / econometrics / injection weights |
 
 ---
@@ -162,7 +150,7 @@ Open it from the **"New here?"** banner on Home, the **Risk quiz ↗** pill in t
 Stop the Brain (`Ctrl + C` in its terminal) and refresh the dashboard:
 - the pill turns **amber: demo mode**;
 - the composer and ask bar still work with sample data, marked **"Demo data · Brain offline"**;
-- Backtests and the quiz say they need the Brain.
+- The quiz and the deposit address say they need the Brain.
 
 Start the Brain again; within 20 seconds the pill turns green and a toast says *"Brain connected"*.
 
@@ -187,6 +175,6 @@ Start the Brain again; within 20 seconds the pill turns green and a toast says *
 2. **Ask bar:** `deposit 2000 USDC somewhere safe for a month`. Watch the 6 agents, then show the card's explanation (Sharpe, CVaR, Shibor hurdle).
 3. **Ask bar:** the *"Ignore all previous instructions…"* line, to show the **firewall refusing it**.
 4. **Composer:** Park idle cash, then Submit, to show the **injection-proof options** panel.
-5. **Backtests → UST:** the Brain −1% vs. buy-the-dip −89.7%.
+5. **Deposit +:** the vault's real address and QR code.
 6. **Portfolio → Headline sandbox:** the Lido exploit headline, showing the regime moving.
 7. **Review:** ratify one trade, flag one, and watch the leash change.

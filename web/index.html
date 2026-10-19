@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <title>Tec-C · Instinct on a Leash</title>
   <meta name="description" content="Tec-C: an autonomous agent wallet that hunts yield like a jaguar, and never leaves its leash.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/landing.css?v=35">
+  <link rel="stylesheet" href="assets/css/landing.css?v=36">
 </head>
 <body class="is-loading">
 
@@ -73,7 +74,7 @@
             <div class="eyebrow"><span class="eyebrow-line"></span>Autonomous agent wallet</div>
             <h1 class="headline" data-split>Instinct<br>on a leash</h1>
             <div class="copy-cols">
-              <p>Tec-C hunts yield across four markets while you sleep: it reads the news, prices the tail risk and moves only when the edge is real.</p>
+              <p>Tec-C hunts yield across three markets while you sleep: it reads the news, prices the tail risk and moves only when the edge is real.</p>
               <p>Every move it makes happens inside a daily radius your vault enforces on-chain. Bigger leaps wait for your FaceID.</p>
             </div>
             <div class="cta-row">
@@ -110,7 +111,7 @@
             </div>
             <div class="cta-row">
               <a class="btn-pill" href="app.html" data-magnetic>Ask the Brain <span class="sq"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span></a>
-              <a class="btn-ghost" href="#territories">Four territories</a>
+              <a class="btn-ghost" href="#territories">The territories</a>
             </div>
           </div>
         </article>
@@ -189,16 +190,33 @@
         <h2>Patient by design. <em>Calm</em><br>by default.</h2>
       </div>
       <div class="stats">
-        <div class="stat reveal"><div class="stat-num"><span data-count="500" data-prefix="$">0</span></div><div class="stat-label">daily tether radius, metered in USD on-chain</div></div>
+        <div class="stat reveal"><div class="stat-num"><span data-count="20" data-prefix="−" data-suffix="%">0</span></div><div class="stat-label">off your daily leash the moment you flag a move. It grows back only as trust is earned.</div></div>
         <div class="stat reveal"><div class="stat-num"><span data-count="6">0</span></div><div class="stat-label">agents in one LangGraph pipeline, every request</div></div>
-        <div class="stat reveal"><div class="stat-num"><span data-count="4">0</span></div><div class="stat-label">markets: crypto, China, commodities, arbitrage</div></div>
+        <div class="stat reveal"><div class="stat-num"><span data-count="3">0</span></div><div class="stat-label">markets: crypto, China, commodities. PegGuard guards all three in the background.</div></div>
         <div class="stat reveal"><div class="stat-num"><span data-count="0">0</span></div><div class="stat-label">withdrawal rights for the AI. Ever.</div></div>
       </div>
     </section>
 
     <!-- ============ STATEMENT (scroll-lit words) ============ -->
     <section class="statement" id="statement">
-      <div class="statement-ring" aria-hidden="true"></div>
+      <!-- a hunter's rangefinder (not another moss ring): the ticks turn and the brackets close in as the words light up -->
+      <div class="scope" id="scope" aria-hidden="true">
+        <svg viewBox="-500 -500 1000 1000">
+          <circle class="sc-line" r="478"/>
+          <g class="sc-ticks" id="sc-ticks"></g>
+          <circle class="sc-line sc-dash" r="330" id="sc-inner"/>
+          <g class="sc-cross">
+            <line x1="-478" y1="0" x2="-380" y2="0"/><line x1="380" y1="0" x2="478" y2="0"/>
+            <line x1="0" y1="-478" x2="0" y2="-380"/><line x1="0" y1="380" x2="0" y2="478"/>
+          </g>
+          <g class="sc-brackets" id="sc-brackets">
+            <path d="M-260 -200 V-260 H-200"/><path d="M200 -260 H260 V-200"/>
+            <path d="M260 200 V260 H200"/><path d="M-200 260 H-260 V200"/>
+          </g>
+          <text class="sc-label" x="0" y="-402" text-anchor="middle" id="sc-range">RANGE 120 M</text>
+          <text class="sc-label" x="0" y="422" text-anchor="middle" id="sc-odds">READING THE FOREST</text>
+        </svg>
+      </div>
       <p class="lit-text" id="lit-text">A good hunter doesn't chase everything that moves. It reads the forest, measures the distance, and strikes once, when the odds are already on its side. Tec-C trades the same way.</p>
     </section>
 
@@ -224,8 +242,8 @@
     <section class="section territories" id="territories">
       <div class="terr-band" aria-hidden="true"></div>
       <div class="section-head reveal">
-        <div class="kicker">03 — Four territories</div>
-        <h2>One brain. <em>Four forests</em><br>to hunt in.</h2>
+        <div class="kicker">03 — The territories</div>
+        <h2>One brain. <em>Three forests</em><br>and a guard that never sleeps.</h2>
       </div>
       <div class="terr-grid">
         <a class="terr reveal" href="app.html" data-tilt>
@@ -244,9 +262,9 @@
           <p>Tokenized gold as the hedge when crypto clusters turn stressed.</p>
         </a>
         <a class="terr reveal" href="app.html" data-tilt>
-          <div class="terr-top"><span class="terr-n">IV</span><span class="chip chip-amber">24 / 7</span></div>
-          <h3>Arbitrage</h3><div class="terr-chain">PegGuard · de-peg scanner</div>
-          <p>Buys the discount only when the regime model says the peg holds.</p>
+          <div class="terr-top"><span class="terr-n">+</span><span class="chip chip-amber">Background</span></div>
+          <h3>PegGuard</h3><div class="terr-chain">Not a market · an on/off guard</div>
+          <p>Switch it on and it scans every peg 24/7, buying a discount only when the regime model says the peg holds.</p>
         </a>
       </div>
     </section>
@@ -278,18 +296,21 @@
 
   <footer class="footer" id="credits">
     <div class="foot-brand">TEC-C <span>FinTechathon 2026 · Topic F</span></div>
-    <div class="foot-credits">
-      Photos via Wikimedia Commons:
-      <a href="https://commons.wikimedia.org/wiki/File:Portrait_of_a_jaguar_(52303287835).jpg" target="_blank" rel="noopener">Kandukuru Nagarjun</a> (CC BY 2.0),
-      <a href="https://commons.wikimedia.org/wiki/File:Jaguar_Closeup_Portrait_(22933753555).jpg" target="_blank" rel="noopener">Eric Kilby</a> (CC BY-SA 2.0),
-      <a href="https://commons.wikimedia.org/wiki/File:Jaguar_portrait,_Tiergarten_Sch%C3%B6nbrunn.jpg" target="_blank" rel="noopener">Alexander Leisser</a> (CC BY-SA 4.0),
-      <a href="https://commons.wikimedia.org/wiki/File:Smiling_Jaguar_Portrait_(8231275312).jpg" target="_blank" rel="noopener">Eric Kilby</a> (CC BY-SA 2.0),
-      <a href="https://commons.wikimedia.org/wiki/File:Mystic_Layers_of_Agumbe.jpg" target="_blank" rel="noopener">Pradyumnakp</a> (CC0),
-      <a href="https://commons.wikimedia.org/wiki/File:Moss-covered_tree_trunks_in_a_dense_forest_understory.jpg" target="_blank" rel="noopener">Krishna k. sahh</a> (CC0).
-      Images are cropped and color-graded.
+    <div class="credits">
+      <button class="credits-btn" type="button" aria-describedby="credits-pop">Credits</button>
+      <div class="credits-pop" id="credits-pop" role="tooltip">
+        Photos via Wikimedia Commons:
+        <a href="https://commons.wikimedia.org/wiki/File:Portrait_of_a_jaguar_(52303287835).jpg" target="_blank" rel="noopener">Kandukuru Nagarjun</a> (CC BY 2.0),
+        <a href="https://commons.wikimedia.org/wiki/File:Jaguar_Closeup_Portrait_(22933753555).jpg" target="_blank" rel="noopener">Eric Kilby</a> (CC BY-SA 2.0),
+        <a href="https://commons.wikimedia.org/wiki/File:Jaguar_portrait,_Tiergarten_Sch%C3%B6nbrunn.jpg" target="_blank" rel="noopener">Alexander Leisser</a> (CC BY-SA 4.0),
+        <a href="https://commons.wikimedia.org/wiki/File:Smiling_Jaguar_Portrait_(8231275312).jpg" target="_blank" rel="noopener">Eric Kilby</a> (CC BY-SA 2.0),
+        <a href="https://commons.wikimedia.org/wiki/File:Mystic_Layers_of_Agumbe.jpg" target="_blank" rel="noopener">Pradyumnakp</a> (CC0),
+        <a href="https://commons.wikimedia.org/wiki/File:Moss-covered_tree_trunks_in_a_dense_forest_understory.jpg" target="_blank" rel="noopener">Krishna k. sahh</a> (CC0).
+        Images are cropped and color-graded.
+      </div>
     </div>
   </footer>
 
-  <script src="assets/js/landing.js?v=31"></script>
+  <script src="assets/js/landing.js?v=32"></script>
 </body>
 </html>

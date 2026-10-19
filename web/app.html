@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <title>Tec-C · Command Center</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/app.css?v=22">
+  <link rel="stylesheet" href="assets/css/app.css?v=23">
 </head>
 <body>
 
@@ -38,9 +39,7 @@
       <a href="#home" class="nav-item active" data-tab="home">Home</a>
       <a href="#opportunities" class="nav-item" data-tab="opportunities">Opportunities <b class="nav-badge" id="opp-count">3</b></a>
       <a href="#portfolio" class="nav-item" data-tab="portfolio">Portfolio</a>
-      <a href="#backtests" class="nav-item" data-tab="backtests">Backtests</a>
       <a href="#review" class="nav-item" data-tab="review">Review <b class="nav-badge" id="review-badge">2</b></a>
-      <a href="#scenarios" class="nav-item" data-tab="scenarios">Scenarios <b class="nav-badge amber">5</b></a>
       <a href="#virtual-session" class="nav-item" data-tab="virtual-session">Sessions</a>
       <a href="#settings" class="nav-item" data-tab="settings">Safety</a>
     </nav>
@@ -62,7 +61,6 @@
       <span class="dot locked" id="bio-dot"></span><span class="muted">Biometric</span><b id="bio-status-text">Locked</b>
     </button>
     <button class="chip-stat clickable quiz-chip" onclick="openQuiz()" title="Five questions that set your risk tier"><span class="muted">Risk quiz</span><span class="arrow">↗</span></button>
-    <button class="chip-stat clickable" onclick="openModal('modal-pillars')"><span class="muted">3 pillars &amp; invariants</span><span class="arrow">↗</span></button>
     <button class="chip-stat clickable" onclick="switchTab('review')" title="Pending reviews"><span class="muted">Pending</span><b id="top-pending-badge">2</b></button>
   </div>
 
@@ -116,13 +114,13 @@
               <button class="market-card active" data-market="Crypto" data-sub="Ethereum L1"><span class="mc-name">Crypto</span><span class="mc-sub">Ethereum L1</span><span class="dot active"></span></button>
               <button class="market-card" data-market="Chinese market" data-sub="FISCO BCOS"><span class="mc-name">Chinese market</span><span class="mc-sub">FISCO BCOS</span><span class="dot active"></span></button>
               <button class="market-card" data-market="Commodities" data-sub="Arbitrum One"><span class="mc-name">Commodities</span><span class="mc-sub">Arbitrum One</span><span class="dot active"></span></button>
-              <button class="market-card" data-market="Arbitrage" data-sub="PegGuard 24/7"><span class="mc-name">Arbitrage</span><span class="mc-sub">PegGuard 24/7</span><span class="dot warning"></span></button>
-              <button class="market-card" data-market="Any" data-sub="All enabled"><span class="mc-name">Any</span><span class="mc-sub">All enabled</span></button>
+              <button class="market-card" data-market="Any" data-sub="All three markets"><span class="mc-name">Any</span><span class="mc-sub">All three markets</span></button>
             </div>
+            <div class="caption pegguard-note" id="pegguard-note"></div>
           </div>
 
           <div class="block">
-            <div class="section-label"><i>3</i> Asset or scope</div>
+            <div class="section-label"><i>3</i> Asset <span class="muted small" id="asset-scope-note"></span></div>
             <div class="pill-group" id="asset-pills"></div>
           </div>
 
@@ -191,7 +189,7 @@
               <span class="section-label m0">PegGuard arbitrage</span>
               <span class="badge badge-amber" id="arb-status-badge">Active</span>
             </div>
-            <div class="caption">24/7 background de-peg scanner. Buys a discount only when the regime model says the peg holds.</div>
+            <div class="caption">Not a market you pick: switch it on and it scans every peg 24/7 in the background, buying a discount only when the regime model says the peg holds.</div>
             <div class="row-between mt12">
               <span class="small">Status: <b id="arb-state-text" class="txt-green">Enabled</b></span>
               <label class="switch"><input type="checkbox" id="arb-toggle" checked onchange="togglePegGuardArbitrage()"><span></span></label>
@@ -324,12 +322,12 @@
         </div>
 
         <div class="card glass alloc">
-          <div class="donut" style="--a:52;--b:22;--c:16"><div class="donut-hole"><b>4</b><span>markets</span></div></div>
+          <div class="donut" style="--a:52;--b:22;--c:16"><div class="donut-hole"><b>3</b><span>markets</span></div></div>
           <ul class="legend">
             <li><i style="background:#cde38a"></i>Crypto<b>52%</b></li>
             <li><i style="background:#7fb3ff"></i>Chinese mkt<b>22%</b></li>
             <li><i style="background:#e8a64b"></i>Commodities<b>16%</b></li>
-            <li><i style="background:#8a9a86"></i>Arbitrage<b>10%</b></li>
+            <li><i style="background:#8a9a86"></i>PegGuard reserve<b>10%</b></li>
           </ul>
         </div>
       </div>
@@ -484,108 +482,31 @@
       </div>
     </section>
 
-    <!-- ===================================================== -->
-    <!-- BACKTESTS                                              -->
-    <!-- ===================================================== -->
-    <section id="panel-backtests" class="view-panel">
-      <div class="panel-head">
-        <div>
-          <div class="eyebrow">Three real de-pegs, replayed day by day</div>
-          <h1 class="page-title">Through the <em>storms.</em></h1>
-          <p class="page-subtitle">The Brain's regime model against two common rules: sell on bad news, and buy the dip. Same money, same days, same prices.</p>
-        </div>
-        <div class="seg" id="bt-seg"></div>
-      </div>
 
-      <div class="grid-2-1">
-        <div class="card glass">
-          <div class="card-title"><span id="bt-title">Episode</span><span class="badge" id="bt-asset">—</span></div>
-          <svg class="bt-chart" id="bt-chart" viewBox="0 0 640 260" preserveAspectRatio="none" aria-label="Price and failure probability over the episode"></svg>
-          <div class="bt-legend caption">
-            <span><i style="background:#cde38a"></i>price</span>
-            <span><i style="background:rgba(255,107,94,.55)"></i>P(failure) the Brain saw</span>
-            <span><i style="background:rgba(232,166,75,.55)"></i>P(distress)</span>
-          </div>
-        </div>
-        <div class="bt-strats" id="bt-strats"></div>
-      </div>
-
-      <div class="card glass">
-        <div class="card-title"><span>Day by <em>day</em></span><span class="caption" id="bt-note">What each strategy did</span></div>
-        <div class="table-wrap">
-          <table class="data-table" id="bt-steps">
-            <thead><tr><th>Date</th><th>What happened</th><th>Price</th><th>P(normal)</th><th>Brain says</th><th>Tec-C</th><th>News veto</th><th>Buy the dip</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================================================== -->
-    <!-- SCENARIOS                                              -->
-    <!-- ===================================================== -->
-    <section id="panel-scenarios" class="view-panel">
-      <div class="panel-head">
-        <div>
-          <div class="eyebrow">Ordinary days, crises and everything between</div>
-          <h1 class="page-title">Live <em>scenarios.</em></h1>
-          <p class="page-subtitle">Play out how Tec-C behaves in five situations.</p>
-        </div>
-      </div>
-      <div class="scen-grid">
-        <article class="card glass scen" data-tilt>
-          <div class="row-between"><span class="scen-n">A</span><span class="badge badge-green">100% autonomous</span></div>
-          <h3>Silent daily yield harvest</h3>
-          <p>A $1,000 leash; the Brain spots 11.2% on Compound v3 USDC and deposits $800. It fits inside the leash, so it simply happens.</p>
-          <button class="pill-btn strong" onclick="runScenarioA()">Simulate the $800 harvest →</button>
-        </article>
-        <article class="card glass scen" data-tilt>
-          <div class="row-between"><span class="scen-n">B</span><span class="badge badge-amber">FaceID breakout</span></div>
-          <h3>High-value breakout trade</h3>
-          <p>A $4,500 flash arbitrage worth $120 in 30 seconds. The hook sees $4,500 &gt; $1,000 and blocks it until your phone's FaceID says yes.</p>
-          <button class="pill-btn amber" onclick="openBreakoutModal(4500, 120)">Trigger the $4,500 alert →</button>
-        </article>
-        <article class="card glass scen" data-tilt>
-          <div class="row-between"><span class="scen-n">C</span><span class="badge badge-blue">Adaptive learning</span></div>
-          <h3>Elasticity in action</h3>
-          <p>Ratified wins step the leash up 10% a day toward the ceiling; a flagged mistake contracts it 20%. Trust is lost faster than it's gained.</p>
-          <div class="row-wrap"><button class="pill-btn good grow" onclick="simulateElasticityStep('reward')">+10% reward</button><button class="pill-btn danger grow" onclick="simulateElasticityStep('penalty')">−20% penalty</button></div>
-        </article>
-        <article class="card glass scen" data-tilt>
-          <div class="row-between"><span class="scen-n">D</span><span class="badge badge-red">De-peg defence</span></div>
-          <h3>PegGuard circuit breaker</h3>
-          <p>6,000 units of a synthetic dollar slip to $0.982 as backing distress spreads. PegGuard exits into native USDC before the collapse.</p>
-          <button class="pill-btn danger" onclick="runScenarioD()">Trigger the circuit breaker →</button>
-        </article>
-        <article class="card glass scen" data-tilt>
-          <div class="row-between"><span class="scen-n">E</span><span class="badge badge-green">Zero open ports</span></div>
-          <h3>Remote coffee-shop access</h3>
-          <p>An encrypted tunnel links your phone to the local wallet. FaceID, steer risk, approve breakouts from any public Wi-Fi.</p>
-          <button class="pill-btn strong" onclick="switchTab('virtual-session')">Open virtual sessions →</button>
-        </article>
-      </div>
-    </section>
   </main>
 
   <!-- ================= MODALS ================= -->
   <div class="modal-overlay" id="modal-deposit">
     <div class="modal">
-      <div class="modal-head"><div class="modal-title">Multi-chain <em>deposit</em></div><button class="modal-close" onclick="closeModal('modal-deposit')">×</button></div>
-      <p class="caption">Deposit on any connected chain; it credits your USD-normalized vault balance.</p>
-      <label class="field"><span class="section-label">Network &amp; asset</span>
-        <select id="deposit-network" onchange="updateDepositAssetOptions()">
-          <option value="Ethereum">Ethereum (ETH, USDC, USDT)</option>
-          <option value="Arbitrum">Arbitrum (ETH, USDC, PAXG)</option>
-          <option value="FISCO">FISCO BCOS (e-CNY)</option>
-          <option value="Optimism">Optimism (USDC)</option>
-        </select>
+      <div class="modal-head"><div class="modal-title">Deposit to your <em>vault</em></div><button class="modal-close" onclick="closeModal('modal-deposit')">×</button></div>
+      <p class="caption">Send funds from any wallet or exchange to your Tec-C smart account (ERC-7579). They count toward your vault as soon as the transfer confirms.</p>
+      <label class="field"><span class="section-label">Network</span>
+        <select id="deposit-network" onchange="renderDeposit()"></select>
       </label>
-      <label class="field"><span class="section-label">Amount</span>
-        <span class="amount-row"><input type="number" id="deposit-amount" value="1.0" step="0.1" min="0" oninput="updateDepositUSDConversion()"><b id="deposit-asset-symbol">ETH</b></span>
-        <span class="caption" id="deposit-usd-conversion"></span>
-      </label>
-      <div class="note-line">Recipient: your Tec-C smart account (ERC-7579)</div>
-      <div class="row-wrap"><button class="btn-primary grow" onclick="confirmDeposit()"><span>Deposit to the vault</span><span class="btn-shine"></span></button><button class="pill-btn" onclick="closeModal('modal-deposit')">Cancel</button></div>
+      <div class="deposit-box" id="deposit-box">
+        <div class="deposit-qr" id="deposit-qr"></div>
+        <div class="deposit-info">
+          <div class="section-label m0">Your vault address</div>
+          <div class="deposit-addr" id="deposit-addr">Connecting to your vault…</div>
+          <div class="row-wrap"><button class="btn-white" id="btn-copy-addr" onclick="copyDepositAddress()" disabled>Copy address <span class="sq">⧉</span></button></div>
+          <div class="caption" id="deposit-accepts"></div>
+        </div>
+      </div>
+      <div class="alert amber small" id="deposit-warning">Send only the assets listed above, on this network. Anything else may be lost.</div>
+      <div class="row-wrap">
+        <button class="btn-primary grow" onclick="refreshVaultBalance()"><span>I've sent it: refresh my balance</span><span class="btn-shine"></span></button>
+        <button class="pill-btn" id="btn-faucet" onclick="requestTestFunds()" hidden>Get test funds (local chain)</button>
+      </div>
     </div>
   </div>
 
@@ -637,36 +558,8 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="modal-pillars">
-    <div class="modal wide">
-      <div class="modal-head"><div class="modal-title">Three pillars &amp; four <em>invariants</em></div><button class="modal-close" onclick="closeModal('modal-pillars')">×</button></div>
-      <div class="pillars">
-        <div class="pillar"><span class="badge badge-green">Pillar 1</span><b>Non-custodial agent wallet</b><p>ERC-7579 smart account. The AI holds a session key bound to one mandate.</p></div>
-        <div class="pillar"><span class="badge badge-blue">Pillar 2</span><b>Mathematical leash</b><p>TetherGuardHook meters every call in 8-decimal USD and reverts past the radius.</p></div>
-        <div class="pillar"><span class="badge badge-amber">Pillar 3</span><b>Mobile virtual session</b><p>Phone tunnel and FaceID passkeys for breakouts and withdrawals.</p></div>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table small">
-          <thead><tr><th>Feature / risk</th><th>Trading bots</th><th>Hardware wallet</th><th>Tec-C</th></tr></thead>
-          <tbody>
-            <tr><td>24/7 autonomy</td><td class="txt-green">✓ full</td><td class="txt-red">✗ manual</td><td class="txt-green"><b>✓ inside the leash</b></td></tr>
-            <tr><td>Hack blast radius</td><td class="txt-red">✗ everything</td><td class="txt-green">✓ low</td><td class="txt-green"><b>✓ capped by the leash</b></td></tr>
-            <tr><td>Daily limit tuning</td><td>unbounded</td><td>n/a</td><td class="txt-green"><b>✓ limit + elasticity</b></td></tr>
-            <tr><td>Biometric security</td><td>none</td><td>button</td><td class="txt-green"><b>✓ FaceID passkey</b></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <ol class="invariants">
-        <li><b>The AI can never withdraw.</b> External transfers need your passkey.</li>
-        <li><b>The AI can never exceed the radius.</b> Enforced on-chain, in USD.</li>
-        <li><b>The AI can never touch unlisted venues.</b> The mandate's policy hash pins them.</li>
-        <li><b>Trust is lost faster than it is gained.</b> −20% on a flag vs. at most +10% a day.</li>
-      </ol>
-    </div>
-  </div>
-
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script src="assets/js/app.js?v=20"></script>
+  <script src="assets/js/app.js?v=21"></script>
 </body>
 </html>

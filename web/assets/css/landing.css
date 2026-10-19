@@ -203,7 +203,7 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 .hero-track { position: relative; z-index: 5; height: 280vh; }
 .stage { position: sticky; top: 0; height: 100vh; min-height: 560px; overflow: hidden; background: var(--ink); will-change: opacity; }
 .stage > * { position: absolute; inset: 0; }
-.stage .hero { height: 100%; min-height: 0; will-change: opacity, transform, filter; }
+.stage .hero { height: 100%; min-height: 0; will-change: opacity, transform; }
 /* Performance: every animated property below is transform or opacity (GPU-composited, no repaint).
    No filters, masks or background-position animation on these full-screen layers. */
 .fog, .fog-veil { pointer-events: none; opacity: 0; will-change: transform, opacity; contain: strict; }
@@ -223,18 +223,16 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 .nature { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: var(--sage-2); }
 .nature-photo {
   position: absolute; inset: -8%;
-  background: url(../img/mist-canopy.jpg) center 40% / cover no-repeat;
-  filter: saturate(.6) brightness(.98) contrast(.95);
+  background: url(../img/mist-canopy-graded.jpg) center 40% / cover no-repeat; /* grade baked into the file: no live filter */
   transform: translateY(var(--ny, 0)) scale(1.06);
 }
 .nature-haze { position: absolute; inset: 0; background:
   radial-gradient(ellipse at 50% 45%, rgba(200, 210, 190, .28), transparent 65%),
   linear-gradient(180deg, rgba(118, 134, 106, .62), rgba(112, 128, 100, .6) 55%, rgba(96, 114, 88, .7)); }
 .nature-moss {
-  position: absolute; width: 58vw; height: 90vh; background: url(../img/moss-forest.jpg) center / cover;
-  filter: saturate(1.15) brightness(.95);
+  position: absolute; width: 58vw; height: 90vh; background: url(../img/moss-forest-lush.jpg) center / cover;
   -webkit-mask-image: radial-gradient(closest-side, #000 25%, transparent 100%); mask-image: radial-gradient(closest-side, #000 25%, transparent 100%);
-  opacity: .75; animation: breathe 16s ease-in-out infinite alternate;
+  opacity: .75; animation: breathe 16s ease-in-out infinite alternate; will-change: transform;
 }
 .nature-moss-l { left: -24vw; bottom: -34vh; }
 .nature-moss-r { right: -26vw; top: -30vh; animation-delay: -8s; }
@@ -256,9 +254,9 @@ main > :not(.hero-track) { position: relative; z-index: 4; }
 .intro { min-height: 100vh; display: grid; place-items: center; text-align: center; padding: 140px var(--gutter) 120px; overflow: hidden; }
 .intro-arch {
   position: absolute; left: 50%; top: 50%; width: min(980px, 104vw, 94vh); aspect-ratio: 1; transform: translate(-50%, -50%);
-  border-radius: 50%; background: url(../img/moss-forest.jpg) center / cover;
+  border-radius: 50%; background: url(../img/moss-forest-ring.jpg) center / cover;
   -webkit-mask-image: radial-gradient(circle closest-side, transparent 72%, #000 78%, #000 90%, transparent 99%); mask-image: radial-gradient(circle closest-side, transparent 72%, #000 78%, #000 90%, transparent 99%);
-  filter: saturate(1.2); opacity: .85; animation: spin 140s linear infinite;
+  opacity: .85; animation: spin 140s linear infinite; will-change: transform;
 }
 @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
 .intro-inner { position: relative; z-index: 2; }
@@ -283,11 +281,11 @@ main > :not(.hero-track) { position: relative; z-index: 4; }
 
 /* marquee */
 .marquee { border-top: 1px solid rgba(255, 255, 255, .35); border-bottom: 1px solid rgba(255, 255, 255, .35); overflow: hidden; padding: 20px 0; background: rgba(104, 122, 94, .55); }
-.marquee-track { display: flex; gap: 38px; width: max-content; animation: marquee 38s linear infinite; font-family: var(--sans); font-weight: 600; font-size: 34px; letter-spacing: -.03em; white-space: nowrap; color: #fff; }
+.marquee-track { display: flex; gap: 38px; width: max-content; animation: marquee 38s linear infinite; will-change: transform; backface-visibility: hidden; font-family: var(--sans); font-weight: 600; font-size: 34px; letter-spacing: -.03em; white-space: nowrap; color: #fff; }
 .marquee-track b { color: rgba(255, 255, 255, .7); font-weight: 400; font-size: 20px; align-self: center; }
 .marquee-track span:nth-of-type(3n) { font-family: var(--serif); font-style: italic; font-weight: 400; }
 .marquee:hover .marquee-track { animation-play-state: paused; }
-@keyframes marquee { to { transform: translateX(-50%); } }
+@keyframes marquee { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
 
 /* generic sections */
 .section { padding: clamp(90px, 12vw, 160px) var(--gutter); }
@@ -308,13 +306,21 @@ main > :not(.hero-track) { position: relative; z-index: 4; }
 
 /* statement — a slowly turning moss ring behind words that light up as you scroll */
 .statement { min-height: 120vh; display: flex; align-items: center; justify-content: center; padding: 0 var(--gutter); overflow: hidden; }
-.statement-ring {
-  position: absolute; left: 50%; top: 50%; width: min(1100px, 110vw, 112vh); aspect-ratio: 1; border-radius: 50%;
-  transform: translate(-50%, -50%) scale(var(--ss, 1)) rotate(var(--sr, 0deg));
-  background: url(../img/moss-forest.jpg) center / cover;
-  -webkit-mask-image: radial-gradient(circle closest-side, transparent 78%, #000 84%, #000 92%, transparent 99%); mask-image: radial-gradient(circle closest-side, transparent 78%, #000 84%, #000 92%, transparent 99%);
-  opacity: .7;
+.scope {
+  position: absolute; left: 50%; top: 50%; width: min(1000px, 100vw, 104vh); aspect-ratio: 1; pointer-events: none;
+  transform: translate(-50%, -50%);
 }
+.scope svg { width: 100%; height: 100%; overflow: visible; }
+.scope .sc-line { fill: none; stroke: rgba(255, 255, 255, .38); stroke-width: 1.5; }
+.scope .sc-dash { stroke-dasharray: 2 14; stroke-width: 2; }
+.scope .sc-ticks line { stroke: rgba(255, 255, 255, .45); stroke-width: 1.5; }
+.scope .sc-ticks line.major { stroke: rgba(255, 255, 255, .8); stroke-width: 2; }
+.scope .sc-cross line { stroke: rgba(255, 255, 255, .55); stroke-width: 1.5; }
+.scope .sc-brackets path { fill: none; stroke: rgba(255, 255, 255, .8); stroke-width: 3; stroke-linecap: round; transition: stroke .5s; }
+.scope .sc-label { fill: rgba(255, 255, 255, .78); font: 600 15px var(--sans); letter-spacing: .32em; transition: fill .5s; }
+.scope .sc-ticks, .scope #sc-inner, .scope .sc-brackets { transform-box: view-box; transform-origin: 0 0; will-change: transform; }
+.scope.locked .sc-brackets path { stroke: var(--amber); }
+.scope.locked #sc-odds { fill: var(--amber); }
 .lit-text { position: relative; max-width: 1050px; text-align: center; font-family: var(--serif); font-size: clamp(32px, 4.6vw, 70px); line-height: 1.1; letter-spacing: -.01em; }
 .lit-text .lw { color: rgba(255, 255, 255, .32); transition: color .4s; }
 .lit-text .lw.on { color: #fff; }
@@ -332,7 +338,7 @@ main > :not(.hero-track) { position: relative; z-index: 4; }
 
 /* territories — a misty photo band behind glass-white cards */
 .territories { overflow: hidden; }
-.terr-band { position: absolute; left: 0; right: 0; top: 18%; bottom: 8%; background: url(../img/mist-canopy.jpg) center 30% / cover; filter: saturate(.6) brightness(1.12); opacity: .55;
+.terr-band { will-change: transform; position: absolute; left: 0; right: 0; top: 18%; bottom: 8%; background: url(../img/mist-canopy-band.jpg) center 30% / cover; opacity: .55;
   -webkit-mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent); mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent); transform: translateY(var(--ty, 0)); }
 .territories .section-head, .terr-grid { position: relative; }
 .terr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -369,7 +375,7 @@ main > :not(.hero-track) { position: relative; z-index: 4; }
   position: absolute; left: 50%; top: 50%; width: min(820px, 104vw, 84vh); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
   background: url(../img/moss-forest.jpg) center / cover;
   -webkit-mask-image: radial-gradient(circle closest-side, transparent 72%, #000 79%, #000 90%, transparent 99%); mask-image: radial-gradient(circle closest-side, transparent 72%, #000 79%, #000 90%, transparent 99%);
-  animation: spin 120s linear infinite reverse; opacity: .85;
+  animation: spin 120s linear infinite reverse; opacity: .85; will-change: transform;
 }
 .cta-inner { position: relative; padding: 0 var(--gutter); }
 .cta .kicker { margin-bottom: 14px; }
@@ -383,8 +389,20 @@ main > :not(.hero-track) { position: relative; z-index: 4; }
 .footer { position: relative; z-index: 4; padding: 40px var(--gutter); border-top: 1px solid rgba(255, 255, 255, .4); display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; align-items: flex-start; font-size: 12px; color: rgba(255, 255, 255, .85); background: rgba(60, 76, 52, .72); }
 .foot-brand { font-weight: 800; font-size: 22px; color: #fff; letter-spacing: -.02em; }
 .foot-brand span { font-size: 12px; font-weight: 500; letter-spacing: 0; color: rgba(255, 255, 255, .75); margin-left: 10px; }
-.foot-credits { max-width: 720px; line-height: 1.7; }
-.foot-credits a { color: #fff; border-bottom: 1px solid rgba(255, 255, 255, .4); }
+/* credits: one word; the full attribution appears on hover / focus (tap on touch screens) */
+.footer { align-items: center; }
+.credits { position: relative; }
+.credits-btn { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: #fff; padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .55); transition: background .3s, color .3s; }
+.credits:hover .credits-btn, .credits:focus-within .credits-btn, .credits.open .credits-btn { background: #fff; color: #1e2a1c; }
+.credits-pop {
+  position: absolute; right: 0; bottom: calc(100% + 12px); width: min(520px, calc(100vw - 2 * var(--gutter)));
+  padding: 16px 18px; border-radius: 16px; background: rgba(28, 38, 26, .96); color: rgba(255, 255, 255, .88);
+  font-size: 12.5px; line-height: 1.7; box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .55);
+  opacity: 0; visibility: hidden; transform: translateY(8px); transition: opacity .3s, transform .3s var(--ease-out), visibility .3s;
+}
+.credits-pop::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; } /* hover bridge to the button */
+.credits:hover .credits-pop, .credits:focus-within .credits-pop, .credits.open .credits-pop { opacity: 1; visibility: visible; transform: none; }
+.credits-pop a { color: #fff; border-bottom: 1px solid rgba(255, 255, 255, .4); }
 
 /* ---------- responsive ---------- */
 @media (max-width: 1100px) {
@@ -431,8 +449,9 @@ html, body { overflow-x: clip; }
 /* the forest layer sits hidden behind the hero until the mist clears: don't animate it before then */
 .nature-moss, .nleaf, .nleaf svg { animation-play-state: paused; }
 .on-light .nature-moss, .on-light .nleaf, .on-light .nleaf svg { animation-play-state: running; }
-/* the browser skips layout/paint of sections that are far off-screen */
-.section, .statement, .cta, .marquee { content-visibility: auto; contain-intrinsic-size: auto 900px; }
+/* no content-visibility: the page is short, and skipping off-screen sections made the browser re-lay-out and re-paint
+   each one every time it scrolled back into view (the stutter when scrolling up). Contain paint instead. */
+.section, .statement, .cta, .marquee { contain: layout paint; }
 .slide.is-active .slide-media img { will-change: transform; }
 
 /* no live backdrop blur anywhere on the landing: it forced a re-blur of the animated forest every frame */
@@ -442,3 +461,6 @@ html, body { overflow-x: clip; }
   background: linear-gradient(180deg, rgba(6, 9, 6, .94) 0%, rgba(6, 9, 6, .86) 8%, rgba(6, 9, 6, .74) 17%, rgba(6, 9, 6, .60) 28%, rgba(6, 9, 6, .45) 40%, rgba(6, 9, 6, .31) 53%, rgba(6, 9, 6, .18) 67%, rgba(6, 9, 6, .08) 82%, rgba(6, 9, 6, 0) 100%); }
 .on-light .top-shade { opacity: 1; }
 .on-light .site-header.scrolled { background: none; }
+
+/* CTA fail-safe: brief "checking the Brain" state while /health answers */
+a.is-checking { cursor: progress; opacity: .75; }
