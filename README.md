@@ -256,9 +256,10 @@ powershell -ExecutionPolicy Bypass -File .\dev_up.ps1
 
 **What this does automatically:**
 
-1. Starts the local blockchain and deploys the vault contracts.
-2. Starts the Backend Brain API on [http://127.0.0.1:8000](http://127.0.0.1:8000).
-3. Starts the Frontend Server on [http://localhost:5500](http://localhost:5500) and opens it in your default browser.
+1. Starts the local blockchain (Anvil) and deploys/boots up all **3 smart contract wallets** (Crypto on Ethereum, Commodities on Arbitrum, Chinese Market on FISCO BCOS) with active session keys and test funds.
+2. Starts the Backend Brain API on [http://127.0.0.1:8000](http://127.0.0.1:8000) and the Virtual Session Phone Gateway on port `8001`.
+3. Enables the **PegGuard Arbitrage 24/7 background scanner** with live telemetry across all 25 pegged assets.
+4. Starts the Frontend Server on [http://localhost:5500](http://localhost:5500) and opens it in your default browser.
 
 #### To Stop Everything:
 
@@ -268,7 +269,7 @@ Run [`dev_down.ps1`](./dev_down.ps1):
 powershell -ExecutionPolicy Bypass -File .\dev_down.ps1
 ```
 
-*(This cleanly terminates all background processes on ports 8000, 5500, and 8545).*
+*(This cleanly terminates all background processes on ports 8545, 8000, 8001, and 5500).*
 
 ---
 
