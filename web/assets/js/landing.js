@@ -36,7 +36,7 @@
     if (finished) return;
     finished = true;
     // decode the mist and forest images now, so the first scroll into the transition doesn't stall on them
-    ['fog.webp', 'fog-bank.webp', 'mist-canopy.jpg', 'moss-forest.jpg'].forEach(src => {
+    ['fog.webp', 'fog-bank.webp', 'mist-canopy-graded.jpg', 'mist-canopy-band.jpg', 'moss-forest.jpg', 'moss-forest-lush.jpg', 'moss-forest-ring.jpg'].forEach(src => {
       const im = new Image(); im.src = 'assets/img/' + src; im.decode?.().catch(() => {});
     });
     num.textContent = 100; bar.style.width = '100%';
@@ -157,7 +157,7 @@
   }), { threshold: 0.18 });
   $$('.reveal').forEach(el => io.observe(el));
   function countUp(el) {
-    const end = +el.dataset.count, pre = el.dataset.prefix || '';
+    const end = +el.dataset.count, pre = el.dataset.prefix || '', suf = el.dataset.suffix || '';
     if (end === 0) { // the AI's withdrawal rights: count *down* to zero for effect
       let v = 99; const t = setInterval(() => { v = Math.max(0, v - 7); el.textContent = pre + v; if (!v) clearInterval(t); }, 40);
       return;
@@ -165,10 +165,40 @@
     const t0 = performance.now(), dur = 1600;
     (function f(now) {
       const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 4);
-      el.textContent = pre + Math.round(end * e).toLocaleString();
+      el.textContent = pre + Math.round(end * e).toLocaleString() + suf;
       if (p < 1) requestAnimationFrame(f);
     })(t0);
   }
+
+  /* ---------- fail-safe: every way into the Command Center first checks that the Brain answers ---------- */
+  // The dashboard needs the Brain API (agent/). When it isn't reachable (e.g. the front end is deployed on its own),
+  // send the visitor to the repository instead of an app that can't work. Same API resolution as app.js.
+  const REPO = 'https://github.com/AhmedFouad15/TEC-C';
+  const brainApi = (() => {
+    const ok = v => { try { const u = new URL(v); return /^https?:$/.test(u.protocol) && ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname); } catch { return false; } };
+    let saved = null; try { saved = localStorage.getItem('tecc_api'); } catch { /* storage blocked */ }
+    return ok(saved) ? new URL(saved).origin : 'http://127.0.0.1:8000';
+  })();
+  async function brainUp() {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 2500);
+    try { const r = await fetch(brainApi + '/health', { signal: ctl.signal, cache: 'no-store' }); return r.ok; }
+    catch { return false; } finally { clearTimeout(t); }
+  }
+  document.addEventListener('click', async e => {
+    const a = e.target.closest('a[href^="app.html"]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    if (a.dataset.checking) return;
+    a.dataset.checking = '1'; a.classList.add('is-checking');
+    const up = await brainUp();
+    delete a.dataset.checking; a.classList.remove('is-checking');
+    location.href = up ? a.href : REPO;
+  });
+
+  /* ---------- credits: tap to open on touch screens ---------- */
+  const credits = $('.credits');
+  credits?.querySelector('.credits-btn').addEventListener('click', e => { e.stopPropagation(); credits.classList.toggle('open'); });
+  document.addEventListener('click', e => { if (credits && !credits.contains(e.target)) credits.classList.remove('open'); });
 
   /* ---------- scroll-lit statement words ---------- */
   const lit = $('#lit-text');
@@ -176,20 +206,49 @@
   lit.innerHTML = lit.textContent.split(' ').map(w => `<span class="lw${HL.has(w) ? ' hl' : ''}">${w}</span>`).join(' ');
   const words = $$('.lw', lit);
 
+  /* ---------- rangefinder behind the statement ---------- */
+  const scope = $('#scope'), scTicks = $('#sc-ticks'), scInner = $('#sc-inner'), scBrackets = $('#sc-brackets');
+  const scRange = $('#sc-range'), scOdds = $('#sc-odds');
+  scTicks.innerHTML = Array.from({ length: 120 }, (_, i) => {
+    const a = i * 3 * Math.PI / 180, major = i % 10 === 0, r0 = major ? 438 : 452;
+    return `<line class="${major ? 'major' : ''}" x1="${(Math.cos(a) * r0).toFixed(1)}" y1="${(Math.sin(a) * r0).toFixed(1)}" x2="${(Math.cos(a) * 470).toFixed(1)}" y2="${(Math.sin(a) * 470).toFixed(1)}"/>`;
+  }).join('');
+  let lastRange = -1;
+  function setScope(p) {
+    scTicks.style.transform = `rotate(${(p * 48).toFixed(2)}deg)`;
+    scInner.style.transform = `rotate(${(-p * 72).toFixed(2)}deg)`;
+    scBrackets.style.transform = `scale(${(1.45 - p * 0.5).toFixed(3)})`;
+    const range = Math.round(120 * (1 - Math.min(1, p / 0.92)));
+    if (range !== lastRange) {
+      lastRange = range;
+      scRange.textContent = `RANGE ${range} M`;
+      const locked = range === 0;
+      scope.classList.toggle('locked', locked);
+      scOdds.textContent = locked ? 'ODDS ON ITS SIDE · STRIKE' : 'READING THE FOREST';
+    }
+  }
+
   /* ---------- scroll-driven effects ---------- */
   const header = $('#site-header'), statement = $('#statement'), track = $('#hero-track');
-  const mossRing = $('.statement-ring'), band = $('.terr-band'), terr = $('#territories'), naturePhoto = $('.nature-photo');
+  const band = $('.terr-band'), terr = $('#territories'), naturePhoto = $('.nature-photo');
   const stage = $('#stage'), fogBack = $('#fog-back'), fogL = $('#fog-left'), fogR = $('#fog-right'), veil = $('#fog-veil');
   const clamp01 = v => Math.min(1, Math.max(0, v));
   const seg = (t, a, b) => clamp01((t - a) / (b - a));
   const smooth = u => u * u * (3 - 2 * u);
   const slideCopies = $$('.slide-copy'), heroChrome = $$('.slide-index, .socials, .scroll-hint');
 
+  // section offsets are measured on load/resize only: reading layout inside the scroll handler forced a reflow every frame
+  let statementTop = 0, statementH = 1, terrTop = 0, trackH = 1, litOn = -1;
+  function measure() {
+    const docTop = el => el.getBoundingClientRect().top + scrollY;
+    statementTop = docTop(statement); statementH = statement.offsetHeight || 1;
+    terrTop = docTop(terr); trackH = track.offsetHeight;
+  }
   function onScroll() {
     const y = scrollY, vh = innerHeight;
     header.classList.toggle('scrolled', y > 40);
     // hero → mist → forest
-    const t = clamp01((y - vh * 0.04) / (track.offsetHeight - vh));
+    const t = clamp01((y - vh * 0.04) / (trackH - vh));
     const soften = smooth(seg(t, 0.02, 0.5));
     hero.style.transform = `scale(${(1 + soften * 0.1).toFixed(4)})`;  // transform + opacity only: no per-frame filters
     const roll = smooth(seg(t, 0.04, 0.55));                       // the two banks of mist close in
@@ -212,14 +271,16 @@
     document.body.classList.toggle('on-light', t > 0.3);
     // (no background parallax: moving the layer under the glass cards would force them to re-blur every frame)
     // statement: light words one by one while the moss ring turns
-    const sr = statement.getBoundingClientRect();
-    const p = Math.min(1, Math.max(0, (vh * 0.75 - sr.top) / (sr.height * 0.75)));
-    const n = Math.floor(p * words.length);
-    words.forEach((w, i) => w.classList.toggle('on', i < n));
-    mossRing.style.setProperty('--ss', 0.85 + p * 0.25);
-    mossRing.style.setProperty('--sr', (p * 70) + 'deg');
+    const sTop = statementTop - y;
+    if (sTop < vh && sTop + statementH > 0) {
+      const p = Math.min(1, Math.max(0, (vh * 0.75 - sTop) / (statementH * 0.75)));
+      const n = Math.floor(p * words.length);
+      if (n !== litOn) { words.forEach((w, i) => w.classList.toggle('on', i < n)); litOn = n; }  // only touch the DOM when a word changes
+      setScope(p);
+    }
     // territories: the misty band drifts
-    band.style.setProperty('--ty', (terr.getBoundingClientRect().top * -0.12) + 'px');
+    const tTop = terrTop - y;
+    if (tTop < vh && tTop + vh > 0) band.style.transform = `translate3d(0, ${(tTop * -0.12).toFixed(1)}px, 0)`;
   }
   let scrollQueued = false;
   addEventListener('scroll', () => {
@@ -227,7 +288,9 @@
     scrollQueued = true;
     requestAnimationFrame(() => { scrollQueued = false; onScroll(); });
   }, { passive: true });
-  addEventListener('resize', onScroll);
+  addEventListener('resize', () => { measure(); onScroll(); });
+  addEventListener('load', () => { measure(); onScroll(); });
+  measure();
   onScroll();
 
   /* ---------- falling leaves in the forest ---------- */

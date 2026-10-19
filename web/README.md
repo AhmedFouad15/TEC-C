@@ -3,7 +3,7 @@
 Two static pages, no build step:
 
 - `index.html`: the landing page. A jaguar hero slider; on scroll, mist rolls over the jaguar and thins into the light forest sections.
-- `app.html`: the Command Center dashboard (composer, live pipeline, ratings, portfolio and regime radar, backtests, morning review, scenarios, settings, risk quiz).
+- `app.html`: the Command Center dashboard (composer, live pipeline, ratings, portfolio and regime radar, morning review, settings, risk quiz, deposit address).
 
 ## Run
 
@@ -31,7 +31,8 @@ Use `127.0.0.1:3000`, not `localhost:3000`, if another dev server already owns `
 | Ratify, flag and notes on live trades | `POST /api/review/sync` |
 | Emergency sweep | `POST /trigger_hourly_monitor` |
 | Learned profile | `GET /api/profile/demo` |
-| Backtests tab | `GET /api/backtest`, `POST /api/backtest/{episode}` (UST 2022, USDC/SVB 2023, stETH 2022) |
+| Composer assets per market | `GET /api/catalog` |
+| Deposit address + QR | `GET /api/vault/{account}` |
 | Risk quiz (Home banner, Safety tab) | `GET /api/profile/quiz`, `POST /api/profile/onboard` (resets the learned profile) |
 
 Point at another local port with `app.html?api=http://127.0.0.1:8001` (remembered). Only loopback addresses are accepted, so a crafted link cannot redirect your commands to someone else's server.

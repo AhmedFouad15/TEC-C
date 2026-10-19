@@ -65,31 +65,29 @@ Each slide does a clip-path wipe and a slow Ken Burns zoom, with letter-by-lette
 - **Intro:** "Become the calmest *version of your wallet*". A slowly turning moss ring, a white pill button and floating cards, like the reference.
 - **Marquee:** assets and terms scrolling.
 - **The hunt:** four white stat cards with count-up numbers ($500 radius, 6 agents, 4 markets, 0 withdrawal rights).
-- **Statement:** words light up one by one as you scroll, over a turning moss ring.
+- **Statement:** words light up one by one as you scroll, over a hunter's rangefinder (SVG: turning tick ring, brackets that close in, a range that counts down to "strike"). It replaced a second moss ring that duplicated the intro.
 - **Six senses:** the six LangGraph agents as numbered white cards.
-- **Four territories:** Crypto/Ethereum, Chinese market/FISCO BCOS, Commodities/Arbitrum, Arbitrage/PegGuard as glass cards that turn white on hover.
+- **Territories:** Crypto/Ethereum, Chinese market/FISCO BCOS, Commodities/Arbitrum, plus PegGuard as a background guard (not a market), as glass cards that turn white on hover.
 - **The oath:** the four things the AI can never do.
-- **CTA and footer:** photo credits and licences.
+- **CTA and footer:** every link into the app first checks the Brain's `/health`; if it doesn't answer, the visitor goes to the GitHub repo. The footer shows one **Credits** button; the photo credits appear on hover/focus (tap on touch).
 
 **Dev switches:** `?skip` (no preloader), `?seq=0.4` (jump into the transition, 0–1), `?at=senses` (jump to a section).
 
 ## 4. Dashboard (`app.html`)
 
-A Pyko-style top bar has a centred pill navigation with a sliding indicator. Under it, a status strip shows the vault balance, the tether donut, **Brain live/demo**, the biometric window, **Risk quiz**, 3 pillars and pending reviews. The background is a misty jungle photo with moss, falling leaves and grain; cards are frosted glass with a light that follows the cursor.
+A Pyko-style top bar has a centred pill navigation with a sliding indicator. Under it, a status strip shows the vault balance, the tether donut, **Brain live/demo**, the biometric window, **Risk quiz** and pending reviews. The background is a misty jungle photo with moss, falling leaves and grain; cards are frosted glass with a light that follows the cursor.
 
 | Screen | What it does | Brain endpoint (when live) |
 |---|---|---|
 | **Home** | Ask bar (free text), command composer (action, market, assets, capital slider, risk tier), live 6-agent pipeline, tether widgets, PegGuard switch, "New here?" quiz banner | `/api/mandate/propose` (ask bar), `/evaluate_options` (composer) |
 | **Opportunities** | Zone A candidate cards with score rings; Zone B news, econometrics (Sharpe, CVaR) and injection checks; Zone C decision, agent weights, trace, Execute | `/api/mandate/execute` |
 | **Portfolio** | Value and trend chart, allocation donut, holdings table with search, **regime radar** (calm day vs. USDC distress), **headline sandbox**, hourly watchdog, alerts | `/api/risk/regimes`, `/api/sentinel/headline`, `/trigger_hourly_monitor` |
-| **Backtests** | Replays UST 2022, USDC/SVB 2023 and stETH/Celsius 2022: price line, the Brain's P(distress) and P(failure) as areas, markers where each strategy sold or bought, P&L cards, day-by-day table | `/api/backtest`, `/api/backtest/{episode}` |
 | **Review** | Overnight trades: ratify, flag (−20%), or teach with a note; like-streak bar | `/api/review/sync` (for live trades) |
-| **Scenarios** | Five playable stories: silent harvest, FaceID breakout, elasticity, PegGuard circuit breaker, coffee-shop access | demo |
 | **Sessions** | Phone gateway status and a QR code | demo |
 | **Safety** | Tether and ceiling settings, elasticity toggle, **hold-to-revoke killswitch**, live learned profile (tier, λ, τ, soft limit), "Retake the risk quiz" | `/api/profile/demo` |
 | **Risk quiz** (modal) | Five animated questions, then your tier, λ and the Brain's reasoning; updates the composer tier | `/api/profile/quiz`, `/api/profile/onboard` |
 
-Other modals: multi-chain deposit, biometric withdrawal (FaceID scan animation), breakout request with a 30-second countdown, note to the Brain, and the 3 pillars and invariants.
+Other modals: deposit (the vault's real address + QR from `/api/vault/{account}`, copy button, on-chain balance refresh, local-chain faucet), biometric withdrawal (FaceID scan animation), breakout request with a 30-second countdown, and note to the Brain. The composer's assets follow the chosen market (`/api/catalog` when live), and PegGuard is a background switch, not a market.
 
 ### The two ways to talk to the Brain
 
@@ -160,3 +158,4 @@ Images are resized, compressed and colour-graded in CSS.
 8. Security fix: loopback-only `?api=`.
 9. Performance passes: 60 fps transition, then the forest sections (removed live backdrop blur).
 10. Soft dark top edge on both pages, made longer and darker after feedback.
+11. Team notes (2026-10-19): removed Backtests, Scenarios and the 3 pillars; PegGuard became a switch, not a market; assets follow the market; deposit shows the real vault address; the $500 stat became −20% (the leash isn't fixed); rangefinder replaced the duplicate moss ring; credits on hover; CTA fail-safe to the repo; scroll stutter fixed (no `content-visibility`, no layout reads in the scroll handler, colour grades baked into the images). Vercel guide in `DEPLOY_VERCEL.md`.
