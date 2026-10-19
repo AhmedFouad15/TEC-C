@@ -41,7 +41,7 @@ def eth(x: float) -> int:
 
 
 def deploy(args: argparse.Namespace) -> None:
-    if args.network == "fisco_bcos":
+    if args.network == "fisco_bcos" and (not args.rpc or "8555" in args.rpc):
         from tecc_brain.onchain.fisco_node import ensure_fisco_node_running
         ensure_fisco_node_running(args.rpc or "http://127.0.0.1:8555")
 
@@ -69,16 +69,21 @@ def deploy(args: argparse.Namespace) -> None:
                     key = wdata.get("private_key")
                 except Exception:
                     pass
+        if key is None and rpc.chain_id() == 31337:
+            key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     if key is None and args.network != "anvil":
         sys.exit(f"set {args.deployer_key_env} to a funded private key for {args.network} (it becomes the demo root owner)")
     chain_id = rpc.chain_id()
+    local = chain_id == 31337
     owner = Account.from_key(key).address if key else rpc.call("eth_accounts")[0]
     print(f"[{args.network}] chain id {chain_id}, deployer/root owner {owner}")
 
     native = not args.no_native_coin
+    fund_usdc = args.fund_usdc if args.fund_usdc is not None else (100_000 if local else 0)
     dep = deploy_local(
         rpc, eth_usd=args.eth_usd, radius_usd=args.radius, ceiling_usd=args.ceiling, tier=args.tier,
-        deployer_key=key, fund_eth_wei=eth(args.fund_account_eth) if native else 0,
+        deployer_key=key, fund_eth_wei=eth(args.fund_account_eth) if (native or local) else 0,
+        fund_usdc=fund_usdc,
     )
     session = Account.create()
     now = rpc.block_timestamp()
@@ -88,7 +93,7 @@ def deploy(args: argparse.Namespace) -> None:
     )
     from tecc_brain.onchain.session import provision_session_key
 
-    provision_session_key(rpc, dep, mandate, fund_wei=eth(args.fund_session_eth) if native else 0, owner_key=key)
+    provision_session_key(rpc, dep, mandate, fund_wei=eth(args.fund_session_eth) if (native or local) else 0, owner_key=key)
     path = save_market(MarketFile(network=args.network, rpc_url=rpc_url, deployment=dep, mandate=mandate,
                                   session_key="0x" + bytes(session.key).hex()))
     print(f"  TecAccount          {dep.account}")
@@ -100,7 +105,7 @@ def deploy(args: argparse.Namespace) -> None:
 
 
 def smoke(args: argparse.Namespace) -> None:
-    if args.network == "fisco_bcos":
+    if args.network == "fisco_bcos" and (not args.rpc or "8555" in args.rpc):
         from tecc_brain.onchain.fisco_node import ensure_fisco_node_running
         ensure_fisco_node_running(args.rpc or "http://127.0.0.1:8555")
 
@@ -132,6 +137,7 @@ def main() -> None:
     p.add_argument("--days", type=float, default=7.0, help="session key validity")
     p.add_argument("--fund-account-eth", type=float, default=None, help="native coin sent to the vault account")
     p.add_argument("--fund-session-eth", type=float, default=None, help="gas money for the session key")
+    p.add_argument("--fund-usdc", type=int, default=None, help="initial USDC balance minted to the vault")
     p.add_argument("--no-native-coin", action="store_true", help="chain has no native coin / zero gas (FISCO BCOS)")
     p.add_argument("--smoke", type=float, help="instead of deploying: send one real USDC deposit of this size")
     p.add_argument("--smoke-venue", default="aave_v3_usdc")

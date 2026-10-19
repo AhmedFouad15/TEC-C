@@ -20,7 +20,14 @@ const store = {
 function animateNumber(el, to, { prefix = '$', dur = 900, suffix = el?.children.length ? ' ' : '' } = {}) {
   if (!el) return;
   const from = +(el.dataset.v ?? to);
+  if (from === to && el.dataset.initialized) return;
+  el.dataset.initialized = '1';
   el.dataset.v = to;
+  if (window.innerWidth < 820 || dur <= 0) {
+    const formatted = prefix + Math.round(to).toLocaleString('en-US') + suffix;
+    el.firstChild ? (el.firstChild.nodeValue = formatted) : (el.textContent = formatted);
+    return;
+  }
   const t0 = performance.now();
   (function f(now) {
     const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
@@ -51,8 +58,10 @@ let API = (() => {
   if (q && isValidApiUrl(q)) store.set('tecc_api', new URL(q).origin);
   const saved = store.get('tecc_api');
   if (saved && isValidApiUrl(saved)) return new URL(saved).origin;
-  if (isValidApiUrl(location.origin) && location.port === '8000') return location.origin; // served by the Brain itself
-  return location.protocol === 'https:' ? '' : 'http://127.0.0.1:8000';
+  if (isValidApiUrl(location.origin)) {
+    if (location.protocol === 'https:' || location.port === '8000') return location.origin; // served by Brain or HTTPS tunnel
+  }
+  return location.protocol === 'https:' ? location.origin : 'http://127.0.0.1:8000';
 })();
 const brain = { live: false, checked: false };
 
@@ -94,12 +103,13 @@ async function api(path, { method = 'GET', body, timeout = 60000 } = {}) {
 }
 
 async function probeBrain() {
+  if (!API && isValidApiUrl(location.origin)) API = location.origin;
   if (!API) {
     setBrainStatus(false, 'offline · click to connect');
     return;
   }
   try {
-    const h = await api('/health', { timeout: 3500 });
+    const h = await api('/health', { timeout: 4000 });
     setBrainStatus(true, `live · v${h.version || '?'}`);
   } catch {
     setBrainStatus(false, 'offline · click to connect');
@@ -122,7 +132,8 @@ function setBrainStatus(live, text) {
     loadSessions();
     loadSecurityStatus();
     maybeShowQuizBanner();
-    if (live) showToast('Brain connected: commands now run through the real pipeline.');
+    if (live && brain.has_notified) showToast('Brain connected: commands now run through the real pipeline.');
+    brain.has_notified = true;
   }
 }
 
@@ -1096,9 +1107,17 @@ function setVault(v) {
    Live vault: balances, leash and the Morning Review all come from the chain (/api/vault/demo)
    ========================================================================================= */
 async function refreshLive() {
-  if (!brain.live) { state.vault = null; renderVaultNumbers(); renderTrades(); renderDecisions(); return; }
-  try { state.vault = await api('/api/vault/demo', { timeout: 8000 }); vaultInfo = state.vault; }
-  catch { state.vault = null; }
+  if (!brain.live && !state.vault) { renderVaultNumbers(); renderTrades(); renderDecisions(); return; }
+  try {
+    const v = await api('/api/vault/demo', { timeout: 8000 });
+    if (v && typeof v.total_usd === 'number') {
+      state.vault = v;
+      vaultInfo = state.vault;
+    }
+  } catch (err) {
+    // Keep previous state.vault during transient mobile network jitters so cards don't disappear
+    console.warn('refreshLive hiccup:', err);
+  }
   renderVaultNumbers(); renderTrades(); renderDecisions(); loadWatchdogLog(); loadPegGuard();
 }
 function renderVaultNumbers() {
@@ -1701,25 +1720,31 @@ function updatePegGuardTelemetryUI() {
   if (!txt) return;
 
   if (!state.pegGuardEnabled) {
-    txt.textContent = 'Scanner paused · 25 assets monitored when active';
-    txt.className = 'muted';
-    if (dot) dot.style.display = 'none';
+    if (txt.textContent !== 'Scanner paused · 25 assets monitored when active') {
+      txt.textContent = 'Scanner paused · 25 assets monitored when active';
+      txt.className = 'muted';
+    }
+    if (dot && dot.style.display !== 'none') dot.style.display = 'none';
     return;
   }
 
-  if (dot) dot.style.display = 'inline-block';
+  if (dot && dot.style.display !== 'inline-block') dot.style.display = 'inline-block';
   const ls = state.pegGuardLastScan;
   if (!ls || !ls.timestamp_unix) {
-    txt.textContent = 'Scanning live · 25 assets · 30s interval';
-    txt.className = 'txt-amber';
+    if (txt.textContent !== 'Scanning live · 25 assets · 30s interval') {
+      txt.textContent = 'Scanning live · 25 assets · 30s interval';
+      txt.className = 'txt-amber';
+    }
     return;
   }
 
   const sec = Math.max(0, Math.floor(Date.now() / 1000 - ls.timestamp_unix));
   const depegs = ls.depegged_count || 0;
   const count = ls.scanned_count || 25;
-  txt.textContent = `Last scan: ${sec}s ago · ${count} assets · ${depegs} de-pegs`;
-  txt.className = depegs > 0 ? 'txt-amber' : 'txt-green';
+  const newText = `Last scan: ${sec}s ago · ${count} assets · ${depegs} de-pegs`;
+  if (txt.textContent !== newText) txt.textContent = newText;
+  const newClass = depegs > 0 ? 'txt-amber' : 'txt-green';
+  if (txt.className !== newClass) txt.className = newClass;
 }
 async function loadPegGuard() {
   if (!brain.live) {
@@ -2005,6 +2030,10 @@ function txToast(msg, hash) {
 }
 
 function spawnLeaves() {
+  if (window.innerWidth < 820 || (window.matchMedia && matchMedia('(pointer: coarse)').matches)) {
+    $('#leaves').innerHTML = '';
+    return;
+  }
   const shapes = [
     'M12 2C6 7 4 13 12 22C20 13 18 7 12 2Z M12 4V21',
     'M3 21C3 11 9 4 21 3C20 15 13 21 3 21Z M3 21L15 9',
@@ -2018,7 +2047,7 @@ function spawnLeaves() {
   }).join('');
 }
 function bindTilt() {
-  if (!matchMedia('(hover: hover)').matches) return;
+  if (!matchMedia('(hover: hover)').matches || window.innerWidth < 820) return;
   $$('[data-tilt]').forEach(el => {
     if (el.dataset.tiltBound) return;
     el.dataset.tiltBound = 1;
@@ -2030,18 +2059,20 @@ function bindTilt() {
   });
 }
 (() => { // cursor glow, glass highlight, background parallax, ripples
-  const glow = $('#cursor-glow'), bg = $('.bg-photo');
+  const glow = $('#cursor-glow');
   let raf = 0, ev = null;
-  addEventListener('mousemove', e => {
-    ev = e;
-    if (raf) return;
-    raf = requestAnimationFrame(() => {
-      raf = 0;
-      glow.style.transform = `translate(${ev.clientX}px, ${ev.clientY}px)`;
-      const g = ev.target.closest?.('.glass');
-      if (g) { const r = g.getBoundingClientRect(); g.style.setProperty('--gx', ev.clientX - r.left + 'px'); g.style.setProperty('--gy', ev.clientY - r.top + 'px'); }
+  if (matchMedia('(hover: hover)').matches && window.innerWidth >= 820) {
+    addEventListener('mousemove', e => {
+      ev = e;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (glow) glow.style.transform = `translate(${ev.clientX}px, ${ev.clientY}px)`;
+        const g = ev.target.closest?.('.glass');
+        if (g) { const r = g.getBoundingClientRect(); g.style.setProperty('--gx', ev.clientX - r.left + 'px'); g.style.setProperty('--gy', ev.clientY - r.top + 'px'); }
+      });
     });
-  });
+  }
   document.addEventListener('pointerdown', e => {
     const b = e.target.closest('.pill-btn, .btn-primary, .btn-white');
     if (!b || b.disabled) return;
@@ -2054,10 +2085,15 @@ function bindTilt() {
 })();
 
 /* timers */
+let lastEpochMin = -1;
 setInterval(() => {
   const now = new Date(), next = new Date(now); next.setUTCHours(24, 0, 0, 0);
   const m = Math.floor((next - now) / 60000);
-  $('#epoch-timer').textContent = `${String(Math.floor(m / 60)).padStart(2, '0')}h ${String(m % 60).padStart(2, '0')}m`;
+  if (m !== lastEpochMin) {
+    lastEpochMin = m;
+    const el = $('#epoch-timer');
+    if (el) el.textContent = `${String(Math.floor(m / 60)).padStart(2, '0')}h ${String(m % 60).padStart(2, '0')}m`;
+  }
 }, 1000);
 
 /* =========================================================================================

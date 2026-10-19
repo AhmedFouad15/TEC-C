@@ -11,6 +11,7 @@ from tecc_brain import __version__
 from tecc_brain.api import arbitrage, biometrics, insight, mandate, options, profile, risk, settings, vault
 from tecc_brain.api.deps import allowed_origins, require_client
 from tecc_brain.monitor.hourly import start_scheduler, stop_scheduler
+from tecc_brain.virtual_session.gateway import gateway_app
 
 
 @asynccontextmanager

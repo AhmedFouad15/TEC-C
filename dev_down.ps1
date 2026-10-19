@@ -11,7 +11,7 @@ if (Test-Path $Pids) {
     Remove-Item $Pids -Force
 }
 # anything still listening on the stack's ports (e.g. started before the pid file existed)
-foreach ($port in 8545, 8000, 5500) {
+foreach ($port in 8545, 8000, 8001, 5500) {
     Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
         Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
         Write-Host "> stopped the listener on port $port"
