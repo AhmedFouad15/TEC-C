@@ -136,7 +136,7 @@ def vault(account: Account) -> dict[str, Any]:
         "deposit_qr_svg": render_qr_svg(f"ethereum:{acct}@{dep.chain_id}", box_size=5, border=2),  # EIP-681 URI
         "network": market.network,
         "chain_id": dep.chain_id,
-        "rpc_url": market.rpc_url,
+        # no rpc_url here: on a real network it usually embeds the provider's API key (Infura/Alchemy path)
         "dev_chain": dep.chain_id == DEV_CHAIN_ID,
         "deposit_address": acct,
         "root_owner": owner,
