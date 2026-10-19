@@ -9,6 +9,52 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/app.css?v=30">
+  <script>
+  (() => {
+    const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+    const params = new URLSearchParams(location.search);
+    if (isLocal || params.has('demo') || params.has('stay')) return;
+
+    const REPO = 'https://github.com/AhmedFouad15/TEC-C';
+    const targetUrl = 'http://localhost:5500/app.html' + location.search + location.hash;
+
+    const probe = async () => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 2000);
+
+      const checkBrain = fetch('http://127.0.0.1:8000/health', { signal: ctl.signal, cache: 'no-store' })
+        .then(r => r.ok)
+        .catch(() => false);
+
+      const checkServer = new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = 'http://localhost:5500/assets/img/favicon.svg?t=' + Date.now();
+      });
+
+      try {
+        const results = await Promise.race([
+          Promise.all([checkBrain, checkServer]),
+          new Promise(r => setTimeout(() => r([false, false]), 2000))
+        ]);
+        clearTimeout(timer);
+        return Boolean(results[0] || results[1]);
+      } catch {
+        clearTimeout(timer);
+        return false;
+      }
+    };
+
+    probe().then(up => {
+      if (up) {
+        location.replace(targetUrl);
+      } else {
+        location.replace(REPO);
+      }
+    });
+  })();
+  </script>
 </head>
 <body>
 
@@ -646,6 +692,6 @@
 
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script src="assets/js/app.js?v=30"></script>
+  <script src="assets/js/app.js?v=31"></script>
 </body>
 </html>

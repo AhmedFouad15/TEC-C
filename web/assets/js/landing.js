@@ -180,9 +180,26 @@
     return ok(saved) ? new URL(saved).origin : 'http://127.0.0.1:8000';
   })();
   async function brainUp() {
-    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 2500);
-    try { const r = await fetch(brainApi + '/health', { signal: ctl.signal, cache: 'no-store' }); return r.ok; }
-    catch { return false; } finally { clearTimeout(t); }
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 2000);
+    const checkBrain = fetch(brainApi + '/health', { signal: ctl.signal, cache: 'no-store' })
+      .then(r => r.ok).catch(() => false);
+    const checkServer = new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = 'http://localhost:5500/assets/img/favicon.svg?t=' + Date.now();
+    });
+    try {
+      const results = await Promise.race([
+        Promise.all([checkBrain, checkServer]),
+        new Promise(r => setTimeout(() => r([false, false]), 2000))
+      ]);
+      clearTimeout(t);
+      return Boolean(results[0] || results[1]);
+    } catch {
+      clearTimeout(t);
+      return false;
+    }
   }
   document.addEventListener('click', async e => {
     const a = e.target.closest('a[href^="app.html"]');
@@ -192,7 +209,13 @@
     a.dataset.checking = '1'; a.classList.add('is-checking');
     const up = await brainUp();
     delete a.dataset.checking; a.classList.remove('is-checking');
-    location.href = up ? a.href : REPO;
+    if (up) {
+      const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+      const dest = a.getAttribute('href') || 'app.html';
+      location.href = isLocal ? a.href : ('http://localhost:5500/' + dest);
+    } else {
+      location.href = REPO;
+    }
   });
 
   /* ---------- credits: tap to open on touch screens ---------- */

@@ -79,9 +79,26 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins(),
     allow_origin_regex=r"^https://([a-zA-Z0-9-]+\.)*(tec-c\.xyz|trycloudflare\.(?:com|co))$",
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_private_network_access(request, call_next):
+    if request.method == "OPTIONS" and request.headers.get("access-control-request-private-network") == "true":
+        from starlette.responses import Response
+        origin = request.headers.get("origin", "*")
+        res = Response(status_code=204)
+        res.headers["Access-Control-Allow-Origin"] = origin
+        res.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        res.headers["Access-Control-Allow-Headers"] = "*"
+        res.headers["Access-Control-Allow-Private-Network"] = "true"
+        return res
+    response = await call_next(request)
+    if request.headers.get("access-control-request-private-network") == "true":
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 from tecc_brain.virtual_session.admin_router import router as virtual_session_admin_router
 from tecc_brain.virtual_session.gateway import gateway_app
 
