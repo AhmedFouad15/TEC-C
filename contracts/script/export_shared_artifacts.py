@@ -46,7 +46,7 @@ def export_artifacts():
         },
         "eip712": {
             "domain": {
-                "name": "Tec-C Autonomous Agent Mandate",
+                "name": "Tec-C UserMandate",
                 "version": "1",
                 "chainId": 31337,
                 "verifyingContract": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
