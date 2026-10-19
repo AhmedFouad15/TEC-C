@@ -49,7 +49,7 @@ const API = (() => {
 })();
 const brain = { live: false, checked: false };
 
-async function api(path, { method = 'GET', body, timeout = 15000 } = {}) {
+async function api(path, { method = 'GET', body, timeout = 60000 } = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeout);
   try {
@@ -82,6 +82,7 @@ function setBrainStatus(live, text) {
     loadRegimes();
     loadProfile();
     loadCatalog();
+    if (live) syncVaultFromChain();
     maybeShowQuizBanner();
     if (live) showToast('Brain connected: commands now run through the real pipeline.');
   }
@@ -90,7 +91,9 @@ function setBrainStatus(live, text) {
 /* =========================================================================================
    Demo presets (used when the Brain is offline)
    ========================================================================================= */
-const ACTIONS = ['Find opportunities', 'Invest', 'Stake', 'Swap', 'Rebalance', 'Reduce risk', 'Exit position', 'Park idle cash'];
+// Only actions the Brain has venues for (data/venues.json: deposit, stake). Swap / Rebalance / Reduce risk / Exit
+// position return when venues for them exist; until then the composer never offers a button that always fails.
+const ACTIONS = ['Find opportunities', 'Invest', 'Stake', 'Park idle cash'];
 const ACTION_PRESETS = {
   'Stake': {
     assets: ['ETH', 'stETH', 'rETH', 'cbETH'], defaultAssets: ['ETH', 'stETH'], market: 'Crypto', network: 'Ethereum L1', pct: 10, tier: 'Tier 2',
@@ -192,8 +195,8 @@ async function loadCatalog() {
     const c = await api('/api/catalog', { timeout: 5000 });
     for (const [id, m] of Object.entries(c.markets || {})) {
       const name = CATALOG_MARKET[id];
-      // the market's own assets stay first (PAXG for commodities); the venues' funding assets are added
-      if (name && Array.isArray(m.assets)) MARKETS[name].assets = [...new Set([...MARKETS[name].assets, ...m.assets.map(String)])];
+      // live: only assets a venue in this market actually accepts (the offline lists include demo-only names)
+      if (name && Array.isArray(m.assets) && m.assets.length) MARKETS[name].assets = [...new Set(m.assets.map(String))];
     }
     selectMarket(state.market, state.network, false);  // re-filter the pills with the live list
   } catch { /* keep the offline lists */ }
@@ -409,6 +412,11 @@ async function submitCommandToBrain(text) {
         sleep(300),
       ]);
       state.live = res; state.liveOptions = null;
+      renderBrainReport(res.brain_report);
+      if (res.intent && ['submitted', 'simulated', 'failed'].includes(res.intent.status)) {
+        recordIntentTrade(res.intent, 'The automatic slice, inside the soft tether.');
+        showToast(res.intent.status === 'failed' ? `Automatic slice refused by the vault: ${res.intent.detail}` : `Automatic slice ran: ${usd(res.intent.amount_usd)} (${res.intent.status}).`);
+      }
       const blocked = res.status !== 'decided' || res.decision?.mode === 'BLOCKED';
       const agents = res.agents?.length ? res.agents : DEMO_AGENTS;
       await animatePipeline(agents, { blockedAt: blocked ? agents.length - 1 : -1 });
@@ -425,12 +433,22 @@ async function submitCommandToBrain(text) {
       showToast(`Demo: 3 routes rated for “${state.action}”. Start the Brain API for real results.`);
     }
   } catch (err) {
-    showToast(`The Brain could not answer (${err.message}). Showing demo data.`);
-    if (err.name === 'AbortError' || err.message === 'Failed to fetch') setBrainStatus(false, 'demo mode');
-    state.live = null;
-    renderOpportunities();
+    if (err.message === 'Failed to fetch') {
+      // never reached the Brain: nothing ran, so demo data is honest
+      setBrainStatus(false, 'demo mode');
+      showToast('The Brain is not reachable. Showing demo data.');
+      state.live = null; state.liveOptions = null;
+      renderBrainReport(null);
+      renderOpportunities();
+    } else if (err.name === 'AbortError') {
+      // the request was sent: something may have executed, so never show demo data in its place
+      showToast('The Brain took longer than 60 s. Check the vault and Morning Review before sending this again.');
+    } else {
+      showToast(`The Brain refused this request: ${err.message}`);
+    }
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
+    if (brain.live) syncVaultFromChain();
   }
 }
 /* =========================================================================================
@@ -453,6 +471,8 @@ async function evaluateOptions(shown) {
   const options = composerOptions();
   const [res] = await Promise.all([api('/evaluate_options', { method: 'POST', body: { account: 'demo', options } }), sleep(300)]);
   state.live = null;
+  renderBrainReport(res.brain_report);
+  (res.intents || []).forEach(i => recordIntentTrade(i, 'Automatic, from the injection-proof options flow.'));
   res.results.sort((x, y) => x.option_id.localeCompare(y.option_id));
   state.liveOptions = { ...res, options, shown };
   const funded = res.results.filter(r => r.allocated_usd > 0);
@@ -527,27 +547,33 @@ function showOptionDetail() {
   const [mt] = OPT_MODE[r.mode] || [r.mode];
   $('#synthesis-badge').textContent = o.status.replace(/_/g, ' ');
   $('#synthesis-badge').className = 'badge ' + (o.intents.length ? 'badge-green' : 'badge-amber');
-  const queued = o.intents.reduce((a, i) => a + i.amount_usd, 0);
-  $('#synthesis-rationale').innerHTML = `<b>${esc(o.status.replace(/_/g, ' '))}</b> · option ${esc(r.option_id)} is <b>${esc(mt)}</b>. ${o.intents.length} intent(s) ready to sign, ${usd(queued)} inside today's soft tether.`;
+  const ran = o.intents.filter(i => ['submitted', 'simulated'].includes(i.status)).reduce((a, i) => a + i.amount_usd, 0);
+  $('#synthesis-rationale').innerHTML = `<b>${esc(o.status.replace(/_/g, ' '))}</b> · option ${esc(r.option_id)} is <b>${esc(mt)}</b>. ${usd(ran)} already ran automatically inside today's soft tether (see Morning Review).`;
   $('#trace-list').innerHTML = o.trace.map(t => `<li>${esc(t)}</li>`).join('');
+  // automatic slices already ran on the server; the button approves the selected option if it is waiting for you
   const btn = $('#btn-execute-trade');
-  btn.style.display = o.intents.length ? '' : 'none';
-  btn.firstElementChild.textContent = `Sign ${o.intents.length} intent(s) with the session key`;
+  const approvable = o.proposal_id && r.venue_id && ['PROPOSE', 'BREAKOUT'].includes(r.mode);
+  btn.style.display = approvable ? '' : 'none';
+  if (approvable) btn.firstElementChild.textContent = `Approve option ${r.option_id}`;
 }
 
-function executeOptions() {
+
+async function executeOptions() {
+  // Automatic allocations already ran on the server (see Morning Review); this approves the selected held option.
   const o = state.liveOptions;
-  o.intents.forEach(i => {
-    addTrade({
-      title: `${i.action} ${i.asset_in} → ${i.venue_id}`, market: i.market, val: i.amount_usd,
-      status: i.status === 'pending_signature' ? 'signing' : 'pending', news: '—', econ: '—',
-      tx: i.tx_hash || 'awaiting signature', detail: 'From the injection-proof options flow.',
-    });
-    spendTether(Math.min(i.amount_usd, tetherLeft()));
-  });
-  showToast(`${o.intents.length} intent(s) queued for the session key. See Morning Review.`);
-  state.liveOptions = { ...o, intents: [] };
-  showOptionDetail();
+  const r = o.results.find(x => 'opt:' + x.option_id === state.selectedCandidate);
+  if (!o.proposal_id || !r) return showToast('Nothing waiting for your approval: the automatic part already ran.');
+  const btn = $('#btn-execute-trade');
+  btn.disabled = true; btn.classList.add('loading');
+  try {
+    const out = await api('/api/mandate/execute', { method: 'POST', body: { proposal_id: o.proposal_id, account: 'demo', label: 'BEST', option_id: r.option_id } });
+    recordIntentTrade(out.intent, `Option ${r.option_id}, approved by you.`);
+    showToast(out.message || `Option ${r.option_id}: ${out.intent?.status}`);
+    if (out.intent?.status !== 'breakout_required') state.liveOptions = { ...o, proposal_id: null }; // one approval per proposal
+    renderOptions();
+  } catch (err) {
+    showToast(err.status === 409 ? `Option ${r.option_id}: ${err.message}` : `Approval failed: ${err.message}`);
+  } finally { btn.disabled = false; btn.classList.remove('loading'); syncVaultFromChain(); }
 }
 
 function askBrain() {
@@ -575,6 +601,7 @@ function renderLive(res, text) {
   $('#source-badge').textContent = 'Live from the Brain';
   $('#opp-request-header').textContent = `“${text}”`;
   if (!d) {
+    renderBrainReport(res.brain_report);
     $('#candidates-container').innerHTML = `<div class="card glass"><div class="card-title"><span>${res.status === 'unparsed' ? 'Not understood' : 'Refused'}</span><span class="badge badge-red">${esc(res.status)}</span></div>
       <ul class="explain">${(res.parse?.errors || res.parse?.verdict?.threats || ['The gatekeeper stopped this request.']).map(x => `<li>${esc(typeof x === 'string' ? x : JSON.stringify(x))}</li>`).join('')}</ul></div>`;
     return;
@@ -738,26 +765,51 @@ async function executeAutonomousTrade() {
 async function executeLive() {
   const res = state.live, d = res.decision;
   const c = d.cards.find(x => x.label + ':' + x.candidate.venue_id === state.selectedCandidate) || d.cards[0];
-  if (c.mode === 'BREAKOUT' && !state.biometricUnlocked) {
-    pendingLiveBreakout = true;
-    return openBreakoutModal(c.candidate.amount_usd, null);
-  }
+  if (!res.proposal_id) return showToast('This proposal was already executed.');
   const btn = $('#btn-execute-trade');
   btn.disabled = true; btn.classList.add('loading');
   try {
     const out = await api('/api/mandate/execute', { method: 'POST', body: { proposal_id: res.proposal_id, account: 'demo', label: c.label, venue_id: c.candidate.venue_id } });
     const it = out.intent || {};
-    const status = { submitted: 'pending', signed: 'pending', pending_signature: 'signing', simulated: 'simulated', failed: 'failed', breakout_required: 'needs_faceid' }[it.status] || 'pending';
-    addTrade({ title: `${c.candidate.action} ${c.candidate.asset_in} → ${c.candidate.venue_id}`, market: it.market || state.market, val: it.amount_usd ?? c.candidate.amount_usd,
-      status, news: '—', econ: (c.candidate.score?.total * 100 || 0).toFixed(2) + '%', tx: it.tx_hash || 'no hash (simulated)', detail: it.detail });
-    if (it.status === 'submitted') spendTether(Math.min(it.amount_usd || 0, tetherLeft()));
     (out.learned || []).forEach(l => showToast('Learned: ' + l));
     showToast(out.message || `Execution ${it.status}`);
+    if (it.status === 'breakout_required') return; // the proposal stays open: verify the passkey, then Execute again
+    recordIntentTrade(it, `${c.label} card, approved by you.`);
     state.live = { ...res, proposal_id: null }; // a proposal executes once
     btn.firstElementChild.textContent = 'Executed ✓';
   } catch (err) {
-    showToast(`Execution refused: ${err.message}`);
-  } finally { btn.disabled = false; btn.classList.remove('loading'); }
+    // 409 = the AI vetoed this option, or it already ran in full automatically: a result, not a crash
+    showToast(err.status === 409 ? err.message : `Execution refused: ${err.message}`);
+  } finally { btn.disabled = false; btn.classList.remove('loading'); syncVaultFromChain(); }
+}
+/* The AI Brain's verdict (brain_report): one source of truth for what the AI decided and why */
+const BRAIN_DECISION = {
+  EXECUTE: ['Executes now', 'badge-green'], SPLIT: ['Split across options', 'badge-green'], PROPOSE: ['Needs your approval', 'badge-blue'],
+  REJECT: ['Nothing runs automatically', 'badge-red'], HOLD: ['HOLD · AI unavailable', 'badge-amber'],
+};
+function renderBrainReport(report) {
+  const box = $('#brain-verdict');
+  if (!box) return;
+  if (!report) { box.innerHTML = ''; return; }
+  const [dt, dc] = BRAIN_DECISION[report.decision] || [report.decision, 'badge-blue'];
+  const byAi = report.producer === 'llm';
+  box.innerHTML = `<div class="card glass">
+    <div class="card-title"><span>AI Brain verdict</span>
+      <span><span class="badge ${dc}">${esc(dt)}</span>
+      <span class="badge ${byAi ? 'badge-live' : 'badge-blue'}" title="${byAi ? 'Decided by the AI model, validated tighten-only' : 'Deterministic rules (no model configured, or the model answer was not used)'}">${byAi ? 'AI model' : 'Rules engine'}</span></span></div>
+    <p>${esc(report.user_explanation)}</p>
+    ${report.reason_codes?.length ? `<div class="mini-badges">${report.reason_codes.map(r => `<span class="badge">${esc(r.replace(/_/g, ' ').toLowerCase())}</span>`).join('')}</div>` : ''}
+    ${report.fallback_reason ? `<p class="caption">Model answer not used: ${esc(report.fallback_reason)}. The ${report.decision === 'HOLD' ? 'order is on HOLD' : 'rules decided'}.</p>` : ''}
+    ${report.vetoes_honored?.length ? `<p class="caption">${report.vetoes_honored.length} hard veto(es) honoured.</p>` : ''}
+  </div>`;
+}
+const INTENT_TRADE = { submitted: 'pending', signed: 'pending', pending_signature: 'signing', simulated: 'simulated', failed: 'failed', breakout_required: 'needs_faceid' };
+function recordIntentTrade(it, detail) {
+  if (!it) return;
+  addTrade({ title: `${it.action} ${it.asset_in} → ${it.venue_id}`, market: it.market || state.market, val: it.amount_usd,
+    status: INTENT_TRADE[it.status] || 'pending', news: '—', econ: '—',
+    tx: it.tx_hash || (it.status === 'simulated' ? 'no hash (simulated)' : '—'), detail: it.detail || detail });
+  if (it.status === 'submitted') spendTether(Math.min(it.amount_usd || 0, tetherLeft()));
 }
 const fakeTx = () => '0x' + Math.random().toString(16).slice(2, 6) + '…' + Math.random().toString(16).slice(2, 6);
 function spendTether(amount) { state.tetherUsed += amount; refreshTether(); }
@@ -894,6 +946,17 @@ async function loadVault() {
   if (!brain.live) { vaultInfo = null; return null; }
   try { vaultInfo = await api('/api/vault/demo', { timeout: 6000 }); } catch { vaultInfo = null; }
   return vaultInfo;
+}
+async function syncVaultFromChain() {
+  // the real vault (balance, today's radius and spend) replaces the demo figures; no vault deployed → keep them
+  const v = await loadVault();
+  if (!v || !v.live) return;
+  if (typeof v.total_usd === 'number') setVault(v.total_usd);
+  if (v.policy) {
+    state.tetherTotal = Math.round(v.policy.radius_usd);
+    state.tetherUsed = Math.round(v.policy.spent_today_usd);
+    refreshTether();
+  }
 }
 async function openDepositModal() {
   openModal('modal-deposit');

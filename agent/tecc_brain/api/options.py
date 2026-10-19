@@ -36,6 +36,7 @@ from tecc_brain.api.deps import (
 from tecc_brain.graph.pipeline import PipelineResult
 from tecc_brain.intent.firewall import scan
 from tecc_brain.intent.rules import ParseOutcome
+from tecc_brain.api.vault import resolve_vault
 from tecc_brain.onchain.executor import MarketRouter
 from tecc_brain.graph.brain import BrainLLM, BrainReport, build_brain_input, synthesize
 from tecc_brain.graph.pipeline import ProfileSummary, load_or_create_profile
@@ -132,7 +133,7 @@ def evaluate_options(
     sentinel: NewsRiskSentinel = Depends(get_news_sentinel),
     market_router: MarketRouter = Depends(get_router),
 ) -> EvaluateOptionsResponse:
-    vault = req.vault.to_state()
+    vault = resolve_vault(req.account, req.vault, "vault" in req.model_fields_set)
     profile = load_or_create_profile(store, req.account)
     snapshot = SnapshotSource(req.scenario).snapshot()
     snapshot = make_news_hook(sentinel, ref)(snapshot)  # Agent 1: blend reaches the regime classifier first

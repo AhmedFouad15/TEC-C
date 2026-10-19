@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import math
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -600,6 +601,8 @@ class MarketRouter:
         self.arbitrage = arbitrage or PegGuardArbitrageExecutor()
         self.tether_tracker = tether_tracker or CrossChainTetherTracker(daily_limit_usd=daily_limit_usd)
         self.daily_limit_usd = daily_limit_usd
+        # check → submit → record must be atomic, or two concurrent orders can both pass the remaining allowance
+        self._submit_lock = threading.Lock()
 
     def get_executor(self, market: str):
         norm = market.strip().lower().replace(" ", "_").replace("-", "_")
@@ -621,6 +624,12 @@ class MarketRouter:
         self, intent: ExecutionIntent, account: str, market: str | None = None, limit_usd: float | None = None
     ) -> ExecutionIntent:
         """`limit_usd`: the account's daily radius when the caller knows it (else the router default)."""
+        with self._submit_lock:
+            return self._submit(intent, account, market, limit_usd)
+
+    def _submit(
+        self, intent: ExecutionIntent, account: str, market: str | None, limit_usd: float | None
+    ) -> ExecutionIntent:
         m = market or intent.market
         intent = intent.model_copy(update={"market": m})
         limit = self.daily_limit_usd if limit_usd is None else limit_usd

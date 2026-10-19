@@ -122,18 +122,31 @@ def test_b3_a_client_priced_million_dollar_scan_runs_at_most_the_soft_tether(api
     assert all(o["execution_intent"]["market"] == "arbitrage" for o in report["outcomes"] if o["status"] == "executed")
 
 
-def test_b3_every_executed_trade_goes_through_the_router(api, _simulated_markets_only):
+def test_b3_every_executed_trade_goes_through_the_router(_simulated_markets_only):
+    """Market-fed scans (the hourly monitor's path) execute only through the router, metered by the radius."""
+    from tecc_brain.models import VaultState
+    from tecc_brain.pegguard import PegGuardAutonomousScanner
+
     calls = []
     original = _simulated_markets_only.submit
 
     def spy(intent, account, market=None, limit_usd=None):
-        calls.append((intent.asset_in, intent.amount_usd, market, limit_usd))
+        calls.append((intent.asset_in, market, limit_usd))
         return original(intent, account, market=market, limit_usd=limit_usd)
 
     _simulated_markets_only.submit = spy
+    scanner = PegGuardAutonomousScanner(router=_simulated_markets_only, store=MemStore())
+    scanner.set_enabled("demo", True)
+    report = scanner.scan_tick("demo", symbols=["USDC"], price_overrides={"USDC": 0.97}, order_size_usd=250,
+                               vault=VaultState(tether_radius_usd=500))
+    assert report.executed_count == 1
+    assert calls == [("USDC", "arbitrage", 500.0)]
+
+
+def test_s6_prices_typed_into_the_api_never_auto_execute(api, _simulated_markets_only):
     report = _arbitrage(api, order_size_usd=250, symbols=["USDC"], price_overrides={"USDC": 0.97})
-    assert report["executed_count"] == 1
-    assert calls == [("USDC", pytest.approx(calls[0][1]), "arbitrage", 500.0)]
+    assert report["executed_count"] == 0 and report["held_count"] == 1 and report["proposal_id"]
+    assert _simulated_markets_only.tether_tracker.get_spent("demo") == 0
 
 
 def test_b3_the_ai_brain_can_veto_an_authorized_arbitrage_trade(api):

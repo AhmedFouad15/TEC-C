@@ -55,8 +55,9 @@ lsof -ti tcp:8000 | xargs kill 2>/dev/null || true
 sleep 0.5
 say "Starting the Brain API on http://127.0.0.1:8000 …"
 (cd "$AGENT" && TECC_NETWORK=anvil \
-  TECC_CORS_ORIGINS="http://localhost:$UI_PORT,http://127.0.0.1:$UI_PORT,http://localhost:3000,http://127.0.0.1:3000" \
-  nohup .venv/bin/uvicorn tecc_brain.app:app --host 127.0.0.1 --port 8000 > "$STATE/brain.log" 2>&1 &)
+  TECC_CORS_ORIGINS="http://localhost:$UI_PORT,http://127.0.0.1:$UI_PORT,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000" \
+  nohup .venv/bin/uvicorn tecc_brain.app:app --host 127.0.0.1 --port 8000 $( [ -f .env ] && echo --env-file .env ) \
+  > "$STATE/brain.log" 2>&1 &)
 for _ in $(seq 1 40); do curl -sf http://127.0.0.1:8000/health >/dev/null && break; sleep 0.3; done
 curl -sf http://127.0.0.1:8000/health >/dev/null || { echo "The Brain did not start; see $STATE/brain.log"; exit 1; }
 
