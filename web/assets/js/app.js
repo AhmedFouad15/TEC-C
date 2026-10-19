@@ -1139,12 +1139,12 @@ async function passkeyUnlock(reason = 'Confirm with your passkey') {
     showToast(reason + '…');
     const a = await navigator.credentials.get({ publicKey: {
       challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname,
-      allowCredentials: [{ type: 'public-key', id: unb64u(pk.id) }], userVerification: 'required', timeout: 60000,
+      allowCredentials: [{ type: 'public-key', id: unb64u(pk.id) }], userVerification: 'preferred', timeout: 60000,
     } });
     const cdHash = await crypto.subtle.digest('SHA-256', a.response.clientDataJSON);
     const [r, s] = derToRS(a.response.signature);
     const v = await api('/api/biometrics/verify', { method: 'POST', body: {
-      account: 'demo', authenticator_data_hex: hex(a.response.authenticatorData), client_data_hash_hex: hex(cdHash), r, s, qx: pk.qx, qy: pk.qy, require_uv: true,
+      account: 'demo', authenticator_data_hex: hex(a.response.authenticatorData), client_data_hash_hex: hex(cdHash), r, s, qx: pk.qx, qy: pk.qy, require_uv: false,
     } });
     if (!v.verified) { showToast(`Passkey refused: ${v.rejection_reason || 'not verified'}`); return false; }
     setBiometric(true);

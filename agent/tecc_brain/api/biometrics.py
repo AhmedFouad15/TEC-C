@@ -62,7 +62,7 @@ class VerifyWebAuthnRequest(BaseModel):
     s: str = Field(description="Hex or decimal P-256 signature S component (must satisfy s <= N/2)")
     qx: str = Field(description="Hex or decimal P-256 public key X coordinate")
     qy: str = Field(description="Hex or decimal P-256 public key Y coordinate")
-    require_uv: bool = Field(True, description="Enforce Bit 2 (UV = 0x04) biometric FaceID/TouchID verification")
+    require_uv: bool = Field(False, description="Enforce Bit 2 (UV = 0x04) biometric FaceID/TouchID verification if available")
     chain_target: Literal["arbitrum_l2", "ethereum_l1", "fisco_bcos"] = Field(
         "arbitrum_l2",
         description="Target chain (Arbitrum L2 uses RIP-7212 0x100 precompile; Ethereum L1 & FISCO BCOS use Solidity fallback)",
