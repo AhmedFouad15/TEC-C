@@ -1576,7 +1576,8 @@ function renderDeposit() {
   $('#btn-faucet').hidden = !(v && v.dev_chain);
   if (!v || !v.deposit_address) {
     sel.innerHTML = '<option>Not connected</option>'; sel.disabled = true;
-    $('#deposit-qr').innerHTML = '<div class="qr-empty">QR</div>';
+    $('#deposit-qr').innerHTML = '';
+    $('#deposit-qr').classList.remove('has-qr');
     $('#deposit-addr').textContent = brain.live ? 'No vault deployed yet. Run ./dev_up.sh to deploy one.' : 'Your vault address appears when the Brain is connected to your vault (./dev_up.sh).';
     $('#btn-copy-addr').disabled = true;
     $('#deposit-accepts').textContent = '';
@@ -1584,7 +1585,9 @@ function renderDeposit() {
   }
   sel.disabled = false;
   sel.innerHTML = `<option value="${esc(v.network)}">${esc(NETWORK_NAME[v.network] || v.network)} · chain ${esc(v.chain_id)}</option>`;
-  $('#deposit-qr').innerHTML = safeSvg(v.deposit_qr_svg) || '<div class="qr-empty">QR</div>';
+  const qrSvg = safeSvg(v.deposit_qr_svg);
+  $('#deposit-qr').innerHTML = qrSvg || '';
+  $('#deposit-qr').classList.toggle('has-qr', !!qrSvg);
   $('#deposit-addr').textContent = v.deposit_address;
   $('#btn-copy-addr').disabled = false;
   $('#deposit-accepts').innerHTML = `Accepts <b>ETH</b> and <b>USDC</b>${v.contracts?.usdc ? ` (token <code>${esc(v.contracts.usdc.slice(0, 6))}…${esc(v.contracts.usdc.slice(-4))}</code>)` : ''} on this network.`;
@@ -1929,7 +1932,9 @@ async function createVirtualSession() {
   finally { btn.disabled = false; btn.firstElementChild.textContent = 'Generate a session'; }
 }
 function showSessionQr(s) {
-  $('#vs-qr').innerHTML = safeSvg(s.qr_svg) || '<div class="qr-empty">QR</div>';
+  const qrSvg = safeSvg(s.qr_svg);
+  $('#vs-qr').innerHTML = qrSvg || '';
+  $('#vs-qr').classList.toggle('has-qr', !!qrSvg);
   $('#vs-link').innerHTML = `<a href="${esc(s.link)}" target="_blank" rel="noopener">${esc(s.link)}</a>`;
   $('#vs-code').innerHTML = `Pairing code <b>${esc(s.pair_code)}</b><br><span class="caption">Check that your phone shows the same code, then approve it below.</span>`;
   $('#gw-tunnel').textContent = new URL(s.link).host;
@@ -1990,7 +1995,9 @@ async function virtualKillswitch() {
   try {
     const r = await api('/admin/killswitch', { method: 'POST' });
     showToast(`Killswitch: ${r.revoked_sessions} session(s) revoked, tunnel stopped.`);
-    $('#vs-qr').innerHTML = '<div class="qr-empty">Generate a session to get a QR code</div>'; $('#vs-link').textContent = ''; $('#vs-code').textContent = '';
+    $('#vs-qr').innerHTML = '';
+    $('#vs-qr').classList.remove('has-qr');
+    $('#vs-link').textContent = ''; $('#vs-code').textContent = '';
     $('#gw-tunnel').textContent = 'stopped'; $('#gw-badge').textContent = 'Stopped'; $('#gw-badge').className = 'badge badge-red';
   } catch (err) { showToast(err.message); }
   loadSessions();

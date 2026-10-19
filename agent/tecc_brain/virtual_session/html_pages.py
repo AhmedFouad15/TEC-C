@@ -133,11 +133,14 @@ def render_laptop_admin_html(sessions: list[dict[str, Any]], audit_log: list[dic
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: #ffffff;
+      background: transparent;
       padding: 16px;
       border-radius: 8px;
       width: fit-content;
       margin: 16px 0;
+    }}
+    .qr-container:has(svg), .qr-container.has-qr {{
+      background: #ffffff;
     }}
     .qr-container svg {{ display: block; }}
   </style>
