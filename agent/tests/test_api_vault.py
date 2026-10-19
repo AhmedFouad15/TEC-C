@@ -104,3 +104,61 @@ def test_owner_actions_refuse_a_non_test_chain(vault_state, monkeypatch):
     monkeypatch.setattr(Rpc, "chain_id", lambda self: 11155111)  # Sepolia: the user's device must sign there
     assert client.post("/api/vault/demo/faucet", json={}).status_code == 403
     assert client.post("/api/vault/demo/session", json={"authorized": False}).status_code == 403
+
+
+# --- breakouts and record names (the dashboard's FaceID approval and the Morning Review list) ----------------
+
+def _intent(dep, usd: float, venue: str = "aave_v3_usdc"):
+    from tecc_brain.models import ActionType, CardLabel, ExecutionIntent
+    from tecc_brain.onchain.executor import usd_to_onchain
+
+    return ExecutionIntent(card_label=CardLabel.BEST, venue_id=venue, action=ActionType.DEPOSIT, asset_in="USDC",
+                           amount_usd=usd, amount_onchain=usd_to_onchain(usd), market="crypto")
+
+
+def _executor(market, tmp_path):
+    from tecc_brain.onchain.executor import ChainExecutor, RecordLedger
+
+    return ChainExecutor(Rpc(market.rpc_url), market.deployment, market.session_key, market.mandate,
+                         RecordLedger(tmp_path / "records.json"))
+
+
+def test_review_records_are_named_after_the_venue_the_brain_used(vault_state):
+    from tecc_brain.onchain.markets import live_chain_executor
+
+    client.post("/api/vault/demo/faucet", json={"eth": 0, "usdc": 2000})
+    client.post("/api/vault/demo/radius", json={"radius_usd": 500})
+    sent = live_chain_executor("anvil").submit(_intent(vault_state.deployment, 20.0), "demo")
+    assert sent.status == "submitted", sent.detail
+    reviews = client.get("/api/vault/demo").json()["pending_reviews"]
+    latest = max(reviews, key=lambda r: r["id"])
+    # the USDC deposit calls the token contract, yet the record says which venue it was for
+    assert latest["venue_id"] == "aave_v3_usdc" and latest["tx_hash"] == sent.tx_hash
+
+
+def test_over_the_leash_needs_the_owner_and_runs_once_approved(vault_state, tmp_path):
+    client.post("/api/vault/demo/faucet", json={"eth": 0, "usdc": 5000})
+    client.post("/api/vault/demo/radius", json={"radius_usd": 100})
+    ex = _executor(vault_state, tmp_path)
+    plain = ex.submit(_intent(vault_state.deployment, 900.0), "demo")
+    assert plain.status == "failed" and "TetherRadiusExceeded" in plain.detail  # the leash holds for the AI alone
+    approved = ex.submit(_intent(vault_state.deployment, 900.0), "demo", breakout=True)
+    assert approved.status == "submitted", approved.detail  # the owner's one-time sign-approval broke it once
+
+
+def test_a_breakout_on_a_real_network_waits_for_the_users_device(vault_state, tmp_path):
+    ex = _executor(vault_state, tmp_path)
+    ex.dep = ex.dep.model_copy(update={"chain_id": 11155111})
+    assert "device" in ex._approve_breakout(b"\x00" * 4)
+
+
+def test_execute_asks_for_faceid_until_a_passkey_window_is_open(vault_state, monkeypatch):
+    from tecc_brain.api import biometrics
+
+    client.post("/api/vault/demo/radius", json={"radius_usd": 100})
+    p = client.post("/api/mandate/propose", json={"text": "stake 1 ETH, low risk", "account": "demo"}).json()
+    card = next(c for c in p["decision"]["cards"] if c["mode"] == "BREAKOUT")
+    body = {"proposal_id": p["proposal_id"], "account": "demo", "label": card["label"], "venue_id": card["candidate"]["venue_id"]}
+    monkeypatch.setattr(biometrics.get_biometric_manager(), "is_biometric_window_active", lambda account: (False, None))
+    first = client.post("/api/mandate/execute", json=body).json()
+    assert first["intent"]["status"] == "breakout_required" and "FaceID" in first["message"]

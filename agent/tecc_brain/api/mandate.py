@@ -404,10 +404,19 @@ def execute(
         detail=f"radius left today ${radius_left:,.0f}",
     )
     if needs_faceid:
+        from tecc_brain.api.biometrics import get_biometric_manager
+
         why = ("the AI Brain requires biometric confirmation for this option" if card.mode == AutonomyMode.BREAKOUT
                else f"${amount:,.0f} exceeds today's ${radius_left:,.0f} radius")
-        return ExecuteResponse(mode=card.mode, intent=intent, learned=learned,
-                               message=f"{why[0].upper()}{why[1:]}: confirm with FaceID to break the tether.")
+        verified, _ = get_biometric_manager().is_biometric_window_active(proposal.account)
+        if not verified:
+            return ExecuteResponse(mode=card.mode, intent=intent, learned=learned,
+                                   message=f"{why[0].upper()}{why[1:]}: confirm with FaceID to break the tether.")
+        # A passkey was verified in the last 5 minutes: the owner approves this one execution on the vault.
+        sent = router.submit(intent, proposal.account, breakout=True)
+        message = (f"Executed with your passkey: ${amount:,.0f} broke the tether once and the vault accepted it."
+                   if sent.status == "submitted" else f"Breakout not executed: {sent.detail}")
+        return ExecuteResponse(mode=card.mode, intent=sent, learned=learned, message=message)
 
     sent = router.submit(intent, proposal.account, limit_usd=proposal.vault.tether_radius_usd)
     message = {

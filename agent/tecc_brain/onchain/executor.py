@@ -150,11 +150,13 @@ class ChainExecutor:
 
     # --- submitting ----------------------------------------------------------------------------
 
-    def submit(self, intent: ExecutionIntent, account: str) -> ExecutionIntent:
+    def submit(self, intent: ExecutionIntent, account: str, breakout: bool = False) -> ExecutionIntent:
+        """`breakout=True`: the owner verified a passkey for this exact execution, so the vault is asked to let the
+        session key break the tether once (TetherGuardHook sign-approval path). Only the owner can grant that."""
         def failed(detail: str) -> ExecutionIntent:
             return intent.model_copy(update={"status": "failed", "detail": detail})
 
-        if usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
+        if not breakout and usd_to_onchain(intent.amount_usd) > usd_to_onchain(self.mandate.max_amount_usd):
             return failed(f"${intent.amount_usd:,.0f} exceeds the owner's mandate (max ${self.mandate.max_amount_usd:,.0f})")
         try:
             connected = self.rpc.chain_id()
@@ -178,6 +180,10 @@ class ChainExecutor:
 
         data = "0x" + self.account.encode("execute", b"\x00" * 32, calldata).hex()
         tx = {"from": self.key.address, "to": self.dep.account, "data": data}
+        if breakout:
+            refused = self._approve_breakout(calldata)  # TecAccount hands the hook the inner execution calldata
+            if refused:
+                return intent.model_copy(update={"status": "breakout_required", "detail": refused})
         try:
             self.rpc.call("eth_call", [tx, "latest"])
             gas = int(self.rpc.call("eth_estimateGas", [tx]), 16)
@@ -224,6 +230,22 @@ class ChainExecutor:
             "audit_record_hash": audit_hash,
             "detail": f"vault accepted; Morning Review record #{record_id}" if record_id else "vault accepted",
         })
+
+    def _approve_breakout(self, execute_data: bytes) -> str | None:
+        """Owner side of a breakout: open the vault's 5-minute biometric window and sign a one-time approval for
+        keccak256(this execute call) — the hash TetherGuardHook.preCheck looks up. On the local test chain the owner is
+        an unlocked dev account; on a real network the user's device must submit these, so we refuse.
+        `execute_data` is the ERC-7579 execution calldata (what TecAccount passes to preCheck), not the outer call."""
+        if self.dep.chain_id != 31337:
+            return "on this network the owner's device must sign the breakout approval (submitSignApproval) itself"
+        owner = self.dep.root_owner
+        try:
+            if not self.hook.call(self.rpc, "isBiometricActive", self.dep.account)[0]:
+                self.hook.transact(self.rpc, "completeBiometricVerification", self.dep.account, sender=owner)
+            self.hook.transact(self.rpc, "submitSignApproval", self.dep.account, keccak(execute_data), True, sender=owner)
+        except RpcError as exc:
+            return f"the vault refused the owner's approval: {self._reason(exc)}"
+        return None
 
     @staticmethod
     def _is_slippage_error(reason: str) -> bool:
@@ -618,12 +640,21 @@ class MarketRouter:
         return self.chinese_market
 
     def submit(
-        self, intent: ExecutionIntent, account: str, market: str | None = None, limit_usd: float | None = None
+        self, intent: ExecutionIntent, account: str, market: str | None = None, limit_usd: float | None = None,
+        breakout: bool = False,
     ) -> ExecutionIntent:
-        """`limit_usd`: the account's daily radius when the caller knows it (else the router default)."""
+        """`limit_usd`: the account's daily radius when the caller knows it (else the router default).
+        `breakout`: the owner verified a passkey for this execution; it may exceed the radius once (live vault only)."""
         m = market or intent.market
         intent = intent.model_copy(update={"market": m})
         limit = self.daily_limit_usd if limit_usd is None else limit_usd
+        norm = m.strip().lower()
+
+        if breakout:
+            if norm not in ("crypto", "ethereum", "eth", "sepolia") or not isinstance(self.crypto, ChainExecutor):
+                return intent.model_copy(update={"status": "breakout_required",
+                                                 "detail": "a passkey breakout needs the live Ethereum vault"})
+            return self.crypto.submit(intent, account, breakout=True)  # outside the daily radius by definition
 
         # Cross-Chain Tether Radius Check (Aggregated across Ethereum, Arbitrum, FISCO BCOS)
         allowed, reason = self.tether_tracker.check_can_transact(account, intent.amount_usd, limit)
@@ -633,7 +664,6 @@ class MarketRouter:
                 "detail": reason,
             })
 
-        norm = m.strip().lower()
         if norm in ("crypto", "ethereum", "eth", "sepolia") and self.crypto is None:
             # No live Ethereum vault deployed on this machine: an honest dry run, never an invented transaction.
             return simulated(intent, "crypto", "no live Ethereum vault configured for this machine "

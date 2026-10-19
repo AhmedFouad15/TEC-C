@@ -123,10 +123,17 @@ def vault(account: Account) -> dict[str, Any]:
     remaining = hook.call(rpc, "getRemainingRadius", acct)[0]
     authorized = hook.call(rpc, "authorizedSessionKeys", acct, market.mandate.session_key)[0]
 
+    # A USDC deposit calls the token contract, so the target alone doesn't say which venue it was for: the Brain's
+    # own ledger (recordId -> venue, written when it executed) names it.
+    from tecc_brain.onchain.markets import _ledger
+
+    ledger = _ledger(market.network)
     reviews = []
     for rec in hook.call(rpc, "getPendingReviews", acct)[0]:
         rid, target, value, ts, status, note = rec
-        reviews.append({"id": rid, "target": target, "venue_id": venue_of.get(target.lower()),
+        logged = ledger.get(rid)
+        reviews.append({"id": rid, "target": target, "venue_id": venue_of.get(target.lower()) or (logged.venue_id if logged else None),
+                        "tx_hash": logged.tx_hash if logged else None,
                         "value_usd": _usd8(value), "timestamp": ts, "status": REVIEW_STATUS.get(status, str(status)), "note": note})
 
     from tecc_brain.virtual_session.qr import render_qr_svg

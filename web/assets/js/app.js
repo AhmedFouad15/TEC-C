@@ -821,7 +821,8 @@ function renderVaultNumbers() {
   state.tetherTotal = v.policy.radius_usd; state.tetherUsed = v.policy.spent_today_usd; state.tetherRemaining = v.policy.remaining_usd;
   state.streak = v.policy.ratification_streak || 0;
   setVault(v.total_usd);
-  setBiometric(!!v.biometric_active);
+  // the Brain's passkey window is what lets a breakout or withdrawal through, so the chip follows it
+  api('/api/biometrics/status/demo').then(s => setBiometric(!!s.biometric_window_active)).catch(() => setBiometric(false));
   refreshTether();
   renderHoldings(v);
   if (document.activeElement !== $('#setting-tether')) $('#setting-tether').value = usd(v.policy.radius_usd);
@@ -852,7 +853,7 @@ function renderTrades() {
           <div class="caption">Executed ${esc(new Date(r.timestamp * 1000).toLocaleString())} · ${usd(r.value_usd)} · signed by the AI's session key</div></div>
         <span class="badge ${cls}">${esc(txt)}</span>
       </div>
-      <div class="row-wrap small"><span class="tx">target ${esc(r.target.slice(0, 10))}…${esc(r.target.slice(-4))}</span></div>
+      <div class="row-wrap small">${r.tx_hash ? `<span class="tx">tx ${esc(r.tx_hash.slice(0, 10))}…${esc(r.tx_hash.slice(-4))}</span>` : ''}<span class="tx">target ${esc(r.target.slice(0, 10))}…${esc(r.target.slice(-4))}</span></div>
       ${r.note ? `<div class="note-line">“${esc(r.note)}”</div>` : ''}
       ${r.status === 'pending' ? `<div class="trade-actions">
         <button class="pill-btn good" data-act="ratify">＋ Like &amp; ratify</button>
@@ -959,6 +960,74 @@ function submitNoteToBrain() {
 }
 
 /* =========================================================================================
+   Passkey (WebAuthn P-256): Touch ID / FaceID on this device opens the vault's 5-minute biometric window.
+   The Brain verifies the signature (/api/biometrics/verify) against a key registered for the account.
+   ========================================================================================= */
+const PK_KEY = 'tecc_passkey';
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
+const P256_N = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
+function derToRS(der) { // ASN.1 SEQUENCE { INTEGER r, INTEGER s } → hex r, low-s hex s (the Brain requires s <= n/2)
+  const b = new Uint8Array(der); let i = 2;
+  const int = () => { i++; const len = b[i++]; const v = b.slice(i, i + len); i += len; return BigInt('0x' + (hex(v) || '0')); };
+  const r = int(); let s = int();
+  if (s > P256_N / 2n) s = P256_N - s;
+  return ['0x' + r.toString(16).padStart(64, '0'), '0x' + s.toString(16).padStart(64, '0')];
+}
+function savedPasskey() { try { return JSON.parse(store.get(PK_KEY) || 'null'); } catch { return null; } }
+async function registerPasskey() {
+  if (!window.PublicKeyCredential) throw new Error('this browser has no passkey support');
+  if (location.hostname === '127.0.0.1') throw new Error('open the dashboard on http://localhost:5500 (passkeys need a host name, not an IP)');
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)),
+    rp: { name: 'Tec-C vault', id: location.hostname },
+    user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'demo', displayName: 'Tec-C vault owner' },
+    pubKeyCredParams: [{ type: 'public-key', alg: -7 }], // ES256 = P-256, what the vault verifies
+    authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+    attestation: 'none', timeout: 60000,
+  } });
+  const spki = new Uint8Array(cred.response.getPublicKey()); // ends with 0x04 || X || Y for P-256
+  const pt = spki.slice(spki.length - 65);
+  if (pt[0] !== 4) throw new Error('unexpected public key format');
+  const pk = { id: b64u(cred.rawId), qx: '0x' + hex(pt.slice(1, 33)), qy: '0x' + hex(pt.slice(33)), label: navigator.userAgentData?.platform || navigator.platform || 'this device' };
+  store.set(PK_KEY, JSON.stringify(pk));
+  return pk;
+}
+async function ensureRegistered(pk) { // the Brain keeps passkeys in memory: re-register our public key after a restart
+  const st = await api('/api/biometrics/status/demo');
+  if (st.passkeys.some(k => k.qx.toLowerCase() === pk.qx.toLowerCase() && k.qy.toLowerCase() === pk.qy.toLowerCase())) return;
+  await api('/api/biometrics/register', { method: 'POST', body: { account: 'demo', key_id: 'browser-' + pk.id.slice(0, 12), device_label: `Passkey on ${pk.label}`, qx: pk.qx, qy: pk.qy } });
+}
+/* Ask for Touch ID / FaceID and open the 5-minute window. Resolves true when the Brain accepted the signature. */
+async function passkeyUnlock(reason = 'Confirm with your passkey') {
+  if (!brain.live) { showToast('Passkeys are checked by the Brain: start it first.'); return false; }
+  try {
+    let pk = savedPasskey();
+    if (!pk) { showToast('First time: create a passkey for this vault (Touch ID / FaceID).'); pk = await registerPasskey(); }
+    await ensureRegistered(pk);
+    showToast(reason + '…');
+    const a = await navigator.credentials.get({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname,
+      allowCredentials: [{ type: 'public-key', id: unb64u(pk.id) }], userVerification: 'required', timeout: 60000,
+    } });
+    const cdHash = await crypto.subtle.digest('SHA-256', a.response.clientDataJSON);
+    const [r, s] = derToRS(a.response.signature);
+    const v = await api('/api/biometrics/verify', { method: 'POST', body: {
+      account: 'demo', authenticator_data_hex: hex(a.response.authenticatorData), client_data_hash_hex: hex(cdHash), r, s, qx: pk.qx, qy: pk.qy, require_uv: true,
+    } });
+    if (!v.verified) { showToast(`Passkey refused: ${v.rejection_reason || 'not verified'}`); return false; }
+    setBiometric(true);
+    showToast('Passkey verified: 5-minute window open.');
+    return true;
+  } catch (err) {
+    if (err?.name === 'NotAllowedError') showToast('Passkey cancelled.');
+    else showToast(`Passkey failed: ${err.message}`);
+    return false;
+  }
+}
+
+/* =========================================================================================
    Modals
    ========================================================================================= */
 function openModal(id) { $('#' + id)?.classList.add('active'); }
@@ -1030,8 +1099,10 @@ async function authenticateAndWithdraw() {
   const btn = $('#btn-withdraw-faceid'), amt = Math.max(0, parseFloat($('#withdraw-amount').value) || 0), to = $('#withdraw-addr').value.trim();
   if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return showToast('Enter a full 0x… address to send to.');
   if (!amt) return showToast('Enter an amount.');
-  btn.disabled = true; btn.firstElementChild.textContent = 'Asking the vault…';
+  btn.disabled = true; btn.firstElementChild.textContent = 'Waiting for your passkey…';
   try {
+    if (!state.biometricUnlocked && !(await passkeyUnlock('Approve the withdrawal'))) return;
+    btn.firstElementChild.textContent = 'Asking the vault…';
     // the vault itself refuses unless a passkey (FaceID / Touch ID) window was verified first
     const r = await api('/api/vault/demo/withdraw', { method: 'POST', body: { to, asset: 'USDC', amount: amt } });
     closeModal('modal-withdraw');
@@ -1059,17 +1130,21 @@ async function approveBreakoutTrade() {
   // no fake scan: the request goes to the Brain, which answers whether a passkey-verified breakout can run
   clearInterval(breakoutTimer);
   closeModal('modal-breakout');
-  if (pendingLiveBreakout) { pendingLiveBreakout = false; state.biometricUnlocked = true; await executeLive(); state.biometricUnlocked = !!state.vault?.biometric_active; }
+  if (!pendingLiveBreakout) return;
+  pendingLiveBreakout = false;
+  if (state.biometricUnlocked || await passkeyUnlock('Approve breaking the leash')) await executeLive();
 }
 function setBiometric(on) {
   state.biometricUnlocked = on;
+  $('#modal-breakout .btn-primary span')?.replaceChildren(on ? 'Execute (passkey verified)' : 'Approve with your passkey');
   $('#bio-dot').className = 'dot ' + (on ? 'active' : 'locked');
   $('#bio-status-text').textContent = on ? 'Unlocked (5m)' : 'Locked';
   clearTimeout(setBiometric.t);
   if (on) setBiometric.t = setTimeout(() => setBiometric(false), 5 * 60 * 1000);
 }
 function toggleBiometricWindow() {
-  showToast(state.biometricUnlocked ? 'The vault has an open biometric window right now.' : 'Locked: the vault opens a 5-minute window only after a verified passkey (FaceID / Touch ID).');
+  if (state.biometricUnlocked) return showToast('A verified passkey window is open right now.');
+  passkeyUnlock('Open the 5-minute window');
 }
 
 /* =========================================================================================
