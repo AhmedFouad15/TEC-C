@@ -11,6 +11,16 @@ import pytest
 REPO = Path(__file__).resolve().parents[2]
 
 
+@pytest.fixture(autouse=True)
+def _isolated_state(tmp_path_factory, monkeypatch):
+    """Never touch the developer's real agent/.state: the API falls back to any deployed market it finds there, so a
+    test run beside a running dev_up stack would otherwise send orders to that live vault. Tests that need their own
+    state directory still set TECC_STATE_DIR themselves."""
+    state = tmp_path_factory.mktemp("state")
+    monkeypatch.setenv("TECC_STATE_DIR", str(state))
+    monkeypatch.setenv("TECC_VIRTUAL_SESSION_DB", str(state / "virtual_sessions.sqlite3"))
+
+
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))

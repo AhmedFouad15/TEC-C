@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/app.css?v=25">
+  <link rel="stylesheet" href="assets/css/app.css?v=26">
 </head>
 <body>
 
@@ -63,7 +63,7 @@
     <div class="chip-stat" id="brain-pill" title="Brain API connection">
       <span class="dot" id="brain-dot"></span><span class="muted">Brain</span><b id="top-heartbeat-text">connecting…</b>
     </div>
-    <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Simulate a FaceID unlock">
+    <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Verify with your passkey (FaceID / Windows Hello) to open the 5-minute window">
       <span class="dot locked" id="bio-dot"></span><span class="muted">Biometric</span><b id="bio-status-text">Locked</b>
     </button>
     <button class="chip-stat clickable quiz-chip" onclick="openQuiz()" title="Five questions that set your risk tier"><span class="muted">Risk quiz</span><span class="arrow">↗</span></button>
@@ -536,9 +536,9 @@
   <div class="modal-overlay" id="modal-breakout">
     <div class="modal">
       <div class="modal-head"><div class="modal-title">Breakout <em>request</em></div><button class="modal-close" onclick="closeModal('modal-breakout')">×</button></div>
-      <div class="alert amber">The Brain found a <b id="breakout-trade-val">$4,500</b> opportunity worth <b id="breakout-trade-profit">+$120</b>. It exceeds your daily leash, so autonomous execution is blocked.</div>
+      <div class="alert amber" id="breakout-alert"><span>This order exceeds your daily leash, so the AI cannot run it on its own.</span></div>
       <dl class="kv">
-        <dt>Strategy</dt><dd>PegGuard cross-DEX arbitrage</dd>
+        <dt>Order</dt><dd id="breakout-strategy">—</dd>
         <dt>Window</dt><dd><span id="breakout-countdown">30</span> s remaining</dd>
         <dt>Needs</dt><dd><span class="badge badge-amber">Hardware biometric</span></dd>
       </dl>
@@ -572,6 +572,6 @@
 
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script src="assets/js/app.js?v=24"></script>
+  <script src="assets/js/app.js?v=27"></script>
 </body>
 </html>

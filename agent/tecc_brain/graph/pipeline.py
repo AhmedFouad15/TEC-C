@@ -281,6 +281,8 @@ def build_graph(deps: BrainDeps | None = None) -> Any:
             return {"intent": intent, "agents": _report("web3_executor", lines)}
         sent = deps.executor.submit(intent, state["account"])
         lines = [f"{sent.status}: {sent.detail or sent.tx_hash or ''}".strip()]
+        if sent.tx_hash and sent.detail:
+            lines.append(f"On-chain tx: {sent.tx_hash}")
         return {"intent": sent, "agents": _report("web3_executor", lines)}
 
     def after_intake(state: BrainState) -> str:

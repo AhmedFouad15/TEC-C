@@ -218,6 +218,7 @@ const state = {
   liveOptions: null,
   vault: null, // last /api/vault/demo answer: the on-chain truth for balances, leash and reviews
   decided: {}, // proposal cards the user already approved or dismissed in this tab
+  executedLabel: {}, // what the vault answered for an approved option (with its tx hash), shown on the button
 };
 const TRADE_STATUS = {
   pending: ['Pending review', 'badge-amber'], ratified: ['Ratified', 'badge-green'], flagged: ['Flagged (−20%)', 'badge-red'],
@@ -472,7 +473,11 @@ async function submitCommandToBrain(text) {
     refreshLive();
     if (res.status === 'unparsed') showToast(`The Brain didn't understand: ${(res.parse?.errors || []).join(', ')}. Try verbs like deposit, stake, grow, exit or withdraw.`);
     else if (blocked) showToast('The Brain refused this command. See the pipeline for why.');
-    else { await sleep(350); switchTab('opportunities'); showToast(`The Brain rated ${res.decision.cards.length} route(s) and rejected ${res.decision.rejected.length}.`); }
+    else {
+      await sleep(350); switchTab('opportunities');
+      showToast(`The Brain rated ${res.decision.cards.length} route(s) and rejected ${res.decision.rejected.length}.`);
+      if (res.intent?.status === 'submitted') txToast(`Executed automatically: ${usd(res.intent.amount_usd)} → ${res.intent.venue_id}`, res.intent.tx_hash);
+    }
   } catch (err) {
     savePipeline({ no, text: shown, agents: [{ agent: 'gatekeeper_intake', lines: [`The Brain could not answer: ${err.message}`] }], statuses: ['blocked'], outcome: 'refused', at: Date.now() });
     restorePipeline();
@@ -588,9 +593,13 @@ function showOptionDetail() {
   const btn = $('#btn-execute-trade');
   const done = state.decided['opt:' + o.proposal_id + ':' + r.option_id];
   const ran = o.intents.filter(i => i.option_id === r.option_id || (o.results.length === 1));
+  const doneLabel = state.executedLabel['opt:' + o.proposal_id + ':' + r.option_id];
   if (r.mode === 'PROPOSE' && !done) {
     btn.style.display = ''; btn.disabled = false;
     btn.firstElementChild.textContent = `Approve option ${r.option_id} · ${usd(r.requested_usd)}`;
+  } else if (doneLabel) {
+    btn.style.display = ''; btn.disabled = true; // what the vault answered, with its tx hash, stays on screen
+    btn.firstElementChild.textContent = doneLabel;
   } else {
     btn.style.display = 'none';
   }
@@ -599,22 +608,46 @@ function showOptionDetail() {
   void ran;
 }
 
+/* What the vault actually answered for an approved order. Only a real on-chain (or simulated) execution says
+   "Executed"; a breakout_required answer is a step (passkey, then retry), not a success. */
+function executionOutcome(out) {
+  const it = out.intent || {};
+  if (it.status === 'submitted') return { result: 'approved', label: `Executed ✓ · tx ${shortTx(it.tx_hash)}`, tx: it.tx_hash };
+  if (it.status === 'simulated') return { result: 'approved', label: 'Approved ✓ (simulated, no chain)' };
+  if (it.status === 'breakout_required') return { result: 'needs_faceid', label: 'Needs your passkey' };
+  return { result: 'failed', label: 'Not executed' };
+}
+function reportExecution(out, outcome, retry) {
+  (out.learned || []).forEach(l => showToast('Learned: ' + l));
+  if (outcome.result === 'approved') return txToast(out.message || 'Executed.', outcome.tx);
+  showToast(out.message || `Not executed: ${out.intent?.detail || out.intent?.status}`);
+  if (outcome.result === 'needs_faceid') {
+    setBiometric(false); // the Brain found no valid passkey window: the next approval asks for the passkey
+    pendingLiveBreakout = retry;
+    const it = out.intent || {};
+    openBreakoutModal(it.amount_usd || 0, null, [it.action, it.asset_in, it.venue_id && '→ ' + it.venue_id].filter(Boolean).join(' '));
+  }
+}
+
 async function executeOptions() {
   const o = state.liveOptions;
   const r = o.results.find(x => 'opt:' + x.option_id === state.selectedCandidate) || o.results[0];
   if (r.mode !== 'PROPOSE') return showToast('This option is not waiting for your approval.');
+  const key = 'opt:' + o.proposal_id + ':' + r.option_id;
   const btn = $('#btn-execute-trade');
   btn.disabled = true; btn.classList.add('loading');
   try {
     const out = await api('/api/mandate/execute', { method: 'POST', body: { proposal_id: o.proposal_id, account: 'demo', label: 'BEST', option_id: r.option_id } });
-    state.decided['opt:' + o.proposal_id + ':' + r.option_id] = 'approved'; saveResult();
-    (out.learned || []).forEach(l => showToast('Learned: ' + l));
-    showToast(out.message || `Execution ${out.intent?.status}`);
+    const outcome = executionOutcome(out);
+    // a breakout leaves the proposal open on the Brain, so the option stays approvable after the passkey
+    if (outcome.result !== 'needs_faceid') { state.decided[key] = outcome.result; state.executedLabel[key] = outcome.label; saveResult(); }
     refreshLive();
     showOptionDetail();
     renderDecisions();
+    if (outcome.result === 'needs_faceid') btn.firstElementChild.textContent = outcome.label;
+    reportExecution(out, outcome, executeOptions);
   } catch (err) { showToast(`Not executed: ${err.message}`); }
-  finally { btn.disabled = false; btn.classList.remove('loading'); }
+  finally { btn.classList.remove('loading'); if (!state.decided[key]) btn.disabled = false; }
 }
 
 function askBrain() {
@@ -726,7 +759,9 @@ function showLiveDetail() {
   $('#trace-list').innerHTML = (d.trace || []).map(t => `<li>${esc(t)}</li>`).join('');
   const btn = $('#btn-execute-trade');
   btn.style.display = c ? '' : 'none';
-  btn.firstElementChild.textContent = c ? (c.mode === 'BREAKOUT' ? `Approve ${c.label} with FaceID & execute` : `Execute ${c.label} · ${c.candidate.venue_id}`) : 'Execute';
+  btn.disabled = !res.proposal_id; // a proposal executes once
+  btn.firstElementChild.textContent = res.executed_label
+    || (c ? (c.mode === 'BREAKOUT' ? `Approve ${c.label} with FaceID & execute` : `Execute ${c.label} · ${c.candidate.venue_id}`) : 'Execute');
 }
 $('#candidates-container').addEventListener('click', e => {
   const c = e.target.closest('[data-cand]'); if (!c) return;
@@ -795,27 +830,31 @@ async function executeAutonomousTrade() {
 async function executeLive() {
   const res = state.live, d = res.decision;
   const c = d.cards.find(x => x.label + ':' + x.candidate.venue_id === state.selectedCandidate) || d.cards[0];
+  if (!res.proposal_id) return showToast('This proposal already ran. Ask the Brain again for a fresh one.');
   if (c.mode === 'BREAKOUT' && !state.biometricUnlocked) {
-    pendingLiveBreakout = true;
-    return openBreakoutModal(c.candidate.amount_usd, null);
+    pendingLiveBreakout = executeLive;
+    return openBreakoutModal(c.candidate.amount_usd, null, `${c.candidate.action} ${c.candidate.asset_in} → ${c.candidate.venue_id}`);
   }
   const btn = $('#btn-execute-trade');
   btn.disabled = true; btn.classList.add('loading');
+  let finished = false;
   try {
     const out = await api('/api/mandate/execute', { method: 'POST', body: { proposal_id: res.proposal_id, account: 'demo', label: c.label, venue_id: c.candidate.venue_id } });
-    const it = out.intent || {};
-    const status = { submitted: 'pending', signed: 'pending', pending_signature: 'signing', simulated: 'simulated', failed: 'failed', breakout_required: 'needs_faceid' }[it.status] || 'pending';
-    void status;
-    state.decided['live:' + res.proposal_id] = it.status === 'breakout_required' ? 'needs_faceid' : 'approved'; saveResult();
-    (out.learned || []).forEach(l => showToast('Learned: ' + l));
-    refreshLive(); renderDecisions();
-    showToast(out.message || `Execution ${it.status}`);
-    state.live = { ...res, proposal_id: null }; // a proposal executes once
+    const outcome = executionOutcome(out);
+    btn.firstElementChild.textContent = outcome.label;
+    // breakout_required: the Brain kept the proposal open, so the same card runs after the passkey (and stays in
+    // Review → Needs your decision). Anything else used the proposal up (a proposal executes once).
+    if (outcome.result !== 'needs_faceid') {
+      state.decided['live:' + res.proposal_id] = outcome.result;
+      state.live = { ...res, proposal_id: null, executed_label: outcome.label };
+      finished = true;
+    }
     saveResult();
-    btn.firstElementChild.textContent = 'Executed ✓';
+    refreshLive(); renderDecisions();
+    reportExecution(out, outcome, executeLive);
   } catch (err) {
     showToast(`Execution refused: ${err.message}`);
-  } finally { btn.disabled = false; btn.classList.remove('loading'); }
+  } finally { btn.disabled = finished; btn.classList.remove('loading'); }
 }
 function refreshTether() {
   if (!state.vault) {
@@ -909,7 +948,7 @@ async function reviewRecord(id, action, note = '', penalize = false) {
   try {
     const out = await api('/api/vault/demo/review', { method: 'POST', body: { record_id: id, action, note, penalize } });
     if (r?.venue_id) sendFeedback(r, action === 'note' ? (penalize ? 'note_penalty' : 'note') : action, note);
-    showToast({ ratify: 'Ratified on-chain.', flag: 'Flagged on-chain: the leash contracts.', note: 'Note recorded on-chain.' }[action] + ` Daily leash now ${usd(out.radius_usd)}.`);
+    txToast({ ratify: 'Ratified on-chain.', flag: 'Flagged on-chain: the leash contracts.', note: 'Note recorded on-chain.' }[action] + ` Daily leash now ${usd(out.radius_usd)}.`, out.tx_hash);
   } catch (err) { showToast(`Review failed: ${err.message}`); }
   refreshLive();
 }
@@ -1147,15 +1186,16 @@ async function authenticateAndWithdraw() {
     // the vault itself refuses unless a passkey (FaceID / Touch ID) window was verified first
     const r = await api('/api/vault/demo/withdraw', { method: 'POST', body: { to, asset: 'USDC', amount: amt } });
     closeModal('modal-withdraw');
-    showToast(r.message || 'Sent.');
+    txToast(r.message || 'Sent.', r.tx_hash);
     refreshLive();
   } catch (err) { showToast(`The vault refused: ${err.message}`); }
   finally { btn.disabled = false; btn.firstElementChild.textContent = 'Scan FaceID & transfer'; }
 }
-let breakoutTimer = null, pendingLiveBreakout = false;
-function openBreakoutModal(val, profit) {
-  $('#breakout-trade-val').textContent = usd(val);
-  $('#breakout-trade-profit').textContent = profit == null ? 'an edge the Brain rated' : '+' + usd(profit);
+let breakoutTimer = null, pendingLiveBreakout = null; // the execute function to retry once the passkey is verified
+function openBreakoutModal(val, profit, order = '') {
+  // what is actually being approved: the amount and the order the Brain proposed (never a canned strategy)
+  $('#breakout-alert').innerHTML = `<span>This <b>${esc(usd(val))}</b> order exceeds your daily leash, so the AI cannot run it on its own. Approve it once with your passkey.</span>`;
+  $('#breakout-strategy').textContent = order || '—';
   $('#modal-breakout').dataset.val = val;
   $('#modal-breakout').dataset.profit = profit ?? 0;
   let s = 30;
@@ -1164,16 +1204,17 @@ function openBreakoutModal(val, profit) {
   openModal('modal-breakout');
   breakoutTimer = setInterval(() => {
     s--; $('#breakout-countdown').textContent = s;
-    if (s <= 0) { closeModal('modal-breakout'); pendingLiveBreakout = false; showToast('Breakout window expired: the opportunity was skipped.'); }
+    if (s <= 0) { closeModal('modal-breakout'); pendingLiveBreakout = null; showToast('Breakout window expired: the opportunity was skipped.'); }
   }, 1000);
 }
 async function approveBreakoutTrade() {
   // no fake scan: the request goes to the Brain, which answers whether a passkey-verified breakout can run
   clearInterval(breakoutTimer);
   closeModal('modal-breakout');
-  if (!pendingLiveBreakout) return;
-  pendingLiveBreakout = false;
-  if (state.biometricUnlocked || await passkeyUnlock('Approve breaking the leash')) await executeLive();
+  const retry = pendingLiveBreakout;
+  pendingLiveBreakout = null;
+  if (!retry) return;
+  if (state.biometricUnlocked || await passkeyUnlock('Approve breaking the leash')) await retry();
 }
 function setBiometric(on) {
   state.biometricUnlocked = on;
@@ -1332,7 +1373,7 @@ async function saveRadius() {
   if (!brain.live) return showToast('The leash lives in the vault: start the Brain first.');
   try {
     const r = await api('/api/vault/demo/radius', { method: 'POST', body: { radius_usd: n, risk_tier: state.vault?.policy.risk_tier || 2 } });
-    showToast(`Daily leash set on-chain: ${usd(r.radius_usd)}.`);
+    txToast(`Daily leash set on-chain: ${usd(r.radius_usd)}.`, r.tx_hash);
     refreshLive();
   } catch (err) { showToast(`Not saved: ${err.message}`); }
 }
@@ -1469,13 +1510,18 @@ function renderHoldings(v) {
     : '<tr><td colspan="8" class="muted">The vault is empty. Use Deposit to fund it.</td></tr>';
 }
 
-function showToast(msg) {
+function showToast(msg, ms = 3800) {
   const t = document.createElement('div');
   t.className = 'toast';
   t.textContent = msg;
   $('#toast-container').appendChild(t);
   const all = $$('#toast-container .toast'); if (all.length > 4) all[0].remove();
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, 3800);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, ms);
+}
+/* An on-chain result: the full transaction hash stays on screen long enough to read (and to film). */
+const shortTx = h => (h ? `${h.slice(0, 10)}…${h.slice(-6)}` : '');
+function txToast(msg, hash) {
+  showToast(hash ? `${msg.replace(/\.$/, '')} · tx ${hash}` : msg, hash ? 10000 : 3800);
 }
 
 function spawnLeaves() {

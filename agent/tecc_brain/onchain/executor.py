@@ -21,7 +21,7 @@ from eth_account import Account
 from eth_utils import keccak
 from pydantic import BaseModel
 
-from tecc_brain.models import ActionType, ExecutionIntent, usd_to_onchain
+from tecc_brain.models import ActionType, ExecutionIntent, onchain_to_usd, usd_to_onchain
 from tecc_brain.onchain.artifacts import Contract
 from tecc_brain.onchain.audit_anchor import compute_audit_record_hash
 
@@ -231,6 +231,12 @@ class ChainExecutor:
             "audit_record_hash": audit_hash,
             "detail": f"vault accepted; Morning Review record #{record_id}" if record_id else "vault accepted",
         })
+
+    def spent_today_usd(self) -> float:
+        """What the vault itself has metered against today's radius (flags refund it, breakouts never count)."""
+        radius = self.hook.call(self.rpc, "getAccountPolicy", self.dep.account)[0][0]
+        remaining = self.hook.call(self.rpc, "getRemainingRadius", self.dep.account)[0]
+        return max(0.0, onchain_to_usd(radius) - onchain_to_usd(remaining))
 
     def _approve_breakout(self, execute_data: bytes) -> str | None:
         """Owner side of a breakout: open the vault's 5-minute biometric window and sign a one-time approval for
@@ -587,6 +593,16 @@ class CrossChainTetherTracker:
         self._market_spends[account][ep][market] = current_m + amount_usd
         return self._epoch_spends[account][ep]
 
+    def set_market_spend(self, account: str, market: str, amount_usd: float, epoch: int | None = None) -> float:
+        """Replace one market's spend with an authoritative figure (the live vault's own meter) and re-total."""
+        if not math.isfinite(amount_usd) or amount_usd < 0:
+            raise ValueError(f"Spend amount must be finite and non-negative, got {amount_usd}")
+        ep = epoch if epoch is not None else self._get_epoch()
+        markets = self._market_spends.setdefault(account, {}).setdefault(ep, {})
+        markets[market] = amount_usd
+        self._epoch_spends.setdefault(account, {})[ep] = sum(markets.values())
+        return self._epoch_spends[account][ep]
+
     def reset_epoch(self, account: str | None = None, epoch: int | None = None) -> None:
         if account is None:
             self._epoch_spends.clear()
@@ -651,6 +667,16 @@ class MarketRouter:
         with self._submit_lock:
             return self._submit(intent, account, market, limit_usd, breakout)
 
+    def _sync_from_vault(self, account: str) -> bool:
+        """Set the tracker's crypto spend to what the live vault metered today. False when the node can't be read
+        (the tracker then keeps counting on its own)."""
+        try:
+            spent = self.crypto.spent_today_usd()  # type: ignore[union-attr]
+        except (RpcError, OSError, IndexError, TypeError, ValueError):
+            return False
+        self.tether_tracker.set_market_spend(account, "crypto", spent)
+        return True
+
     def _submit(
         self, intent: ExecutionIntent, account: str, market: str | None, limit_usd: float | None, breakout: bool = False
     ) -> ExecutionIntent:
@@ -659,11 +685,14 @@ class MarketRouter:
         limit = self.daily_limit_usd if limit_usd is None else limit_usd
         norm = m.strip().lower()
 
-        if breakout and norm in ("crypto", "ethereum", "eth", "sepolia") and isinstance(self.crypto, ChainExecutor):
+        live_vault = norm in ("crypto", "ethereum", "eth", "sepolia") and isinstance(self.crypto, ChainExecutor)
+        if live_vault:
+            # the vault meters its own radius: a flag refunds spend, a breakout never counts, so mirror the chain
+            self._sync_from_vault(account)
+        if breakout and live_vault:
             # live vault: the owner's one-time sign-approval lets the session key break the tether for this execution
             result = self.crypto.submit(intent, account, breakout=True)
-            if result.status == "submitted":
-                self.tether_tracker.record_spend(account, m, result.amount_usd)
+            self._sync_from_vault(account)  # a passkey breakout doesn't use up today's leash
             return result
         # other markets (or no live vault): the caller already raised `limit_usd` for this passkey-verified order
 
@@ -682,9 +711,12 @@ class MarketRouter:
         executor = self.get_executor(m)
         result = executor.submit(intent, account)
 
-        # If successfully submitted, record what actually ran (a slippage recovery may have halved the order)
+        # If successfully submitted, record what actually ran (a slippage recovery may have halved the order).
+        # A passkey-verified breakout broke the tether once; it doesn't use up the daily leash.
         if result.status == "submitted":
-            self.tether_tracker.record_spend(account, m, result.amount_usd)
+            synced = live_vault and self._sync_from_vault(account)
+            if not synced and not breakout:
+                self.tether_tracker.record_spend(account, m, result.amount_usd)
             if norm in ("arbitrage", "pegguard", "peg_guard") and self.anchors is not None:
                 from tecc_brain.onchain.audit_anchor import AuditRecordType
 
