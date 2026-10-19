@@ -271,10 +271,11 @@ code { font-family: var(--mono); font-size: 12px; color: var(--lime); }
 .market-card.active { background: rgba(205, 227, 138, .1); border-color: rgba(205, 227, 138, .6); box-shadow: inset 0 0 0 1px rgba(205, 227, 138, .3); }
 .mc-name { font-weight: 700; font-size: 13px; }
 .mc-sub { font-size: 11px; color: var(--muted); }
-.slider { position: relative; height: 8px; border-radius: 8px; background: rgba(255, 255, 255, .08); margin: 18px 0 8px; cursor: pointer; touch-action: none; }
+.slider { position: relative; height: 8px; border-radius: 8px; background: rgba(255, 255, 255, .08); margin: 38px 0 10px; cursor: pointer; touch-action: none; }
 .slider-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 8px; background: linear-gradient(90deg, var(--moss), var(--lime)); transition: width .45s var(--ease); }
 .slider-thumb { position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 5px rgba(205, 227, 138, .2); transition: left .45s var(--ease); }
-.slider-thumb span { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: var(--text); color: #0c120e; white-space: nowrap; }
+.slider-thumb span { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: var(--text); color: #0c120e; white-space: nowrap; }
+.slider-thumb span::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -4px; border-width: 4px; border-style: solid; border-color: var(--text) transparent transparent transparent; }
 .slider.dragging .slider-fill, .slider.dragging .slider-thumb { transition: none; }
 .headline-box summary { cursor: pointer; font-size: 12px; color: var(--sage); list-style: none; }
 .headline-box summary::before { content: "+ "; color: var(--lime); font-weight: 800; }
