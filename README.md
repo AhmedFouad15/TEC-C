@@ -17,8 +17,7 @@
 - **Competition:** Shenzhen International FinTech Competition (FinTechathon 2026) — International Track
 - **Topic:** **Topic F — Agent Wallet (Autonomous On-Chain Wallet)**
 - **Co-Hosts:** **Tsinghua University PBCSF** & **WeBank**
-- **Live Production App:** [`https://www.tec-c.xyz`](https://www.tec-c.xyz)
-- **Command Center:** [`https://www.tec-c.xyz/app.html#home`](https://www.tec-c.xyz/app.html#home)
+- **Landing Page:** [`https://www.tec-c.xyz`](https://www.tec-c.xyz)
 - **Repository:** [`https://github.com/AhmedFouad15/TEC-C`](https://github.com/AhmedFouad15/TEC-C)
 
 ---
