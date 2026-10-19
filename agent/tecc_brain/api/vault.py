@@ -27,7 +27,8 @@ from tecc_brain.api.deps import Account, get_ref
 from tecc_brain.onchain.artifacts import NATIVE_ETH, Contract, revert_reason
 from tecc_brain.onchain.markets import MarketFile, load_market
 from tecc_brain.onchain.rpc import Rpc, RpcError
-from tecc_brain.onchain.session import execution_calldata
+from tecc_brain.onchain.session import MODULE_TYPE_EXECUTOR, execution_calldata, provision_session_key
+from tecc_brain.models import VaultState
 from tecc_brain.reference import Reference
 
 router = APIRouter(tags=["vault"])
@@ -121,7 +122,7 @@ def vault(account: Account) -> dict[str, Any]:
     policy = hook.call(rpc, "getAccountPolicy", acct)[0]
     radius, baseline, ceiling, spent, epoch, tier, elastic, last_step, streak, owner = policy
     remaining = hook.call(rpc, "getRemainingRadius", acct)[0]
-    authorized = hook.call(rpc, "authorizedSessionKeys", acct, market.mandate.session_key)[0]
+    session = _session_status(rpc, market)
 
     reviews = []
     for rec in hook.call(rpc, "getPendingReviews", acct)[0]:
@@ -149,7 +150,7 @@ def vault(account: Account) -> dict[str, Any]:
             "spent_today_usd": _usd8(spent), "remaining_usd": _usd8(remaining), "risk_tier": tier,
             "elasticity": elastic, "ratification_streak": streak,
         },
-        "session_key": {"address": market.mandate.session_key, "authorized": authorized,
+        "session_key": {"address": market.mandate.session_key, "authorized": session["authorized"], "layers": session,
                         "max_amount_usd": market.mandate.max_amount_usd, "valid_until": market.mandate.valid_until},
         "ai_heartbeat_alive": hook.call(rpc, "isAIHeartbeatAlive", acct)[0],
         "biometric_active": hook.call(rpc, "isBiometricActive", acct)[0],
@@ -220,15 +221,101 @@ class SessionRequest(BaseModel):
     authorized: bool
 
 
+VAULT_OWNER_ACCOUNT = "demo"  # the one local deployment serves the demo account (see _vault)
+
+
+def live_vault_state(account: str) -> VaultState | None:
+    """Today's real leash from the deployed vault (radius, spend incl. cross-chain, AI heartbeat), so the Brain sizes
+    its automatic slice to what the vault will actually accept. None when no vault is deployed or the node is down;
+    callers then use what the request sent (default $500 radius, nothing spent)."""
+    if account != VAULT_OWNER_ACCOUNT:
+        return None
+    market = load_market(_network())
+    if market is None:
+        return None
+    try:
+        rpc = Rpc(market.rpc_url)
+        hook = Contract.load("TetherGuardHook", market.deployment.hook)
+        acct = market.deployment.account
+        radius = hook.call(rpc, "getAccountPolicy", acct)[0][0]
+        remaining = hook.call(rpc, "getRemainingRadius", acct)[0]
+        alive = bool(hook.call(rpc, "isAIHeartbeatAlive", acct)[0])
+    except (RpcError, OSError, ValueError):
+        return None
+    radius_usd = _usd8(radius)
+    return VaultState(tether_radius_usd=radius_usd, spent_today_usd=max(0.0, radius_usd - _usd8(remaining)),
+                      heartbeat_alive=alive)
+
+
+def resolve_vault(account: str, vault_in: Any, sent: bool) -> VaultState:
+    """The vault state a decision uses: what the caller sent explicitly, else the live vault, else the defaults."""
+    if not sent:
+        live = live_vault_state(account)
+        if live is not None:
+            return live
+    return vault_in.to_state()
+
+
+def open_live_biometric_window(account: str) -> bool:
+    """After the user's passkey was verified (P-256, /api/biometrics/verify), open the vault's own biometric window
+    so a tether-breaking order can pass the hook. Local test chain only: on a real network the user's device
+    submits `completeBiometricVerificationWithWebAuthn` itself. Returns whether the on-chain window is open."""
+    market = load_market(_network())
+    if market is None:
+        return False
+    try:
+        rpc = Rpc(market.rpc_url)
+        if rpc.chain_id() != DEV_CHAIN_ID:
+            return False
+        hook = Contract.load("TetherGuardHook", market.deployment.hook)
+        if not hook.call(rpc, "isBiometricActive", market.deployment.account)[0]:
+            hook.transact(rpc, "completeBiometricVerification", market.deployment.account, sender=market.deployment.root_owner)
+        return True
+    except (RpcError, OSError, HTTPException):
+        return False
+
+
+def _session_status(rpc: Rpc, market: MarketFile) -> dict[str, bool]:
+    """The session key can act only while ALL three layers allow it. `executor_installed` is the one the account's
+    `execute` actually checks; the validator gates its signatures; the hook flag gates radius calibration."""
+    dep, key = market.deployment, market.mandate.session_key
+    executor = bool(Contract.load("TecAccount", dep.account).call(rpc, "installedExecutors", key)[0])
+    validator = bool(Contract.load("SessionKeyValidator", dep.validator).call(rpc, "sessionKeys", dep.account, key)[4])
+    hook = bool(Contract.load("TetherGuardHook", dep.hook).call(rpc, "authorizedSessionKeys", dep.account, key)[0])
+    return {"authorized": executor and validator and hook, "executor_installed": executor,
+            "validator_active": validator, "hook_authorized": hook}
+
+
 @router.post("/api/vault/{account}/session")
 def set_session(account: Account, req: SessionRequest) -> dict[str, Any]:
-    """The killswitch: the vault stops accepting anything signed by the Brain's session key."""
+    """The killswitch: the vault stops accepting anything from the Brain's session key.
+
+    Revoking removes every layer the key relies on: the account uninstalls it as an ERC-7579 executor (what
+    `TecAccount.execute` checks), the SessionKeyValidator deactivates it, and the hook drops its authorization.
+    Restoring re-provisions all three. Owner-only, local test chain only."""
     market, rpc = _vault(account)
     _dev_only(rpc)
-    dep = market.deployment
-    hook = Contract.load("TetherGuardHook", dep.hook)
-    tx = _owner_tx(rpc, hook, "setSessionKeyAuthorization", dep.account, market.mandate.session_key, req.authorized, owner=dep.root_owner)
-    return {"ok": True, "tx_hash": tx, "authorized": hook.call(rpc, "authorizedSessionKeys", dep.account, market.mandate.session_key)[0]}
+    dep, key, owner = market.deployment, market.mandate.session_key, market.deployment.root_owner
+    if req.authorized:
+        try:
+            provision_session_key(rpc, dep, market.mandate, fund_wei=0)
+        except RpcError as err:
+            raise HTTPException(409, f"could not restore the session key: {err}") from err
+    else:
+        hook = Contract.load("TetherGuardHook", dep.hook)
+        acct = Contract.load("TecAccount", dep.account)
+        validator = Contract.load("SessionKeyValidator", dep.validator)
+        # the owner calls the validator through the account, which the hook allows inside a biometric window
+        _owner_tx(rpc, hook, "completeBiometricVerification", dep.account, owner=owner)
+        try:
+            revoke = validator.encode("revokeSessionKey", dep.account, key)
+            _owner_tx(rpc, acct, "execute", b"\x00" * 32, execution_calldata(dep.validator, 0, revoke), owner=owner)
+            _owner_tx(rpc, hook, "setSessionKeyAuthorization", dep.account, key, False, owner=owner)
+            _owner_tx(rpc, acct, "uninstallModule", MODULE_TYPE_EXECUTOR, key, b"", owner=owner)
+        finally:
+            _owner_tx(rpc, hook, "revokeBiometricVerification", dep.account, owner=owner)
+    status = _session_status(rpc, market)
+    return {"ok": True, **status}
 
 
 class WithdrawRequest(BaseModel):

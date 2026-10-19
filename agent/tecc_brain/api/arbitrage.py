@@ -23,6 +23,7 @@ from tecc_brain.api.deps import (
 from tecc_brain.graph.brain import BrainLLM
 from tecc_brain.learning.store import ProfileStore
 from tecc_brain.onchain.anchoring import AuditAnchorService
+from tecc_brain.api.vault import resolve_vault
 from tecc_brain.onchain.executor import MarketRouter
 from tecc_brain.reference import Reference
 from tecc_brain.pegguard import (
@@ -129,8 +130,9 @@ def scan_arbitrage(
         price_overrides=req.price_overrides,
         symbols=req.symbols,
         order_size_usd=req.order_size_usd,
-        vault=req.vault.to_state(),
+        vault=resolve_vault(req.account, req.vault, "vault" in req.model_fields_set),
         brain_llm=brain_llm,
         ref=ref,
         proposals=proposals,
+        prices_from_caller=bool(req.price_overrides),
     )

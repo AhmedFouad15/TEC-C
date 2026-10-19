@@ -454,5 +454,8 @@ def require_client(request: Request) -> None:
     if _hostname(request.headers.get("host", "")) not in LOCAL_HOSTNAMES | extra:
         raise HTTPException(403, "unexpected Host header")
     origin = request.headers.get("origin")
-    if origin is not None and origin not in allowed_origins():
+    # The web UI served by this same server (http://127.0.0.1:8000/app.html) is same-origin, never cross-site: the Host
+    # header was already checked to be a local name above.
+    same_origin = origin == f"{request.url.scheme}://{request.headers.get('host', '')}"
+    if origin is not None and not same_origin and origin not in allowed_origins():
         raise HTTPException(403, "cross-site request refused")
