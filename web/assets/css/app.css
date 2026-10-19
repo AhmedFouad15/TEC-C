@@ -567,3 +567,10 @@ html, body { overflow-x: clip; }
 .quiz-tier { font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
 .quiz-tier em { color: var(--lime); }
 .quiz-step .btn-ghost-sm { align-self: flex-start; }
+
+/* ---------- performance ---------- */
+/* glass cards blur what is behind them; keep that backdrop still so they don't re-blur every frame */
+.bg-moss { animation: none; }
+.bg-photo { transform: scale(1.05); transition: none; }
+.cursor-glow { z-index: 3; }  /* above the glass, so moving it never invalidates their blur */
+.quiz-chip { border-color: rgba(205, 227, 138, .45); }

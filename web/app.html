@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/app.css?v=10">
+  <link rel="stylesheet" href="assets/css/app.css?v=20">
 </head>
 <body>
 
@@ -60,6 +60,7 @@
     <button class="chip-stat clickable" onclick="toggleBiometricWindow()" title="Simulate a FaceID unlock">
       <span class="dot locked" id="bio-dot"></span><span class="muted">Biometric</span><b id="bio-status-text">Locked</b>
     </button>
+    <button class="chip-stat clickable quiz-chip" onclick="openQuiz()" title="Five questions that set your risk tier"><span class="muted">Risk quiz</span><span class="arrow">↗</span></button>
     <button class="chip-stat clickable" onclick="openModal('modal-pillars')"><span class="muted">3 pillars &amp; invariants</span><span class="arrow">↗</span></button>
     <button class="chip-stat clickable" onclick="switchTab('review')" title="Pending reviews"><span class="muted">Pending</span><b id="top-pending-badge">2</b></button>
   </div>
@@ -665,6 +666,6 @@
 
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script src="assets/js/app.js?v=10"></script>
+  <script src="assets/js/app.js?v=20"></script>
 </body>
 </html>

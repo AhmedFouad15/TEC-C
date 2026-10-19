@@ -35,6 +35,10 @@
   function finish() {
     if (finished) return;
     finished = true;
+    // decode the mist and forest images now, so the first scroll into the transition doesn't stall on them
+    ['fog.webp', 'fog-bank.webp', 'mist-canopy.jpg', 'moss-forest.jpg'].forEach(src => {
+      const im = new Image(); im.src = 'assets/img/' + src; im.decode?.().catch(() => {});
+    });
     num.textContent = 100; bar.style.width = '100%';
     setTimeout(() => { pre.classList.add('done'); document.body.classList.remove('is-loading'); startSlider(); onScroll(); }, 250);
   }
@@ -100,15 +104,19 @@
   /* ---------- cursor, spotlight, parallax, magnetic ---------- */
   const dot = $('#cursor-dot'), ring = $('#cursor-ring'), spot = $('#spotlight');
   let mx = innerWidth / 2, my = innerHeight / 2, rx = mx, ry = my;
+  let parallaxQueued = false;
   addEventListener('mousemove', e => {
     mx = e.clientX; my = e.clientY;
-    if (e.clientY < hero.offsetHeight) {
+    if (parallaxQueued || transitioning || scrollY > innerHeight) return;
+    parallaxQueued = true;
+    requestAnimationFrame(() => {
+      parallaxQueued = false;
       spot.style.setProperty('--mx', mx + 'px');
       spot.style.setProperty('--my', my + 'px');
-      const px = ((mx / innerWidth) - 0.5) * -24, py = ((my / innerHeight) - 0.5) * -16;
-      $$('.slide-media img').forEach(im => { im.style.setProperty('--px', px + 'px'); im.style.setProperty('--py', py + 'px'); });
-    }
-  });
+      hero.style.setProperty('--px', (((mx / innerWidth) - 0.5) * -24).toFixed(1) + 'px');
+      hero.style.setProperty('--py', (((my / innerHeight) - 0.5) * -16).toFixed(1) + 'px');
+    });
+  }, { passive: true });
   if (finePointer) {
     (function follow() {
       rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
@@ -175,6 +183,7 @@
   const clamp01 = v => Math.min(1, Math.max(0, v));
   const seg = (t, a, b) => clamp01((t - a) / (b - a));
   const smooth = u => u * u * (3 - 2 * u);
+  const slideCopies = $$('.slide-copy'), heroChrome = $$('.slide-index, .socials, .scroll-hint');
 
   function onScroll() {
     const y = scrollY, vh = innerHeight;
@@ -182,11 +191,10 @@
     // hero → mist → forest
     const t = clamp01((y - vh * 0.04) / (track.offsetHeight - vh));
     const soften = smooth(seg(t, 0.02, 0.5));
-    hero.style.transform = `scale(${1 + soften * 0.1})`;
-    hero.style.filter = soften > 0 ? `blur(${soften * 7}px) brightness(${1 + soften * 0.6}) saturate(${1 - soften * 0.5})` : '';
+    hero.style.transform = `scale(${(1 + soften * 0.1).toFixed(4)})`;  // transform + opacity only: no per-frame filters
     const roll = smooth(seg(t, 0.04, 0.55));                       // the two banks of mist close in
-    fogL.style.setProperty('--fx', (-40 + roll * 40) + '%');
-    fogR.style.setProperty('--fx', (40 - roll * 40) + '%');
+    fogL.style.setProperty('--fx', (-60 + roll * 60).toFixed(2) + '%');
+    fogR.style.setProperty('--fx', (60 - roll * 60).toFixed(2) + '%');
     const thin = smooth(seg(t, 0.62, 1));                         // ...and drift past the camera as it thins
     fogL.style.setProperty('--fs', 1 + thin * 0.8);
     fogR.style.setProperty('--fs', 1 + thin * 0.8);
@@ -196,13 +204,13 @@
     veil.style.opacity = smooth(seg(t, 0.26, 0.48)) * (1 - smooth(seg(t, 0.6, 0.9)));
     hero.style.opacity = 1 - seg(t, 0.38, 0.52);
     stage.style.background = t > 0.6 ? 'transparent' : '';         // the forest (fixed behind) shows through the last of the mist
-    $$('.slide-copy').forEach(c => { c.style.opacity = 1 - seg(t, 0.02, 0.22); });
-    $$('.slide-index, .socials, .scroll-hint').forEach(c => { c.style.opacity = 1 - seg(t, 0.01, 0.06); });
+    const copyO = 1 - seg(t, 0.02, 0.22), chromeO = 1 - seg(t, 0.01, 0.06);
+    slideCopies.forEach(c => { c.style.opacity = copyO; });
+    heroChrome.forEach(c => { c.style.opacity = chromeO; });
     const nowTransitioning = t > 0.02;
     if (nowTransitioning !== transitioning) { transitioning = nowTransitioning; nowTransitioning ? (clearTimeout(timer), cancelAnimationFrame(raf)) : restart(); }
     document.body.classList.toggle('on-light', t > 0.3);
-    const docSpan = Math.max(1, document.documentElement.scrollHeight - vh);
-    naturePhoto.style.setProperty('--ny', (-(y / docSpan) * vh * 0.07).toFixed(1) + 'px'); // stays inside the 8% bleed
+    // (no background parallax: moving the layer under the glass cards would force them to re-blur every frame)
     // statement: light words one by one while the moss ring turns
     const sr = statement.getBoundingClientRect();
     const p = Math.min(1, Math.max(0, (vh * 0.75 - sr.top) / (sr.height * 0.75)));
@@ -213,7 +221,12 @@
     // territories: the misty band drifts
     band.style.setProperty('--ty', (terr.getBoundingClientRect().top * -0.12) + 'px');
   }
-  addEventListener('scroll', onScroll, { passive: true });
+  let scrollQueued = false;
+  addEventListener('scroll', () => {
+    if (scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(() => { scrollQueued = false; onScroll(); });
+  }, { passive: true });
   addEventListener('resize', onScroll);
   onScroll();
 
@@ -230,33 +243,42 @@
     }).join('');
   })();
 
-  /* ---------- fireflies: amber in the dark, lime in the jungle ---------- */
+  /* ---------- fireflies (hero only): pre-rendered glow sprite, drawn with drawImage ---------- */
   const cv = $('#fireflies'), ctx = cv.getContext('2d');
-  let W, H, flies = [];
+  const glow = document.createElement('canvas');
+  glow.width = glow.height = 32;
+  (() => {
+    const g = glow.getContext('2d'), grd = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grd.addColorStop(0, 'rgba(232,166,75,1)'); grd.addColorStop(0.35, 'rgba(232,166,75,.45)'); grd.addColorStop(1, 'rgba(232,166,75,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 32, 32);
+  })();
+  let W, H, flies = [], cleared = false;
   function size() {
-    const dpr = Math.min(2, devicePixelRatio || 1);
-    W = cv.width = innerWidth * dpr; H = cv.height = innerHeight * dpr;
+    const dpr = Math.min(1.5, devicePixelRatio || 1);
+    W = cv.width = Math.round(innerWidth * dpr); H = cv.height = Math.round(innerHeight * dpr);
     cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
-    const count = Math.round(Math.min(34, innerWidth / 40));
+    const count = Math.round(Math.min(22, innerWidth / 60));
     flies = Array.from({ length: count }, () => ({
-      x: Math.random() * W, y: Math.random() * H, r: (Math.random() * 1.1 + 0.4) * dpr,
+      x: Math.random() * W, y: Math.random() * H, s: (Math.random() * 10 + 8) * dpr,
       vx: (Math.random() - 0.5) * 0.25 * dpr, vy: (Math.random() - 0.5) * 0.25 * dpr,
       ph: Math.random() * Math.PI * 2, sp: 0.01 + Math.random() * 0.02,
     }));
   }
   size(); addEventListener('resize', size);
   if (!reduced) (function draw() {
-    if (document.body.classList.contains('on-light')) { requestAnimationFrame(draw); return; } // the forest has leaves instead
+    requestAnimationFrame(draw);
+    if (transitioning || document.hidden) { // idle: nothing to draw while the mist runs or after it
+      if (!cleared) { ctx.clearRect(0, 0, W, H); cleared = true; }
+      return;
+    }
+    cleared = false;
     ctx.clearRect(0, 0, W, H);
-    const col = document.body.classList.contains('on-light') ? '255,255,255' : '232,166,75';
-    flies.forEach(f => {
+    for (const f of flies) {
       f.ph += f.sp; f.x += f.vx + Math.sin(f.ph) * 0.15; f.y += f.vy + Math.cos(f.ph * 0.8) * 0.15;
       if (f.x < 0) f.x = W; if (f.x > W) f.x = 0; if (f.y < 0) f.y = H; if (f.y > H) f.y = 0;
-      const a = 0.25 + (Math.sin(f.ph * 2) + 1) * 0.3;
-      const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * 7);
-      g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(1, `rgba(${col},0)`);
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 7, 0, Math.PI * 2); ctx.fill();
-    });
-    requestAnimationFrame(draw);
+      ctx.globalAlpha = 0.25 + (Math.sin(f.ph * 2) + 1) * 0.3;
+      ctx.drawImage(glow, f.x - f.s / 2, f.y - f.s / 2, f.s, f.s);
+    }
+    ctx.globalAlpha = 1;
   })();
 })();

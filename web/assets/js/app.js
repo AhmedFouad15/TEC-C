@@ -1159,8 +1159,6 @@ function bindTilt() {
     raf = requestAnimationFrame(() => {
       raf = 0;
       glow.style.transform = `translate(${ev.clientX}px, ${ev.clientY}px)`;
-      bg.style.setProperty('--bgx', ((ev.clientX / innerWidth) - 0.5) * -18 + 'px');
-      bg.style.setProperty('--bgy', ((ev.clientY / innerHeight) - 0.5) * -12 + 'px');
       const g = ev.target.closest?.('.glass');
       if (g) { const r = g.getBoundingClientRect(); g.style.setProperty('--gx', ev.clientX - r.left + 'px'); g.style.setProperty('--gy', ev.clientY - r.top + 'px'); }
     });
@@ -1338,13 +1336,14 @@ $('#quiz-body').addEventListener('click', async e => {
   }
 });
 function dismissQuizBanner() { $('#quiz-banner').hidden = true; store.set('tecc_quiz_done', 'later'); }
-function maybeShowQuizBanner() { $('#quiz-banner').hidden = !(brain.live && !store.get('tecc_quiz_done')); }
+function maybeShowQuizBanner() { $('#quiz-banner').hidden = store.get('tecc_quiz_done') === '1' || store.get('tecc_quiz_done') === 'later'; }
 
 /* =========================================================================================
    Boot
    ========================================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
   renderActionPills();
+  maybeShowQuizBanner();
   selectAction('Stake', false);
   renderPipeline(DEMO_AGENTS, ['done', 'done', 'done', 'running', '', '']);
   renderTrades();
