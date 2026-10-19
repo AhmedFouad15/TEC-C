@@ -1,6 +1,6 @@
 /* Tec-C Command Center.
-   Talks to the Brain API (FastAPI, agent/) when it is running; otherwise every screen falls back to demo data
-   and says so. Point it at another server with ?api=http://host:port (remembered in localStorage). */
+   Everything on screen comes from the Brain API (FastAPI, agent/) and the vault it reads on-chain. When the Brain is
+   offline, screens say so instead of showing sample data. Point it at another server with ?api=http://host:port (remembered in localStorage). */
 
 /* =========================================================================================
    Helpers
@@ -46,7 +46,7 @@ const API = (() => {
   if (q && isLoopbackApi(q)) store.set('tecc_api', new URL(q).origin);
   const saved = store.get('tecc_api');
   if (isLoopbackApi(saved)) return new URL(saved).origin;
-  if (isLoopbackApi(location.origin)) return location.origin;
+  if (isLoopbackApi(location.origin) && location.port === '8000') return location.origin; // served by the Brain itself
   return 'http://127.0.0.1:8000';
 })();
 const brain = { live: false, checked: false };
@@ -79,14 +79,16 @@ function setBrainStatus(live, text) {
   brain.live = live; brain.checked = true;
   $('#brain-dot').className = 'dot ' + (live ? 'active' : 'warning');
   $('#top-heartbeat-text').textContent = text;
-  $('#brain-pill').title = live ? `Connected to the Brain at ${API}` : `Brain not reachable at ${API}. Run python run_tecc.py to connect.`;
+  $('#brain-pill').title = live ? `Connected to the Brain at ${API}` : `Brain not reachable at ${API}. Start everything with ./dev_up.sh (or python run_tecc.py)`;
   if (changed) {
     loadRegimes();
     loadProfile();
     loadCatalog();
-    syncVaultFromChain();
+    loadPegGuard();
+    refreshLive();
+    loadSessions();
     maybeShowQuizBanner();
-    if (live) showToast('Brain connected: real on-chain execution active.');
+    if (live) showToast('Brain connected: commands now run through the real pipeline.');
   }
 }
 
@@ -204,33 +206,27 @@ async function loadCatalog() {
   } catch { /* keep the offline lists */ }
 }
 
-const DEMO_AGENTS = [
-  { agent: 'gatekeeper_intake', title: 'Gatekeeper · intake', lines: ['Firewall: no injected instructions found.', 'Privacy sieve: amounts masked before any cloud model.'] },
-  { agent: 'profile', title: 'Profile', lines: ['Balanced tier · loss aversion λ 1.00 · trust τ 0.60.'] },
-  { agent: 'nlp_sentinel', title: 'NLP risk sentinel', lines: ['All pegs normal; no cluster under stress.'] },
-  { agent: 'econometric_liquidity', title: 'Econometric & liquidity', lines: ['3 venues scored against the 1Y Shibor hurdle.'] },
-  { agent: 'gatekeeper_aggregator', title: 'Gatekeeper · aggregator', lines: ['Soft tether: (0.5 + 0.5·τ) × radius remaining.'] },
-  { agent: 'web3_executor', title: 'Web3 executor', lines: ['Waiting for your choice.'] },
-];
 
 /* =========================================================================================
    State
    ========================================================================================= */
 const state = {
   action: 'Stake', market: 'Crypto', network: 'Ethereum L1', assets: ['ETH', 'stETH'], capitalPercent: 10, riskTier: 'Tier 2',
-  vaultBalance: 0, tetherUsed: 0, tetherTotal: 1000, biometricUnlocked: false, pegGuardEnabled: true,
-  selectedCandidate: 'A', outcome: 'split', requestNo: 412, streak: 0,
+  vaultBalance: 0, tetherUsed: 0, tetherTotal: 0, tetherRemaining: 0, biometricUnlocked: false, pegGuardEnabled: false,
+  selectedCandidate: 'A', outcome: 'split', streak: 0,
   live: null, // last live /propose response
-  trades: [],
+  liveOptions: null,
+  vault: null, // last /api/vault/demo answer: the on-chain truth for balances, leash and reviews
+  decided: {}, // proposal cards the user already approved or dismissed in this tab
 };
 const TRADE_STATUS = {
   pending: ['Pending review', 'badge-amber'], ratified: ['Ratified', 'badge-green'], flagged: ['Flagged (−20%)', 'badge-red'],
   taught: ['Reviewed & taught', 'badge-green'], penalized: ['Reviewed (−10%)', 'badge-amber'], breakout: ['FaceID breakout approved', 'badge-green'],
   simulated: ['Simulated (no chain)', 'badge-blue'],
-  signing: ['Awaiting signature', 'badge-blue'], failed: ['Reverted by the vault', 'badge-red'], needs_faceid: ['Needs FaceID (over the radius)', 'badge-amber'],
+  noted: ['Noted', 'badge-green'], signing: ['Awaiting signature', 'badge-blue'], failed: ['Reverted by the vault', 'badge-red'], needs_faceid: ['Needs FaceID (over the radius)', 'badge-amber'],
 };
 const dollarsForCommand = () => Math.round(state.vaultBalance * state.capitalPercent / 100);
-const tetherLeft = () => Math.max(0, state.tetherTotal - state.tetherUsed);
+const tetherLeft = () => Math.max(0, state.tetherRemaining);
 
 /* =========================================================================================
    Navigation
@@ -250,6 +246,8 @@ function switchTab(tab) {
   if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
   scrollTo({ top: 0, behavior: 'smooth' });
   if (tab === 'portfolio') drawTrend();
+  if (tab === 'virtual-session') loadSessions();
+  if (tab === 'review') { refreshLive(); }
 }
 $$('.nav-item').forEach(n => n.addEventListener('click', e => { e.preventDefault(); switchTab(n.dataset.tab); }));
 addEventListener('hashchange', () => switchTab(location.hash.slice(1)));
@@ -309,11 +307,11 @@ function setSliderPercent(p) {
   $('#slider-thumb').style.left = p + '%';
   $('#slider-tip').textContent = p + '%';
   const d = dollarsForCommand(), use = Math.min(d, tetherLeft());
-  if (state.vaultBalance === 0) {
-    $('#slider-caption').innerHTML = `${p}% = $0 · <span style="color:#e8a64b">Vault is empty ($0.00).</span> <a href="#" onclick="openDepositModal();return false;" style="color:#cde38a;text-decoration:underline;">Deposit funds</a> or use test faucet to trade.`;
-  } else {
-    $('#slider-caption').textContent = `${p}% = ${usd(d)} · ${d <= tetherLeft() ? `fits inside the ${usd(tetherLeft())} left in today's radius` : `uses ${usd(use)} of the ${usd(tetherLeft())} left; the rest needs a FaceID breakout`}`;
+  if (state.vault && state.vaultBalance === 0) {
+    $('#slider-caption').innerHTML = `${p}% = $0 · <span style="color:var(--amber)">The vault is empty.</span> <a href="#" onclick="openDepositModal();return false;" style="color:var(--lime);text-decoration:underline">Deposit funds</a> or use the test faucet first.`;
+    updateSlippage(d); updatePrompt(); return;
   }
+  $('#slider-caption').textContent = `${p}% = ${usd(d)} · ${d <= tetherLeft() ? `fits inside the ${usd(tetherLeft())} left in today's radius` : `uses ${usd(use)} of the ${usd(tetherLeft())} left; the rest needs a FaceID breakout`}`;
   updateSlippage(d);
   updatePrompt();
 }
@@ -392,65 +390,99 @@ async function animatePipeline(agents, { blockedAt = -1 } = {}) {
     st[i] = i === blockedAt ? 'blocked' : 'done'; renderPipeline(agents, st);
     if (i === blockedAt) break;
   }
+  return st;
+}
+/* The Live pipeline card always shows the latest command: running while the Brain works, then "Completed" (or
+   "Refused") until the next command. Nothing sent yet = "No commands". Kept per browser in localStorage. */
+const PIPE_KEY = 'tecc_last_pipeline', REQ_KEY = 'tecc_request_no';
+function nextRequestNo() {
+  const n = (parseInt(store.get(REQ_KEY), 10) || 0) + 1;
+  store.set(REQ_KEY, String(n));
+  return n;
+}
+function setPipelineHeader(no, outcome) {
+  const tag = { running: '<span class="badge badge-blue">Running</span>', completed: '<span class="badge badge-green">Completed</span>',
+    refused: '<span class="badge badge-red">Refused</span>' }[outcome] || '';
+  $('#request-id').innerHTML = no ? `Request #${no} ${tag}` : 'No requests yet';
+}
+function savePipeline(rec) { store.set(PIPE_KEY, JSON.stringify(rec)); }
+const RESULT_KEY = 'tecc_last_result', DECIDED_KEY = 'tecc_decided', RESULT_TTL = 30 * 60 * 1000;
+function saveResult() {
+  store.set(RESULT_KEY, JSON.stringify({ at: Date.now(), live: state.live, liveOptions: state.liveOptions }));
+  store.set(DECIDED_KEY, JSON.stringify(state.decided));
+}
+function restoreResult() {
+  try { state.decided = JSON.parse(store.get(DECIDED_KEY) || '{}') || {}; } catch { state.decided = {}; }
+  let r = null; try { r = JSON.parse(store.get(RESULT_KEY) || 'null'); } catch { r = null; }
+  if (!r || Date.now() - r.at > RESULT_TTL) return false;
+  state.live = r.live; state.liveOptions = r.liveOptions;
+  if (state.liveOptions) renderOptions();
+  else if (state.live) renderLive(state.live, $('#opp-request-header').textContent || 'last command');
+  return !!(state.live || state.liveOptions);
+}
+function restorePipeline() {
+  let rec = null;
+  try { rec = JSON.parse(store.get(PIPE_KEY) || 'null'); } catch { rec = null; }
+  if (!rec || !rec.agents) {
+    setPipelineHeader(0);
+    $('#pipeline-timeline').innerHTML = '<div class="empty-state"><b>No commands</b><span class="caption">Ask the Brain or submit a command: its six agents will show up here.</span></div>';
+    $('#btn-view-opps').hidden = true;
+    return;
+  }
+  setPipelineHeader(rec.no, rec.outcome === 'running' ? 'completed' : rec.outcome); // a reload mid-run shows the last state
+  renderPipeline(rec.agents, rec.statuses);
+  $('#pipeline-timeline').insertAdjacentHTML('afterbegin', `<div class="caption pipe-cmd">“${esc(rec.text)}” · ${esc(new Date(rec.at).toLocaleString())}</div>`);
+  $('#btn-view-opps').hidden = false;
+}
+async function runPipeline(no, text, agents, opts = {}) {
+  setPipelineHeader(no, 'running');
+  $('#btn-view-opps').hidden = false;
+  const statuses = await animatePipeline(agents, opts);
+  const outcome = opts.blockedAt >= 0 ? 'refused' : 'completed';
+  savePipeline({ no, text, agents, statuses, outcome, at: Date.now() });
+  restorePipeline();
 }
 
 /* =========================================================================================
-   Submit → Brain (live) or demo
+   Submit → Brain
    ========================================================================================= */
 async function submitCommandToBrain(text) {
   const textGiven = !!text;
   const shown = text || commandText();
   text = text || brainText();
+  if (!brain.live) return showToast('The Brain is offline, so nothing was sent. Start it with ./dev_up.sh and try again.');
+  if (state.vault && state.vaultBalance === 0) { showToast('The vault is empty: deposit funds (or use the test faucet) first.'); return openDepositModal(); }
   const btn = $('#submit-btn');
   btn.disabled = true; btn.classList.add('loading');
-  state.requestNo++;
-  $('#request-id').textContent = `Request #${String(state.requestNo).padStart(4, '0')}`;
+  const no = nextRequestNo();
   try {
-    if (brain.live && !textGiven) return await evaluateOptions(shown); // composer buttons → closed schema
-    if (brain.live) {
-      const headline = $('#headline-input').value.trim() || undefined;
-      const [res] = await Promise.all([
-        api('/api/mandate/propose', { method: 'POST', body: { text, account: 'demo', headline } }),
-        sleep(300),
-      ]);
-      state.live = res; state.liveOptions = null;
-      renderBrainReport(res.brain_report);
-      if (res.intent && ['submitted', 'simulated', 'failed'].includes(res.intent.status)) {
-        recordIntentTrade(res.intent, 'The automatic slice, inside the soft tether.');
-        showToast(res.intent.status === 'failed' ? `Automatic slice refused by the vault: ${res.intent.detail}` : `Automatic slice ran: ${usd(res.intent.amount_usd)} (${res.intent.status}).`);
-      }
-      const blocked = res.status !== 'decided' || res.decision?.mode === 'BLOCKED';
-      const agents = res.agents?.length ? res.agents : DEMO_AGENTS;
-      await animatePipeline(agents, { blockedAt: blocked ? agents.length - 1 : -1 });
-      renderLive(res, shown);
-      if (res.status === 'unparsed') showToast(`The Brain didn't understand: ${(res.parse?.errors || []).join(', ')}. Try verbs like deposit, stake, grow, exit or withdraw.`);
-      else if (blocked) showToast('The Brain refused this command. See the pipeline for why.');
-      else { await sleep(350); switchTab('opportunities'); showToast(`The Brain rated ${res.decision.cards.length} route(s) and rejected ${res.decision.rejected.length}.`); }
-    } else {
-      state.live = null; state.liveOptions = null;
-      await animatePipeline(DEMO_AGENTS);
-      renderOpportunities();
-      await sleep(300);
-      switchTab('opportunities');
-      showToast(`Demo: 3 routes rated for “${state.action}”. Start the Brain API for real results.`);
-    }
+    if (!textGiven) return await evaluateOptions(shown, no); // composer buttons → closed schema
+    const headline = $('#headline-input').value.trim() || undefined;
+    setPipelineHeader(no, 'running');
+    const [res] = await Promise.all([
+      api('/api/mandate/propose', { method: 'POST', body: { text, account: 'demo', headline } }),
+      sleep(300),
+    ]);
+    state.live = res; state.liveOptions = null;
+    const blocked = res.status !== 'decided' || res.decision?.mode === 'BLOCKED';
+    const agents = res.agents?.length ? res.agents : [{ agent: 'gatekeeper_intake', lines: ['The Brain returned no agent trace.'] }];
+    await runPipeline(no, shown, agents, { blockedAt: blocked ? agents.length - 1 : -1 });
+    renderLive(res, shown);
+    saveResult();
+    refreshLive();
+    if (res.status === 'unparsed') showToast(`The Brain didn't understand: ${(res.parse?.errors || []).join(', ')}. Try verbs like deposit, stake, grow, exit or withdraw.`);
+    else if (blocked) showToast('The Brain refused this command. See the pipeline for why.');
+    else { await sleep(350); switchTab('opportunities'); showToast(`The Brain rated ${res.decision.cards.length} route(s) and rejected ${res.decision.rejected.length}.`); }
   } catch (err) {
-    if (err.message === 'Failed to fetch') {
-      // never reached the Brain: nothing ran, so demo data is honest
-      setBrainStatus(false, 'demo mode');
-      showToast('The Brain is not reachable. Showing demo data.');
-      state.live = null; state.liveOptions = null;
-      renderBrainReport(null);
-      renderOpportunities();
-    } else if (err.name === 'AbortError') {
-      // the request was sent: something may have executed, so never show demo data in its place
-      showToast('The Brain took longer than 60 s. Check the vault and Morning Review before sending this again.');
-    } else {
-      showToast(`The Brain refused this request: ${err.message}`);
-    }
+    savePipeline({ no, text: shown, agents: [{ agent: 'gatekeeper_intake', lines: [`The Brain could not answer: ${err.message}`] }], statuses: ['blocked'], outcome: 'refused', at: Date.now() });
+    restorePipeline();
+    if (err.message === 'Failed to fetch') { setBrainStatus(false, 'offline'); showToast('The Brain is not reachable: nothing was sent.'); }
+    // the request was sent: something may have executed, so check the vault before sending it again
+    else if (err.name === 'AbortError') showToast('The Brain took longer than 60 s. Check the vault and Morning Review before sending this again.');
+    else showToast(`The Brain refused this request: ${err.message}`);
+    refreshLive();
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
-    if (brain.live) syncVaultFromChain();
   }
 }
 /* =========================================================================================
@@ -469,12 +501,10 @@ function composerOptions() {
   return list.map((asset, i) => ({ option_id: String.fromCharCode(65 + i), action: OPTION_ACTION[state.action], asset, amount_usd: each }));
 }
 
-async function evaluateOptions(shown) {
+async function evaluateOptions(shown, no) {
   const options = composerOptions();
   const [res] = await Promise.all([api('/evaluate_options', { method: 'POST', body: { account: 'demo', options } }), sleep(300)]);
   state.live = null;
-  renderBrainReport(res.brain_report);
-  (res.intents || []).forEach(i => recordIntentTrade(i, 'Automatic, from the injection-proof options flow.'));
   res.results.sort((x, y) => x.option_id.localeCompare(y.option_id));
   state.liveOptions = { ...res, options, shown };
   const funded = res.results.filter(r => r.allocated_usd > 0);
@@ -488,8 +518,10 @@ async function evaluateOptions(shown) {
     { agent: 'gatekeeper_aggregator', lines: res.trace.slice(-2) },
     { agent: 'web3_executor', lines: res.intents.length ? res.intents.map(i => `${i.action} ${usd(i.amount_usd)} → ${i.venue_id} (${i.status.replace(/_/g, ' ')})`) : ['Nothing to sign.'] },
   ];
-  await animatePipeline(agents, { blockedAt: funded.length ? -1 : agents.length - 1 });
+  await runPipeline(no, shown, agents, { blockedAt: funded.length || res.results.some(r => r.mode === 'PROPOSE') ? -1 : agents.length - 1 });
   renderOptions();
+  saveResult();
+  refreshLive();
   await sleep(350);
   switchTab('opportunities');
   showToast(`${res.status.replace(/_/g, ' ').toLowerCase()}: ${funded.length} of ${res.results.length} option(s) funded.`);
@@ -497,6 +529,7 @@ async function evaluateOptions(shown) {
 
 function renderOptions() {
   const o = state.liveOptions;
+  renderBrainReport(o.brain_report);
   $('#source-badge').className = 'badge big badge-live';
   $('#source-badge').textContent = 'Live · injection-proof options';
   $('#opp-request-header').textContent = `“${o.shown}” · sent as ${o.options.length} structured option(s), no free text`;
@@ -549,33 +582,39 @@ function showOptionDetail() {
   const [mt] = OPT_MODE[r.mode] || [r.mode];
   $('#synthesis-badge').textContent = o.status.replace(/_/g, ' ');
   $('#synthesis-badge').className = 'badge ' + (o.intents.length ? 'badge-green' : 'badge-amber');
-  const ran = o.intents.filter(i => ['submitted', 'simulated'].includes(i.status)).reduce((a, i) => a + i.amount_usd, 0);
-  $('#synthesis-rationale').innerHTML = `<b>${esc(o.status.replace(/_/g, ' '))}</b> · option ${esc(r.option_id)} is <b>${esc(mt)}</b>. ${usd(ran)} already ran automatically inside today's soft tether (see Morning Review).`;
+  const queued = o.intents.reduce((a, i) => a + i.amount_usd, 0);
+  $('#synthesis-rationale').innerHTML = `<b>${esc(o.status.replace(/_/g, ' '))}</b> · option ${esc(r.option_id)} is <b>${esc(mt)}</b>. ${o.intents.length} intent(s) ready to sign, ${usd(queued)} inside today's soft tether.`;
   $('#trace-list').innerHTML = o.trace.map(t => `<li>${esc(t)}</li>`).join('');
-  // automatic slices already ran on the server; the button approves the selected option if it is waiting for you
   const btn = $('#btn-execute-trade');
-  const approvable = o.proposal_id && r.venue_id && ['PROPOSE', 'BREAKOUT'].includes(r.mode);
-  btn.style.display = approvable ? '' : 'none';
-  if (approvable) btn.firstElementChild.textContent = `Approve option ${r.option_id}`;
+  const done = state.decided['opt:' + o.proposal_id + ':' + r.option_id];
+  const ran = o.intents.filter(i => i.option_id === r.option_id || (o.results.length === 1));
+  if (r.mode === 'PROPOSE' && !done) {
+    btn.style.display = ''; btn.disabled = false;
+    btn.firstElementChild.textContent = `Approve option ${r.option_id} · ${usd(r.requested_usd)}`;
+  } else {
+    btn.style.display = 'none';
+  }
+  const ranText = o.intents.length ? `Already executed automatically: ${o.intents.map(i => `${usd(i.amount_usd)} → ${esc(i.venue_id)} (${esc(i.status)}${i.tx_hash ? `, tx ${esc(i.tx_hash.slice(0, 10))}…` : ''})`).join('; ')}.` : '';
+  if (ranText) $('#synthesis-rationale').insertAdjacentHTML('beforeend', `<br>${ranText}`);
+  void ran;
 }
 
-
 async function executeOptions() {
-  // Automatic allocations already ran on the server (see Morning Review); this approves the selected held option.
   const o = state.liveOptions;
-  const r = o.results.find(x => 'opt:' + x.option_id === state.selectedCandidate);
-  if (!o.proposal_id || !r) return showToast('Nothing waiting for your approval: the automatic part already ran.');
+  const r = o.results.find(x => 'opt:' + x.option_id === state.selectedCandidate) || o.results[0];
+  if (r.mode !== 'PROPOSE') return showToast('This option is not waiting for your approval.');
   const btn = $('#btn-execute-trade');
   btn.disabled = true; btn.classList.add('loading');
   try {
     const out = await api('/api/mandate/execute', { method: 'POST', body: { proposal_id: o.proposal_id, account: 'demo', label: 'BEST', option_id: r.option_id } });
-    recordIntentTrade(out.intent, `Option ${r.option_id}, approved by you.`);
-    showToast(out.message || `Option ${r.option_id}: ${out.intent?.status}`);
-    if (out.intent?.status !== 'breakout_required') state.liveOptions = { ...o, proposal_id: null }; // one approval per proposal
-    renderOptions();
-  } catch (err) {
-    showToast(err.status === 409 ? `Option ${r.option_id}: ${err.message}` : `Approval failed: ${err.message}`);
-  } finally { btn.disabled = false; btn.classList.remove('loading'); syncVaultFromChain(); }
+    state.decided['opt:' + o.proposal_id + ':' + r.option_id] = 'approved'; saveResult();
+    (out.learned || []).forEach(l => showToast('Learned: ' + l));
+    showToast(out.message || `Execution ${out.intent?.status}`);
+    refreshLive();
+    showOptionDetail();
+    renderDecisions();
+  } catch (err) { showToast(`Not executed: ${err.message}`); }
+  finally { btn.disabled = false; btn.classList.remove('loading'); }
 }
 
 function askBrain() {
@@ -597,13 +636,34 @@ function scoreRing(v) {
 }
 function fillRings() { requestAnimationFrame(() => requestAnimationFrame(() => $$('.fg-c').forEach(c => { c.style.strokeDashoffset = c.dataset.off; }))); }
 
+/* The AI Brain's verdict (brain_report): one source of truth for what the AI decided and why */
+const BRAIN_DECISION = {
+  EXECUTE: ['Executes now', 'badge-green'], SPLIT: ['Split across options', 'badge-green'], PROPOSE: ['Needs your approval', 'badge-blue'],
+  REJECT: ['Nothing runs automatically', 'badge-red'], HOLD: ['HOLD · AI unavailable', 'badge-amber'],
+};
+function renderBrainReport(report) {
+  const box = $('#brain-verdict');
+  if (!box) return;
+  if (!report) { box.innerHTML = ''; return; }
+  const [dt, dc] = BRAIN_DECISION[report.decision] || [report.decision, 'badge-blue'];
+  const byAi = report.producer === 'llm';
+  box.innerHTML = `<div class="card glass">
+    <div class="card-title"><span>AI Brain verdict</span>
+      <span><span class="badge ${dc}">${esc(dt)}</span>
+      <span class="badge ${byAi ? 'badge-live' : 'badge-blue'}" title="${byAi ? 'Decided by the AI model, validated tighten-only' : 'Deterministic rules (no model configured, or the model answer was not used)'}">${byAi ? 'AI model' : 'Rules engine'}</span></span></div>
+    <p>${esc(report.user_explanation)}</p>
+    ${report.reason_codes?.length ? `<div class="mini-badges">${report.reason_codes.map(x => `<span class="badge">${esc(x.replace(/_/g, ' ').toLowerCase())}</span>`).join('')}</div>` : ''}
+    ${report.fallback_reason ? `<p class="caption">Model answer not used: ${esc(report.fallback_reason)}. The ${report.decision === 'HOLD' ? 'order is on HOLD' : 'rules decided'}.</p>` : ''}
+    ${report.vetoes_honored?.length ? `<p class="caption">${report.vetoes_honored.length} hard veto(es) honoured.</p>` : ''}
+  </div>`;
+}
 function renderLive(res, text) {
+  renderBrainReport(res.brain_report);
   const d = res.decision;
   $('#source-badge').className = 'badge big badge-live';
   $('#source-badge').textContent = 'Live from the Brain';
   $('#opp-request-header').textContent = `“${text}”`;
   if (!d) {
-    renderBrainReport(res.brain_report);
     $('#candidates-container').innerHTML = `<div class="card glass"><div class="card-title"><span>${res.status === 'unparsed' ? 'Not understood' : 'Refused'}</span><span class="badge badge-red">${esc(res.status)}</span></div>
       <ul class="explain">${(res.parse?.errors || res.parse?.verdict?.threats || ['The gatekeeper stopped this request.']).map(x => `<li>${esc(typeof x === 'string' ? x : JSON.stringify(x))}</li>`).join('')}</ul></div>`;
     return;
@@ -672,52 +732,24 @@ $('#candidates-container').addEventListener('click', e => {
   const c = e.target.closest('[data-cand]'); if (!c) return;
   state.selectedCandidate = c.dataset.cand;
   $$('#candidates-container .cand').forEach(x => x.classList.toggle('chosen', x === c));
-  state.liveOptions ? showOptionDetail() : state.live ? showLiveDetail() : renderOpportunities(false);
+  state.liveOptions ? showOptionDetail() : state.live ? showLiveDetail() : renderOpportunities();
   showToast(`Inspecting ${state.live ? c.dataset.cand.split(':')[1] : 'option ' + c.dataset.cand}`);
 });
 
 /* =========================================================================================
-   Opportunities — demo rendering
+   Opportunities — before any command
    ========================================================================================= */
-function renderOpportunities(rebuild = true) {
-  const p = ACTION_PRESETS[state.action] || ACTION_PRESETS.Stake, d = dollarsForCommand();
+function renderOpportunities() {
+  renderBrainReport(null);
   $('#source-badge').className = 'badge big badge-blue';
-  $('#source-badge').textContent = brain.live ? 'Demo preset' : 'Demo data · Brain offline';
-  $('#opp-request-header').textContent = `Request #${String(state.requestNo).padStart(4, '0')} · ${commandText()}`;
-  $('#opp-count').textContent = p.candidates.length;
-  if (rebuild) {
-    $('#candidates-container').innerHTML = p.candidates.map(c => `
-      <button class="card glass cand ${c.id === state.selectedCandidate ? 'chosen' : ''}" data-cand="${c.id}" data-tilt>
-        <div class="row-between"><span class="badge ${c.cls}">${esc(c.badge)}</span><span class="caption">Option ${c.id}</span></div>
-        <div class="cand-title">${esc(c.title)}</div>
-        <div class="cand-info">${esc(c.info)} · ${usd(d)}</div>
-        <div class="mini-badges"><span class="badge">News ${esc(c.news)}</span><span class="badge">Econ ${esc(c.econ)}</span><span class="badge ${c.inj === 'Warn' ? 'badge-amber' : ''}">Injection ${esc(c.inj)}</span></div>
-        <div class="cand-score"><b>${c.score.toFixed(2)}</b><span class="caption">weighted score</span></div>
-        ${scoreRing(c.score)}
-      </button>`).join('');
-    fillRings();
-    bindTilt();
-  }
-  const c = p.candidates.find(x => x.id === state.selectedCandidate) || p.candidates[0];
-  $('#zone-b-title').textContent = `Zone B · Deep rating for option ${c.id}: ${c.title}`;
-  $('#rating-news-badge').textContent = `${c.news} ${p.newsScore > 0 ? 'positive' : 'cautious'}`;
-  $('#rating-news-badge').className = 'badge ' + (p.newsScore > 0 ? 'badge-green' : 'badge-red');
-  $('#sentiment-indicator').style.left = ((p.newsScore + 1) / 2 * 100) + '%';
-  $('#headlines-list').innerHTML = p.headlines.map(h => `<li>${esc(h)}</li>`).join('');
-  $('#metric-sharpe').textContent = p.sharpe.toFixed(2);
-  $('#metric-cvar95').textContent = (p.cvar95 ? '−' + Math.abs(p.cvar95).toFixed(1) : '0.0') + '%';
-  $('#metric-cvar99').textContent = (p.cvar99 ? '−' + Math.abs(p.cvar99).toFixed(1) : '0.0') + '%';
-  $('#metric-cvar99').previousElementSibling.textContent = 'CVaR 99%';
-  $('#econ-badge').textContent = 'Acceptable'; $('#econ-badge').className = 'badge badge-green';
-  $('#explain-list').innerHTML = '';
-  updateSlippage(d);
-  $('#inj-badge').textContent = c.inj === 'Warn' ? 'Warning' : 'Pass · 0 threats';
-  $('#inj-badge').className = 'badge ' + (c.inj === 'Warn' ? 'badge-amber' : 'badge-green');
-  $('#inj-checks').innerHTML = ['Venue is on the mandate\'s policy whitelist', 'Honeypot test: clean, verified contract', 'Contract age: battle-tested',
-    `Amount matches the mandate (${usd(d)})`, 'Instruction scan: zero prompt-override keywords']
-    .map((l, i) => `<li class="${c.inj === 'Warn' && i === 1 ? 'warn' : ''}">${esc(l)}</li>`).join('');
-  $('#trace-list').innerHTML = '';
-  applyOutcomeMode(state.outcome, false);
+  $('#source-badge').textContent = brain.live ? 'Waiting for a command' : 'Brain offline';
+  $('#opp-request-header').textContent = 'Nothing rated yet. Ask the Brain or submit a command from Home.';
+  $('#opp-count').textContent = 0;
+  $('#candidates-container').innerHTML = '<div class="empty-state"><b>No opportunities yet</b><span class="caption">The Brain rates routes only when you send it a command.</span></div>';
+  $('#zone-b-title').textContent = 'Zone B · Deep rating breakdown';
+  $('#headlines-list').innerHTML = ''; $('#explain-list').innerHTML = ''; $('#trace-list').innerHTML = ''; $('#inj-checks').innerHTML = '';
+  $('#synthesis-rationale').textContent = '';
+  $('#btn-execute-trade').style.display = 'none';
 }
 
 /* outcome modes (demo) */
@@ -725,7 +757,8 @@ $('#outcome-modes').addEventListener('click', e => { const b = e.target.closest(
 function applyOutcomeMode(mode, toast) {
   state.outcome = mode;
   $$('#outcome-modes .pill-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  if (state.live) { if (toast) showToast('Live decisions come from the Brain; modes are a demo control.'); return; }
+  if (toast) showToast('The decision mode comes from the Brain itself, not from this control.');
+  return;
   const p = ACTION_PRESETS[state.action], c = p.candidates.find(x => x.id === state.selectedCandidate) || p.candidates[0];
   const d = dollarsForCommand(), use = Math.min(d, tetherLeft());
   const badge = $('#synthesis-badge'), btn = $('#btn-execute-trade'), r = $('#synthesis-rationale');
@@ -755,73 +788,43 @@ $$('[data-weight]').forEach(r => r.addEventListener('change', () => showToast(`A
    Execute
    ========================================================================================= */
 async function executeAutonomousTrade() {
-  if (state.vaultBalance === 0) {
-    showToast('Your vault balance is $0.00. Please deposit funds or request test faucet tokens first.');
-    openDepositModal();
-    return;
-  }
   if (state.liveOptions) return executeOptions();
   if (state.live?.decision && state.live.proposal_id) return executeLive();
-  if (brain.live) {
-    showToast('Submitting mandate to the Brain for on-chain execution…');
-    await submitCommandToBrain();
-    return;
-  }
-  showToast('Brain is offline. Launch backend with: python run_tecc.py');
+  showToast('Nothing to execute: send the Brain a command first.');
 }
 async function executeLive() {
   const res = state.live, d = res.decision;
   const c = d.cards.find(x => x.label + ':' + x.candidate.venue_id === state.selectedCandidate) || d.cards[0];
-  if (!res.proposal_id) return showToast('This proposal was already executed.');
+  if (c.mode === 'BREAKOUT' && !state.biometricUnlocked) {
+    pendingLiveBreakout = true;
+    return openBreakoutModal(c.candidate.amount_usd, null);
+  }
   const btn = $('#btn-execute-trade');
   btn.disabled = true; btn.classList.add('loading');
   try {
     const out = await api('/api/mandate/execute', { method: 'POST', body: { proposal_id: res.proposal_id, account: 'demo', label: c.label, venue_id: c.candidate.venue_id } });
     const it = out.intent || {};
+    const status = { submitted: 'pending', signed: 'pending', pending_signature: 'signing', simulated: 'simulated', failed: 'failed', breakout_required: 'needs_faceid' }[it.status] || 'pending';
+    void status;
+    state.decided['live:' + res.proposal_id] = it.status === 'breakout_required' ? 'needs_faceid' : 'approved'; saveResult();
     (out.learned || []).forEach(l => showToast('Learned: ' + l));
+    refreshLive(); renderDecisions();
     showToast(out.message || `Execution ${it.status}`);
-    if (it.status === 'breakout_required') return; // the proposal stays open: verify the passkey, then Execute again
-    recordIntentTrade(it, `${c.label} card, approved by you.`);
     state.live = { ...res, proposal_id: null }; // a proposal executes once
+    saveResult();
     btn.firstElementChild.textContent = 'Executed ✓';
   } catch (err) {
-    // 409 = the AI vetoed this option, or it already ran in full automatically: a result, not a crash
-    showToast(err.status === 409 ? err.message : `Execution refused: ${err.message}`);
-  } finally { btn.disabled = false; btn.classList.remove('loading'); syncVaultFromChain(); }
+    showToast(`Execution refused: ${err.message}`);
+  } finally { btn.disabled = false; btn.classList.remove('loading'); }
 }
-/* The AI Brain's verdict (brain_report): one source of truth for what the AI decided and why */
-const BRAIN_DECISION = {
-  EXECUTE: ['Executes now', 'badge-green'], SPLIT: ['Split across options', 'badge-green'], PROPOSE: ['Needs your approval', 'badge-blue'],
-  REJECT: ['Nothing runs automatically', 'badge-red'], HOLD: ['HOLD · AI unavailable', 'badge-amber'],
-};
-function renderBrainReport(report) {
-  const box = $('#brain-verdict');
-  if (!box) return;
-  if (!report) { box.innerHTML = ''; return; }
-  const [dt, dc] = BRAIN_DECISION[report.decision] || [report.decision, 'badge-blue'];
-  const byAi = report.producer === 'llm';
-  box.innerHTML = `<div class="card glass">
-    <div class="card-title"><span>AI Brain verdict</span>
-      <span><span class="badge ${dc}">${esc(dt)}</span>
-      <span class="badge ${byAi ? 'badge-live' : 'badge-blue'}" title="${byAi ? 'Decided by the AI model, validated tighten-only' : 'Deterministic rules (no model configured, or the model answer was not used)'}">${byAi ? 'AI model' : 'Rules engine'}</span></span></div>
-    <p>${esc(report.user_explanation)}</p>
-    ${report.reason_codes?.length ? `<div class="mini-badges">${report.reason_codes.map(r => `<span class="badge">${esc(r.replace(/_/g, ' ').toLowerCase())}</span>`).join('')}</div>` : ''}
-    ${report.fallback_reason ? `<p class="caption">Model answer not used: ${esc(report.fallback_reason)}. The ${report.decision === 'HOLD' ? 'order is on HOLD' : 'rules decided'}.</p>` : ''}
-    ${report.vetoes_honored?.length ? `<p class="caption">${report.vetoes_honored.length} hard veto(es) honoured.</p>` : ''}
-  </div>`;
-}
-const INTENT_TRADE = { submitted: 'pending', signed: 'pending', pending_signature: 'signing', simulated: 'simulated', failed: 'failed', breakout_required: 'needs_faceid' };
-function recordIntentTrade(it, detail) {
-  if (!it) return;
-  addTrade({ title: `${it.action} ${it.asset_in} → ${it.venue_id}`, market: it.market || state.market, val: it.amount_usd,
-    status: INTENT_TRADE[it.status] || 'pending', news: '—', econ: '—',
-    tx: it.tx_hash || (it.status === 'simulated' ? 'no hash (simulated)' : '—'), detail: it.detail || detail });
-  if (it.status === 'submitted') spendTether(Math.min(it.amount_usd || 0, tetherLeft()));
-}
-const fakeTx = () => '0x' + Math.random().toString(16).slice(2, 6) + '…' + Math.random().toString(16).slice(2, 6);
-function spendTether(amount) { state.tetherUsed += amount; refreshTether(); }
 function refreshTether() {
-  const used = Math.min(100, Math.round(state.tetherUsed / state.tetherTotal * 100));
+  if (!state.vault) {
+    ['#top-tether-val', '#fc-tether'].forEach(s => { $(s).textContent = '—'; });
+    $('#widget-tether-left').innerHTML = '— <small>left today</small>';
+    $('#widget-tether-fill').style.width = '0%';
+    return;
+  }
+  const used = state.tetherTotal ? Math.min(100, Math.round(state.tetherUsed / state.tetherTotal * 100)) : 0;
   $('#top-tether-val').textContent = `${usd(state.tetherUsed)} / ${usd(state.tetherTotal)}`;
   $('#tether-donut').style.background = `conic-gradient(${used > 85 ? 'var(--amber)' : 'var(--lime)'} 0 ${used}%, rgba(255,255,255,.12) 0)`;
   $('#widget-tether-fill').style.width = used + '%';
@@ -835,108 +838,153 @@ function setVault(v) {
   animateNumber($('#portfolio-total-val'), state.vaultBalance);
   setSliderPercent(state.capitalPercent);
 }
-function setLeash(total, msg) {
-  state.tetherTotal = Math.max(100, Math.min(2500, Math.round(total)));
-  refreshTether();
-  if (msg) showToast(msg.replace('{t}', usd(state.tetherTotal)));
-}
 
 /* =========================================================================================
-   Morning review
+   Live vault: balances, leash and the Morning Review all come from the chain (/api/vault/demo)
    ========================================================================================= */
-function addTrade(t) {
-  state.trades.unshift({ id: Date.now(), time: 'just now', slippage: '0.04%', pnl: '+$0.00', fresh: true, ...t });
-  renderTrades();
+async function refreshLive() {
+  if (!brain.live) { state.vault = null; renderVaultNumbers(); renderTrades(); renderDecisions(); return; }
+  try { state.vault = await api('/api/vault/demo', { timeout: 8000 }); vaultInfo = state.vault; }
+  catch { state.vault = null; }
+  renderVaultNumbers(); renderTrades(); renderDecisions(); loadWatchdogLog();
 }
+function renderVaultNumbers() {
+  const v = state.vault;
+  if (!v) {
+    $('#top-vault-val').textContent = '—'; $('#portfolio-total-val').textContent = '—';
+    $('#top-wallet-text').textContent = 'offline'; $('#top-network-text').textContent = '—';
+    refreshTether(); return;
+  }
+  state.tetherTotal = v.policy.radius_usd; state.tetherUsed = v.policy.spent_today_usd; state.tetherRemaining = v.policy.remaining_usd;
+  state.streak = v.policy.ratification_streak || 0;
+  setVault(v.total_usd);
+  const owner = v.owner_wallet?.address || v.root_owner || '';
+  $('#top-wallet-text').textContent = owner ? owner.slice(0, 6) + '…' + owner.slice(-4) : '—';
+  $('#wallet-pill').title = `Owner (your laptop's EOA): ${owner}\nSmart account vault: ${v.deposit_address}\nAI session key: ${v.session_key?.address || '—'}`;
+  $('#top-network-text').textContent = `${NETWORK_NAME[v.network] || v.network || 'chain'} (${v.chain_id})`;
+  // the Brain's passkey window is what lets a breakout or withdrawal through, so the chip follows it
+  api('/api/biometrics/status/demo').then(s => setBiometric(!!s.biometric_window_active)).catch(() => setBiometric(false));
+  refreshTether();
+  renderHoldings(v);
+  if (document.activeElement !== $('#setting-tether')) $('#setting-tether').value = usd(v.policy.radius_usd);
+  $('#setting-ceiling').value = usd(v.policy.ceiling_usd);
+}
+
 function renderTrades() {
-  if (!state.trades.length) {
-    $('#trades-list').innerHTML = `<div class="card glass center muted" style="padding:28px 16px;">
-      <div style="font-size:1.05rem;margin-bottom:6px;font-weight:600;color:var(--txt);">No on-chain executions yet</div>
-      <div class="caption">Submit a mandate in the Command Composer to execute your first verified on-chain transaction.</div>
-    </div>`;
-    $('#review-badge').textContent = 0;
-    $('#top-pending-badge').textContent = 0;
-    $('#widget-pending-reviews').innerHTML = `0 <small>pending</small>`;
-    $('#review-total-trades').textContent = 0;
-    $('#review-progress').textContent = `0 of 0`;
-    $('#review-capital-moved').textContent = '$0';
-    $('#streak-bar').innerHTML = Array.from({ length: 5 }, () => `<i></i>`).join('');
-    $('#streak-text').textContent = `0 of 5`;
+  const v = state.vault, list = $('#trades-list');
+  const pending = v ? v.pending_reviews.filter(r => r.status === 'pending') : [];
+  ['#review-badge', '#top-pending-badge'].forEach(s => { $(s).textContent = pending.length; });
+  $('#widget-pending-reviews').innerHTML = `${pending.length} <small>pending</small>`;
+  if (!v) {
+    list.innerHTML = '<div class="empty-state"><b>Not connected</b><span class="caption">The Morning Review reads the vault on-chain: start the Brain with ./dev_up.sh.</span></div>';
+    ['#review-total-trades', '#review-capital-moved', '#review-progress', '#streak-text'].forEach(s => { $(s).textContent = '—'; });
+    $('#streak-bar').innerHTML = '';
     return;
   }
-  $('#trades-list').innerHTML = state.trades.map(t => {
-    const [txt, cls] = TRADE_STATUS[t.status] || TRADE_STATUS.pending;
-    const txDisp = t.tx_full ? (t.tx_full.slice(0, 10) + '…' + t.tx_full.slice(-6)) : (t.tx || '—');
-    return `<div class="card glass trade ${t.fresh ? 'fresh' : ''}" data-id="${t.id}">
+  $('#review-total-trades').textContent = v.executions;
+  $('#review-capital-moved').textContent = `${pending.length} · ${usd(pending.reduce((s, r) => s + r.value_usd, 0))}`;
+  $('#review-progress').textContent = usd(v.policy.radius_usd);
+  $('#streak-bar').innerHTML = Array.from({ length: 5 }, (_, i) => `<i class="${i < state.streak ? 'on' : ''}"></i>`).join('');
+  $('#streak-text').textContent = `${Math.min(5, state.streak)} of 5`;
+  list.innerHTML = v.pending_reviews.length ? v.pending_reviews.map(r => {
+    const [txt, cls] = TRADE_STATUS[r.status] || [r.status, 'badge-blue'];
+    return `<div class="card glass trade" data-id="${r.id}">
       <div class="row-between" style="align-items:flex-start;flex-wrap:wrap">
-        <div><div class="trade-title">${esc(t.title)}</div><div class="caption">Executed ${esc(t.time)} · ${esc(t.market)} · ${usd(t.val)}</div></div>
-        <span class="badge ${cls}">${txt}</span>
+        <div><div class="trade-title">Record #${r.id} · ${esc(r.venue_id || (r.target.toLowerCase() === (v.contracts?.usdc || '').toLowerCase() ? 'USDC token call (approve / transfer to a venue)' : 'contract call'))}</div>
+          <div class="caption">Executed ${esc(new Date(r.timestamp * 1000).toLocaleString())} · ${usd(r.value_usd)} · signed by the AI's session key</div></div>
+        <span class="badge ${cls}">${esc(txt)}</span>
       </div>
-      <div class="row-wrap small">
-        <span class="badge">News ${esc(t.news)}</span><span class="badge">Econ ${esc(t.econ)}</span><span class="badge">Slippage ${esc(t.slippage)}</span>
-        <span class="badge badge-green">P&amp;L ${esc(t.pnl)}</span><span class="tx" title="${esc(t.tx_full || t.tx)}">tx ${esc(txDisp)}</span>
-      </div>
-      ${t.detail ? `<div class="caption">${esc(t.detail)}</div>` : ''}
-      ${t.note ? `<div class="note-line">“${esc(t.note)}”</div>` : ''}
-      ${t.status === 'pending' ? `<div class="trade-actions">
+      <div class="row-wrap small">${r.tx_hash ? `<span class="tx">tx ${esc(r.tx_hash.slice(0, 10))}…${esc(r.tx_hash.slice(-4))}</span>` : ''}<span class="tx">target ${esc(r.target.slice(0, 10))}…${esc(r.target.slice(-4))}</span></div>
+      ${r.note ? `<div class="note-line">“${esc(r.note)}”</div>` : ''}
+      ${r.status === 'pending' ? `<div class="trade-actions">
         <button class="pill-btn good" data-act="ratify">＋ Like &amp; ratify</button>
         <button class="pill-btn danger" data-act="flag">✕ Flag (−20%)</button>
         <button class="pill-btn strong" data-act="note">¶ Note &amp; teach</button>
       </div>` : ''}
     </div>`;
-  }).join('');
-  const pending = state.trades.filter(t => t.status === 'pending').length;
-  $('#review-badge').textContent = pending;
-  $('#top-pending-badge').textContent = pending;
-  $('#widget-pending-reviews').innerHTML = `${pending} <small>pending</small>`;
-  $('#review-total-trades').textContent = state.trades.length;
-  $('#review-progress').textContent = `${state.trades.length - pending} of ${state.trades.length}`;
-  $('#review-capital-moved').textContent = usd(state.trades.reduce((s, t) => s + (+t.val || 0), 0));
-  $('#streak-bar').innerHTML = Array.from({ length: 5 }, (_, i) => `<i class="${i < state.streak ? 'on' : ''}"></i>`).join('');
-  $('#streak-text').textContent = `${Math.min(5, state.streak)} of 5${state.streak >= 3 ? ' · eligible for a +10% step-up' : ''}`;
-  state.trades.forEach(t => { t.fresh = false; });
+  }).join('') : '<div class="empty-state"><b>All caught up</b><span class="caption">Nothing the AI did is waiting for your review.</span></div>';
+}
+async function reviewRecord(id, action, note = '', penalize = false) {
+  const r = state.vault?.pending_reviews.find(x => x.id === id);
+  try {
+    const out = await api('/api/vault/demo/review', { method: 'POST', body: { record_id: id, action, note, penalize } });
+    if (r?.venue_id) sendFeedback(r, action === 'note' ? (penalize ? 'note_penalty' : 'note') : action, note);
+    showToast({ ratify: 'Ratified on-chain.', flag: 'Flagged on-chain: the leash contracts.', note: 'Note recorded on-chain.' }[action] + ` Daily leash now ${usd(out.radius_usd)}.`);
+  } catch (err) { showToast(`Review failed: ${err.message}`); }
+  refreshLive();
 }
 $('#trades-list').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
-  const id = +b.closest('.trade').dataset.id, t = state.trades.find(x => x.id === id);
-  if (b.dataset.act === 'ratify') {
-    t.status = 'ratified'; state.streak = Math.min(5, state.streak + 1);
-    sendFeedback(t, 'ratify');
-    renderTrades();
-    if (state.trades.every(x => x.status !== 'pending')) setLeash(state.tetherTotal * 1.1, 'All reviewed: daily leash +10% to {t}.');
-    else showToast('Ratified: +1 toward the next leash step-up.');
-  } else if (b.dataset.act === 'flag') {
-    t.status = 'flagged'; state.streak = 0;
-    sendFeedback(t, 'flag');
-    renderTrades();
-    setLeash(state.tetherTotal * 0.8, 'Flagged: daily leash contracted 20% to {t}.');
-  } else openNoteModal(id);
+  const id = +b.closest('.trade').dataset.id;
+  if (b.dataset.act === 'note') return openNoteModal(id);
+  reviewRecord(id, b.dataset.act);
 });
-function sendFeedback(t, signal, note) {
-  // The Brain learns from review events when it is live; venue ids only exist for live trades, so demo trades stay local.
-  if (!brain.live || !t.title.includes('→')) return;
-  const venue = t.title.split('→')[1].trim();
-  api('/api/review/sync', { method: 'POST', body: { account: 'demo', events: [{ event_id: `ui:${t.id}:${signal}`, signal, venue_id: venue, amount_usd: +t.val || 0, at: new Date().toISOString(), note }] } })
-    .then(r => { const ch = r?.results?.[0]?.changes || []; showToast(`Brain learned from your ${signal}${ch.length ? ': ' + ch[0] : ''}.`); loadProfile(); })
-    .catch(() => { /* review sync is best-effort from the UI */ });
+function sendFeedback(r, signal, note) {
+  // the Brain also learns from the review (Beta approval per venue, trust τ)
+  if (!brain.live || !r.venue_id) return;
+  api('/api/review/sync', { method: 'POST', body: { account: 'demo', events: [{ event_id: `chain:${r.id}:${signal}`, signal, venue_id: r.venue_id, amount_usd: +r.value_usd || 0, at: new Date().toISOString(), note }] } })
+    .then(() => loadProfile()).catch(() => { /* learning sync is best-effort */ });
 }
-function ratifyAllRemaining() {
-  const n = state.trades.filter(t => t.status === 'pending').length;
-  if (!n) return showToast('Nothing left to review.');
-  state.trades.forEach(t => { if (t.status === 'pending') { t.status = 'ratified'; sendFeedback(t, 'ratify'); } });
-  state.streak = Math.min(5, state.streak + n);
-  renderTrades();
-  setLeash(state.tetherTotal * 1.1, `${n} ratified: daily leash +10% to {t}.`);
+async function ratifyAllRemaining() {
+  const pending = (state.vault?.pending_reviews || []).filter(r => r.status === 'pending');
+  if (!pending.length) return showToast('Nothing left to review.');
+  for (const r of pending) await reviewRecord(r.id, 'ratify');
+}
+
+/* decisions the Brain is waiting on: options and routes that need your tap (or FaceID) */
+function renderDecisions() {
+  const items = [];
+  const o = state.liveOptions;
+  if (o?.proposal_id) o.results.filter(r => r.mode === 'PROPOSE' || r.mode === 'BREAKOUT').forEach(r => {
+    const req = o.options.find(x => x.option_id === r.option_id) || {};
+    if (!state.decided['opt:' + o.proposal_id + ':' + r.option_id]) items.push({ key: 'opt:' + r.option_id, title: `${req.action} ${req.asset} → ${r.venue_id || 'no venue'}`, amount: r.requested_usd, mode: r.mode, why: r.reasons[0] || '' });
+  });
+  const L = state.live;
+  if (L?.proposal_id && L.decision && !state.decided['live:' + L.proposal_id]) L.decision.cards.filter(c => c.mode === 'PROPOSE' || c.mode === 'BREAKOUT').forEach(c => {
+    items.push({ key: 'live:' + c.label + ':' + c.candidate.venue_id, title: c.headline, amount: c.candidate.amount_usd, mode: c.mode, why: (c.explanation || [])[0] || '' });
+  });
+  $('#decisions-list').innerHTML = items.length ? items.map(d => `<div class="card glass trade decision" data-key="${esc(d.key)}">
+      <div class="row-between" style="align-items:flex-start;flex-wrap:wrap">
+        <div><div class="trade-title">${esc(d.title)}</div><div class="caption">${usd(d.amount)} · ${esc(d.why)}</div></div>
+        <span class="badge ${d.mode === 'BREAKOUT' ? 'badge-amber' : 'badge-blue'}">${d.mode === 'BREAKOUT' ? 'Needs FaceID' : 'Needs your approval'}</span>
+      </div>
+      <div class="trade-actions"><button class="pill-btn good" data-dec="approve">Approve</button><button class="pill-btn" data-dec="dismiss">Dismiss</button></div>
+    </div>`).join('') : '<div class="empty-state"><b>No decisions waiting</b><span class="caption">When the Brain needs your OK for a move, it asks here.</span></div>';
+  const n = items.length;
+  $('#review-badge').textContent = n + (state.vault ? state.vault.pending_reviews.filter(r => r.status === 'pending').length : 0);
+}
+$('#decisions-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-dec]'); if (!b) return;
+  const key = b.closest('.decision').dataset.key;
+  if (key.startsWith('opt:')) {
+    const id = key.slice(4), o = state.liveOptions;
+    if (b.dataset.dec === 'dismiss') { state.decided['opt:' + o.proposal_id + ':' + id] = 'dismissed'; saveResult(); return renderDecisions(); }
+    state.selectedCandidate = 'opt:' + id; return executeOptions();
+  }
+  const [, label, venue] = key.split(':'), L = state.live;
+  if (b.dataset.dec === 'dismiss') { state.decided['live:' + L.proposal_id] = 'dismissed'; saveResult(); return renderDecisions(); }
+  state.selectedCandidate = label + ':' + venue; return executeLive();
+});
+
+async function loadWatchdogLog() {
+  if (!brain.live) { $('#watchdog-log').innerHTML = ''; $('#watchdog-alerts').innerHTML = '<div class="empty-state"><span class="caption">Start the Brain to see its signals.</span></div>'; return; }
+  try {
+    const ev = await api('/api/monitor/events?limit=8');
+    $('#watchdog-log').innerHTML = ev.length ? ev.slice().reverse().map(x => `<div class="card glass trade">
+      <div class="row-between"><div class="trade-title">${esc(x.symbol)} · ${esc(x.trigger.replace(/_/g, ' '))}</div><span class="badge">${esc(x.pipeline_status)}</span></div>
+      <div class="caption">${esc(new Date(x.at).toLocaleString())} · ${esc(x.summary)}</div></div>`).join('')
+      : '<div class="empty-state"><span class="caption">The hourly watchdog has not flagged anything yet.</span></div>';
+    $('#watchdog-alerts').innerHTML = $('#watchdog-log').innerHTML;
+  } catch { /* optional panel */ }
 }
 
 /* notes */
 let noteTradeId = null;
 function openNoteModal(id) {
   noteTradeId = id;
-  const t = state.trades.find(x => x.id === id);
-  $('#note-text-input').value = t?.note || 'Lido is fine, but prefer Rocket Pool (rETH) when the yield gap is under 0.2%.';
+  $('#note-text-input').value = '';
   $('#note-penalty-check').checked = false;
-  updateNoteWordCount($('#note-text-input').value);
+  updateNoteWordCount('');
   openModal('modal-note');
 }
 function updateNoteWordCount(v) {
@@ -947,11 +995,77 @@ function updateNoteWordCount(v) {
 }
 function submitNoteToBrain() {
   const text = $('#note-text-input').value.trim(), pen = $('#note-penalty-check').checked;
-  const t = state.trades.find(x => x.id === noteTradeId);
+  if (!text) return showToast('Write the note first.');
   closeModal('modal-note');
-  if (t) { t.status = pen ? 'penalized' : 'taught'; t.note = text; sendFeedback(t, pen ? 'note_penalty' : 'note', text); renderTrades(); }
-  if (pen) setLeash(state.tetherTotal * 0.9, 'Note learned · leash −10% to {t}.');
-  else showToast('Note learned: the firewall read it first, then protocol preferences were updated.');
+  reviewRecord(noteTradeId, 'note', text, pen);
+}
+
+/* =========================================================================================
+   Passkey (WebAuthn P-256): Touch ID / FaceID on this device opens the vault's 5-minute biometric window.
+   The Brain verifies the signature (/api/biometrics/verify) against a key registered for the account.
+   ========================================================================================= */
+const PK_KEY = 'tecc_passkey';
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
+const P256_N = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
+function derToRS(der) { // ASN.1 SEQUENCE { INTEGER r, INTEGER s } → hex r, low-s hex s (the Brain requires s <= n/2)
+  const b = new Uint8Array(der); let i = 2;
+  const int = () => { i++; const len = b[i++]; const v = b.slice(i, i + len); i += len; return BigInt('0x' + (hex(v) || '0')); };
+  const r = int(); let s = int();
+  if (s > P256_N / 2n) s = P256_N - s;
+  return ['0x' + r.toString(16).padStart(64, '0'), '0x' + s.toString(16).padStart(64, '0')];
+}
+function savedPasskey() { try { return JSON.parse(store.get(PK_KEY) || 'null'); } catch { return null; } }
+async function registerPasskey() {
+  if (!window.PublicKeyCredential) throw new Error('this browser has no passkey support');
+  if (location.hostname === '127.0.0.1') throw new Error('open the dashboard on http://localhost:5500 (passkeys need a host name, not an IP)');
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)),
+    rp: { name: 'Tec-C vault', id: location.hostname },
+    user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'demo', displayName: 'Tec-C vault owner' },
+    pubKeyCredParams: [{ type: 'public-key', alg: -7 }], // ES256 = P-256, what the vault verifies
+    authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+    attestation: 'none', timeout: 60000,
+  } });
+  const spki = new Uint8Array(cred.response.getPublicKey()); // ends with 0x04 || X || Y for P-256
+  const pt = spki.slice(spki.length - 65);
+  if (pt[0] !== 4) throw new Error('unexpected public key format');
+  const pk = { id: b64u(cred.rawId), qx: '0x' + hex(pt.slice(1, 33)), qy: '0x' + hex(pt.slice(33)), label: navigator.userAgentData?.platform || navigator.platform || 'this device' };
+  store.set(PK_KEY, JSON.stringify(pk));
+  return pk;
+}
+async function ensureRegistered(pk) { // the Brain keeps passkeys in memory: re-register our public key after a restart
+  const st = await api('/api/biometrics/status/demo');
+  if (st.passkeys.some(k => k.qx.toLowerCase() === pk.qx.toLowerCase() && k.qy.toLowerCase() === pk.qy.toLowerCase())) return;
+  await api('/api/biometrics/register', { method: 'POST', body: { account: 'demo', key_id: 'browser-' + pk.id.slice(0, 12), device_label: `Passkey on ${pk.label}`, qx: pk.qx, qy: pk.qy } });
+}
+/* Ask for Touch ID / FaceID and open the 5-minute window. Resolves true when the Brain accepted the signature. */
+async function passkeyUnlock(reason = 'Confirm with your passkey') {
+  if (!brain.live) { showToast('Passkeys are checked by the Brain: start it first.'); return false; }
+  try {
+    let pk = savedPasskey();
+    if (!pk) { showToast('First time: create a passkey for this vault (Touch ID / FaceID).'); pk = await registerPasskey(); }
+    await ensureRegistered(pk);
+    showToast(reason + '…');
+    const a = await navigator.credentials.get({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname,
+      allowCredentials: [{ type: 'public-key', id: unb64u(pk.id) }], userVerification: 'required', timeout: 60000,
+    } });
+    const cdHash = await crypto.subtle.digest('SHA-256', a.response.clientDataJSON);
+    const [r, s] = derToRS(a.response.signature);
+    const v = await api('/api/biometrics/verify', { method: 'POST', body: {
+      account: 'demo', authenticator_data_hex: hex(a.response.authenticatorData), client_data_hash_hex: hex(cdHash), r, s, qx: pk.qx, qy: pk.qy, require_uv: true,
+    } });
+    if (!v.verified) { showToast(`Passkey refused: ${v.rejection_reason || 'not verified'}`); return false; }
+    setBiometric(true);
+    showToast('Passkey verified: 5-minute window open.');
+    return true;
+  } catch (err) {
+    if (err?.name === 'NotAllowedError') showToast('Passkey cancelled.');
+    else showToast(`Passkey failed: ${err.message}`);
+    return false;
+  }
 }
 
 /* =========================================================================================
@@ -969,123 +1083,6 @@ async function loadVault() {
   if (!brain.live) { vaultInfo = null; return null; }
   try { vaultInfo = await api('/api/vault/demo', { timeout: 6000 }); } catch { vaultInfo = null; }
   return vaultInfo;
-}
-async function syncVaultFromChain() {
-  const v = await loadVault();
-  if (!v || !v.live) {
-    const wEl = $('#top-wallet-text'), nEl = $('#top-network-text');
-    if (wEl) wEl.textContent = 'Offline';
-    if (nEl) nEl.textContent = 'Disconnected';
-    const tbody = $('#holdings-table tbody');
-    if (tbody && !brain.live) tbody.innerHTML = `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px;">Backend offline. Run <code>python run_tecc.py</code> to connect.</td></tr>`;
-    renderTrades();
-    return;
-  }
-  if (typeof v.total_usd === 'number') setVault(v.total_usd);
-  if (v.policy) {
-    state.tetherTotal = Math.round(v.policy.radius_usd);
-    state.tetherUsed = Math.round(v.policy.spent_today_usd);
-    refreshTether();
-  }
-
-  // Update real wallet & network info in the status strip
-  const ownerAddr = v.owner_wallet?.address || v.root_owner || '';
-  if (ownerAddr) {
-    const wEl = $('#top-wallet-text');
-    if (wEl) wEl.textContent = ownerAddr.slice(0, 6) + '…' + ownerAddr.slice(-4);
-    const pill = $('#wallet-pill');
-    if (pill) pill.title = `Deployer EOA (Your Laptop): ${ownerAddr}\nSmart Account Vault: ${v.deposit_address}\nSession Key: ${v.session_key?.address || '—'}`;
-  }
-  const netName = NETWORK_NAME[v.network] || v.network || 'Live Chain';
-  const nEl = $('#top-network-text');
-  if (nEl) nEl.textContent = `${netName} (${v.chain_id})`;
-  const nPill = $('#network-pill');
-  if (nPill) nPill.title = `Connected Network: ${netName} · Chain ID ${v.chain_id}`;
-
-  // Render live on-chain holdings dynamically from the deployed smart contract
-  const tbody = $('#holdings-table tbody');
-  if (tbody) {
-    if (Array.isArray(v.holdings) && v.holdings.length) {
-      tbody.innerHTML = v.holdings.map(h => {
-        const share = v.total_usd > 0 ? pct(h.usd / v.total_usd, 0) : '0%';
-        return `<tr>
-          <td><b>${esc(h.symbol)}</b></td>
-          <td>${esc(h.where)} (${esc(v.network || 'On-Chain')})</td>
-          <td>${esc(h.amount.toLocaleString())}</td>
-          <td>${usd(h.usd)}</td>
-          <td>${share}</td>
-          <td class="txt-green">On-Chain</td>
-          <td>Verified</td>
-          <td><span class="badge badge-green">LIVE</span></td>
-        </tr>`;
-      }).join('');
-    } else {
-      tbody.innerHTML = `<tr>
-        <td colspan="8" style="text-align:center;padding:36px 16px;color:#8a9a86;">
-          <div style="font-size:16px;font-weight:700;color:#f0f2ea;margin-bottom:6px;">Your vault is empty ($0.00)</div>
-          <div style="font-size:13px;color:#8a9a86;margin-bottom:16px;">No assets detected on-chain. Deposit funds or request test faucet tokens to fund your smart account.</div>
-          <button class="btn-white" onclick="openDepositModal()" style="display:inline-flex;align-items:center;gap:6px;margin:0 auto;">Deposit Funds <span class="sq">+</span></button>
-        </td>
-      </tr>`;
-    }
-  }
-
-  // Update allocation donut & legend
-  renderAllocation(v.holdings, v.total_usd);
-
-  // Update portfolio status indicator
-  const deltaEl = $('#portfolio-delta-text');
-  if (deltaEl) {
-    if (v.total_usd > 0) {
-      deltaEl.textContent = 'Live verified treasury';
-      deltaEl.className = 'up small';
-    } else {
-      deltaEl.textContent = 'Vault empty ($0.00) · Deposit to begin';
-      deltaEl.className = 'muted small';
-    }
-  }
-
-  // Populate real on-chain executions into Morning Review
-  if (Array.isArray(v.recent_transactions) && v.recent_transactions.length) {
-    state.trades = v.recent_transactions.map(t => ({
-      id: t.id,
-      title: `Deposit USDC → ${t.venue_id}`,
-      time: 'Verified On-Chain',
-      market: t.market || v.network || 'FISCO BCOS',
-      val: t.amount_usd,
-      slippage: '0.00%',
-      pnl: '+$0.00',
-      tx: t.tx_hash ? (t.tx_hash.slice(0, 10) + '…' + t.tx_hash.slice(-6)) : 'verified',
-      tx_full: t.tx_hash,
-      status: 'ratified',
-      news: 'Passed',
-      econ: 'Passed',
-      detail: t.audit_record_hash ? `Audit anchor hash: ${t.audit_record_hash.slice(0, 16)}…` : 'On-chain execution verified'
-    }));
-    renderTrades();
-  } else if (Array.isArray(v.pending_reviews) && v.pending_reviews.length) {
-    state.trades = v.pending_reviews.map(r => ({
-      id: r.id,
-      title: `Execution → ${r.venue_id || 'Venue'}`,
-      time: 'On-Chain',
-      market: v.network || 'FISCO BCOS',
-      val: r.value_usd,
-      slippage: '0.00%',
-      pnl: '+$0.00',
-      tx: r.tx_hash ? (r.tx_hash.slice(0, 10) + '…' + r.tx_hash.slice(-6)) : '—',
-      tx_full: r.tx_hash,
-      status: r.status || 'pending',
-      news: 'Clean',
-      econ: 'Passed',
-      detail: r.note || 'Recorded in TetherGuardHook ledger'
-    }));
-    renderTrades();
-  } else {
-    state.trades = [];
-    renderTrades();
-  }
-
-  renderDeposit();
 }
 async function openDepositModal() {
   openModal('modal-deposit');
@@ -1125,54 +1122,12 @@ async function refreshVaultBalance() {
   renderDeposit();
   showToast(`On-chain vault balance: ${usd(v.total_usd || 0)}.`);
 }
-
 async function requestTestFunds() {
-  const btn = $('#btn-faucet');
-  if (btn) { btn.disabled = true; btn.textContent = 'Minting on-chain…'; }
   try {
-    const r = await api('/api/vault/demo/faucet', { method: 'POST', body: { eth: 0, usdc: 5000 } });
+    const r = await api('/api/vault/demo/faucet', { method: 'POST', body: { eth: 1, usdc: 5000 } });
     showToast(r.message || 'Test funds sent.');
-    await syncVaultFromChain();
-    showToast(`Vault funded on-chain: ${usd(state.vaultBalance)}.`);
+    await refreshVaultBalance();
   } catch (err) { showToast(`Faucet unavailable: ${err.message}`); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = 'Request test funds'; } }
-}
-
-function renderAllocation(holdings, totalUsd) {
-  const donut = $('#alloc-donut'), hole = $('#alloc-donut-hole'), leg = $('#alloc-legend');
-  if (!donut || !leg) return;
-  if (!totalUsd || !holdings || !holdings.length) {
-    donut.style.setProperty('--a', '0');
-    donut.style.setProperty('--b', '0');
-    donut.style.setProperty('--c', '0');
-    donut.style.background = 'rgba(255, 255, 255, 0.05)';
-    if (hole) hole.innerHTML = '<b>0</b><span>assets</span>';
-    leg.innerHTML = '<li><i style="background:#555"></i>No active holdings<b>0%</b></li>';
-    return;
-  }
-  donut.style.background = '';
-  const byMarket = {};
-  for (const h of holdings) {
-    const m = h.market || 'crypto';
-    byMarket[m] = (byMarket[m] || 0) + (h.usd || 0);
-  }
-  const cryptoUsd = byMarket['crypto'] || 0;
-  const chineseUsd = byMarket['chinese_market'] || 0;
-  const commUsd = byMarket['commodities'] || 0;
-  const a = Math.round((cryptoUsd / totalUsd) * 100);
-  const b = Math.round((chineseUsd / totalUsd) * 100);
-  const c = Math.round((commUsd / totalUsd) * 100);
-  const d = Math.max(0, 100 - a - b - c);
-  donut.style.setProperty('--a', String(a));
-  donut.style.setProperty('--b', String(b));
-  donut.style.setProperty('--c', String(c));
-  if (hole) hole.innerHTML = `<b>${holdings.length}</b><span>holding${holdings.length > 1 ? 's' : ''}</span>`;
-  leg.innerHTML = `
-    <li><i style="background:#cde38a"></i>Crypto<b>${a}%</b></li>
-    <li><i style="background:#7fb3ff"></i>Chinese mkt<b>${b}%</b></li>
-    <li><i style="background:#e8a64b"></i>Commodities<b>${c}%</b></li>
-    <li><i style="background:#8a9a86"></i>Other/Reserves<b>${d}%</b></li>
-  `;
 }
 async function faceIdScan(box) {
   box?.classList.remove('ok');
@@ -1181,16 +1136,21 @@ async function faceIdScan(box) {
   await sleep(350);
 }
 async function authenticateAndWithdraw() {
-  const btn = $('#btn-withdraw-faceid'), amt = Math.max(0, parseInt($('#withdraw-amount').value, 10) || 0);
-  if (amt > state.vaultBalance) return showToast('That is more than the vault holds.');
-  btn.disabled = true; btn.firstElementChild.textContent = 'Verifying FaceID…';
-  await faceIdScan($('#faceid-w'));
-  btn.disabled = false; btn.firstElementChild.textContent = 'Scan FaceID & transfer';
-  closeModal('modal-withdraw');
-  $('#faceid-w').classList.remove('ok');
-  setVault(state.vaultBalance - amt);
-  setBiometric(true);
-  showToast(`Passkey verified: ${usd(amt)} sent to your external wallet.`);
+  if (!brain.live) return showToast('Withdrawals go through the vault: start the Brain first.');
+  const btn = $('#btn-withdraw-faceid'), amt = Math.max(0, parseFloat($('#withdraw-amount').value) || 0), to = $('#withdraw-addr').value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return showToast('Enter a full 0x… address to send to.');
+  if (!amt) return showToast('Enter an amount.');
+  btn.disabled = true; btn.firstElementChild.textContent = 'Waiting for your passkey…';
+  try {
+    if (!state.biometricUnlocked && !(await passkeyUnlock('Approve the withdrawal'))) return;
+    btn.firstElementChild.textContent = 'Asking the vault…';
+    // the vault itself refuses unless a passkey (FaceID / Touch ID) window was verified first
+    const r = await api('/api/vault/demo/withdraw', { method: 'POST', body: { to, asset: 'USDC', amount: amt } });
+    closeModal('modal-withdraw');
+    showToast(r.message || 'Sent.');
+    refreshLive();
+  } catch (err) { showToast(`The vault refused: ${err.message}`); }
+  finally { btn.disabled = false; btn.firstElementChild.textContent = 'Scan FaceID & transfer'; }
 }
 let breakoutTimer = null, pendingLiveBreakout = false;
 function openBreakoutModal(val, profit) {
@@ -1208,60 +1168,49 @@ function openBreakoutModal(val, profit) {
   }, 1000);
 }
 async function approveBreakoutTrade() {
-  const m = $('#modal-breakout'), box = $('.faceid', m);
+  // no fake scan: the request goes to the Brain, which answers whether a passkey-verified breakout can run
   clearInterval(breakoutTimer);
-  await faceIdScan(box);
   closeModal('modal-breakout');
-  box.classList.remove('ok');
-  setBiometric(true);
-  if (pendingLiveBreakout) { pendingLiveBreakout = false; return executeLive(); }
-  const val = +m.dataset.val, profit = +m.dataset.profit;
-  addTrade({ title: `Flash arbitrage ${usd(val)} stablecoin spread`, market: 'Arbitrum', val, status: 'breakout', pnl: '+' + usd(profit), news: '+0.88', econ: '0.94', tx: fakeTx() });
-  showToast(`FaceID approved: ${usd(val)} breakout done, +${usd(profit)} captured.`);
+  if (!pendingLiveBreakout) return;
+  pendingLiveBreakout = false;
+  if (state.biometricUnlocked || await passkeyUnlock('Approve breaking the leash')) await executeLive();
 }
 function setBiometric(on) {
   state.biometricUnlocked = on;
+  $('#modal-breakout .btn-primary span')?.replaceChildren(on ? 'Execute (passkey verified)' : 'Approve with your passkey');
   $('#bio-dot').className = 'dot ' + (on ? 'active' : 'locked');
   $('#bio-status-text').textContent = on ? 'Unlocked (5m)' : 'Locked';
   clearTimeout(setBiometric.t);
   if (on) setBiometric.t = setTimeout(() => setBiometric(false), 5 * 60 * 1000);
 }
 function toggleBiometricWindow() {
-  setBiometric(!state.biometricUnlocked);
-  showToast(state.biometricUnlocked ? 'FaceID verified: 5-minute breakout window open.' : 'Biometric window locked.');
+  if (state.biometricUnlocked) return showToast('A verified passkey window is open right now.');
+  passkeyUnlock('Open the 5-minute window');
 }
 
 /* =========================================================================================
    Home widgets
    ========================================================================================= */
-function togglePegGuardArbitrage() {
-  state.pegGuardEnabled = $('#arb-toggle').checked;
-  $('#arb-status-badge').textContent = state.pegGuardEnabled ? 'Active' : 'Paused';
-  $('#arb-status-badge').className = 'badge ' + (state.pegGuardEnabled ? 'badge-amber' : 'badge-red');
-  $('#arb-state-text').textContent = state.pegGuardEnabled ? 'Enabled' : 'Idle';
-  $('#arb-state-text').className = state.pegGuardEnabled ? 'txt-green' : 'muted';
-  renderPegGuardNote();
-  showToast(state.pegGuardEnabled ? 'PegGuard on: guarding every peg in the background.' : 'PegGuard off.');
+async function togglePegGuardArbitrage() {
+  const want = $('#arb-toggle').checked;
+  if (!brain.live) { $('#arb-toggle').checked = !want; return showToast('PegGuard runs on the Brain: start it first.'); }
+  try {
+    const r = await api('/api/arbitrage/toggle', { method: 'POST', body: { account: 'demo', enabled: want } });
+    renderPegGuard(!!r.enabled);
+    showToast(r.enabled ? 'PegGuard on: it scans every peg in the background.' : 'PegGuard off.');
+  } catch (err) { $('#arb-toggle').checked = !want; showToast(`PegGuard: ${err.message}`); }
 }
-function renderPegGuardNote() {
-  $('#pegguard-note').innerHTML = state.pegGuardEnabled
-    ? '🛡 <b>PegGuard is on</b> and guards every peg in the background. It isn\'t a market you pick.'
-    : '🛡 PegGuard is off. Switch it on in the PegGuard card to guard pegs in the background.';
+function renderPegGuard(on) {
+  state.pegGuardEnabled = on;
+  $('#arb-toggle').checked = on;
+  $('#arb-status-badge').textContent = on ? 'Active' : 'Off';
+  $('#arb-status-badge').className = 'badge ' + (on ? 'badge-amber' : '');
+  $('#arb-state-text').textContent = on ? 'Enabled' : 'Disabled';
+  $('#arb-state-text').className = on ? 'txt-green' : 'muted';
 }
-function executeWatchdogDerisk() {
-  const card = $('#watchdog-alert-card');
-  card.classList.add('ok');
-  $('#watchdog-alert-badge').className = 'badge badge-green';
-  $('#watchdog-alert-badge').textContent = 'De-risked';
-  $('#watchdog-alert-desc').innerHTML = '<b>Done:</b> $1,060 (10% of the e-CNY MMF) moved into USDC on Arbitrum.';
-  $('#watchdog-alert-actions').innerHTML = '<span class="txt-green small"><b>✓ Position guarded</b></span>';
-  showToast('Watchdog: $1,060 moved from the e-CNY MMF into USDC.');
-}
-function dismissWatchdogAlert() {
-  const c = $('#watchdog-alert-card');
-  c.style.opacity = '0'; c.style.transform = 'translateX(30px)';
-  setTimeout(() => { c.outerHTML = '<div class="caption">No active alerts. The forest is quiet.</div>'; }, 450);
-  showToast('Alert dismissed.');
+async function loadPegGuard() {
+  if (!brain.live) { $('#arb-state-text').textContent = 'Brain offline'; return; }
+  try { renderPegGuard(!!(await api('/api/arbitrage/status?account=demo')).enabled); } catch { /* leave as is */ }
 }
 async function triggerManualWatchdog() {
   showToast('Emergency sweep across every holding…');
@@ -1269,30 +1218,43 @@ async function triggerManualWatchdog() {
     try {
       const r = await api('/trigger_hourly_monitor', { method: 'POST', body: { accounts: ['demo'], scenario } });
       showToast(r.triggered.length ? `Sweep: ${r.triggered.length} position(s) need re-evaluation.` : `Sweep done: ${r.checked.length} account(s) checked, every peg calm.`);
+      loadWatchdogLog();
       return;
-    } catch { /* fall through to the demo answer */ }
+    } catch (err) { return showToast(`Sweep failed: ${err.message}`); }
   }
-  await sleep(1300);
-  showToast('Sweep complete: every peg at parity, no new alerts.');
+  showToast('The watchdog runs on the Brain: start it first.');
 }
 
 /* =========================================================================================
    Portfolio: trend, regimes, headline sandbox, scans
    ========================================================================================= */
+/* The value chart plots real vault totals: every reading this browser took from /api/vault (kept in localStorage).
+   No backend history exists, so the line starts the first time you open the dashboard. */
+const HIST_KEY = 'tecc_vault_history';
+function recordVaultValue(v) {
+  let h = []; try { h = JSON.parse(store.get(HIST_KEY) || '[]'); } catch { h = []; }
+  const now = Date.now(), last = h[h.length - 1];
+  if (!last || now - last[0] > 60000 || last[1] !== v) h.push([now, v]);
+  store.set(HIST_KEY, JSON.stringify(h.slice(-2000)));
+}
 function drawTrend(range = $('#range-seg .active')?.dataset.range || '24h') {
-  const n = { '24h': 24, '7d': 42, '30d': 60 }[range];
-  let seed = { '24h': 7, '7d': 13, '30d': 29 }[range], v = 30;
-  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
-  const pts = Array.from({ length: n }, (_, i) => { v += (rnd() - 0.38) * 16; v = Math.max(12, Math.min(108, v)); return [i * 500 / (n - 1), 120 - v]; });
-  const path = pts.map((p, i) => {
-    if (!i) return `M${p[0]} ${p[1]}`;
-    const q = pts[i - 1], cx = (q[0] + p[0]) / 2;
-    return `C${cx} ${q[1]} ${cx} ${p[1]} ${p[0]} ${p[1]}`;
-  }).join(' ');
+  let h = []; try { h = JSON.parse(store.get(HIST_KEY) || '[]'); } catch { h = []; }
+  const span = { '24h': 864e5, '7d': 6048e5, '30d': 2592e6 }[range], from = Date.now() - span;
+  const pts = h.filter(p => p[0] >= from);
   const line = $('#trend-line');
+  if (pts.length < 2) {
+    line.setAttribute('d', ''); $('#trend-fill').setAttribute('d', '');
+    $('#trend-caption').textContent = 'Read from the vault on-chain · the chart fills in as the vault value is read over time';
+    return;
+  }
+  const t0 = pts[0][0], t1 = pts[pts.length - 1][0] || t0 + 1, vs = pts.map(p => p[1]);
+  const lo = Math.min(...vs), hi = Math.max(...vs), pad = (hi - lo) * 0.15 || Math.max(1, hi * 0.01);
+  const xy = pts.map(([t, v]) => [((t - t0) / Math.max(1, t1 - t0)) * 500, 110 - ((v - lo + pad) / (hi - lo + 2 * pad)) * 100]);
+  const path = xy.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
   line.setAttribute('d', path);
   $('#trend-fill').setAttribute('d', path + ' L500 120 L0 120 Z');
-  line.style.animation = 'none'; void line.getBBox(); line.style.animation = '';
+  const ch = vs[vs.length - 1] - vs[0];
+  $('#trend-caption').innerHTML = `On-chain · ${ch >= 0 ? '+' : '−'}${usd(Math.abs(ch))} over ${range} (${pts.length} readings)`;
 }
 $('#range-seg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -1304,10 +1266,6 @@ $('#holding-search').addEventListener('input', e => {
   $$('#holdings-table tbody tr').forEach(r => { r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
 });
 
-const DEMO_REGIMES = {
-  demo: { USDC: [0.975, 0.023, 0.002], USDT: [0.972, 0.026, 0.002], DAI: [0.974, 0.023, 0.003], stETH: [0.974, 0.024, 0.002], PAXG: [0.976, 0.023, 0.001] },
-  usdc_distress: { USDC: [0.18, 0.67, 0.15], USDT: [0.88, 0.11, 0.01], DAI: [0.42, 0.49, 0.09], stETH: [0.95, 0.045, 0.005], PAXG: [0.97, 0.028, 0.002] },
-};
 let scenario = 'demo';
 async function loadRegimes() {
   let rows, src;
@@ -1316,11 +1274,12 @@ async function loadRegimes() {
       const r = await api('/api/risk/regimes?scenario=' + scenario);
       rows = Object.values(r.regimes).map(x => [x.symbol, x.p_normal, x.p_distress, x.p_failure, x.regime]);
       src = `Live · ${r.source} · hurdle ${pct(r.hurdle_rate, 2)}`;
-    } catch { /* demo below */ }
+    } catch { /* shown as unavailable below */ }
   }
   if (!rows) {
-    rows = Object.entries(DEMO_REGIMES[scenario]).map(([s, p]) => [s, ...p, p[0] > 0.8 ? 'normal' : p[2] > 0.1 ? 'failure' : 'distress']);
-    src = 'Demo regimes (Brain offline)';
+    $('#regime-source').textContent = 'The regime model runs on the Brain: start it to see live probabilities.';
+    $('#regimes').innerHTML = '';
+    return;
   }
   $('#regime-source').textContent = src;
   $('#regimes').innerHTML = rows.map(([s, n, d, f, reg]) => `
@@ -1351,11 +1310,6 @@ async function testHeadline() {
   } catch (err) { out.innerHTML = `<div class="caption">Refused: ${esc(err.message)}</div>`; }
 }
 $('#sandbox-input').addEventListener('keydown', e => { if (e.key === 'Enter') testHeadline(); });
-function renderScans() {
-  const kinds = Array(24).fill('active'); kinds[4] = 'warning'; kinds[22] = 'danger';
-  $('#scan-dots').innerHTML = kinds.map((k, i) => `<span class="dot ${k}" style="animation-delay:${i * 30}ms" title="${k === 'active' ? 'clean' : k === 'warning' ? 'market signal' : 'negative news'}"></span>`).join('');
-}
-
 /* =========================================================================================
    Settings: profile + hold-to-revoke killswitch
    ========================================================================================= */
@@ -1363,12 +1317,35 @@ async function loadProfile() {
   let p = { tier: 2, lam: 1.0, tau: 0.6, soft_limit_usd: 400 }, src = 'demo';
   if (brain.live) { try { p = { ...p, ...(await api('/api/profile/demo')) }; src = 'live'; } catch { /* keep demo */ } }
   $('#profile-source').textContent = src;
+  if (src === 'live') { $('#fc-trust').textContent = (+p.tau).toFixed(2); $('#fc-trust-bar').style.width = Math.round(+p.tau * 100) + '%'; }
+  else { $('#fc-trust').textContent = '—'; $('#fc-trust-bar').style.width = '0%'; }
   $('#profile-source').className = 'badge ' + (src === 'live' ? 'badge-live' : 'badge-blue');
   const tierName = { 1: 'Preserve', 2: 'Balanced', 3: 'Growth' }[p.tier] || p.tier;
   $('#profile-grid').innerHTML = [
     ['Risk tier', `${p.tier} · ${tierName}`], ['Loss aversion λ', (+p.lam).toFixed(2)],
     ['Trust τ', (+p.tau).toFixed(2)], ['Soft limit', p.soft_limit_usd != null ? usd(p.soft_limit_usd) : '—'],
   ].map(([k, v]) => `<div class="metric"><div class="caption">${k}</div><div class="metric-v">${esc(v)}</div></div>`).join('');
+}
+async function saveRadius() {
+  const n = parseFloat(String($('#setting-tether').value).replace(/[^0-9.]/g, ''));
+  if (!(n > 0)) return showToast('Type the daily allowance in dollars.');
+  if (!brain.live) return showToast('The leash lives in the vault: start the Brain first.');
+  try {
+    const r = await api('/api/vault/demo/radius', { method: 'POST', body: { radius_usd: n, risk_tier: state.vault?.policy.risk_tier || 2 } });
+    showToast(`Daily leash set on-chain: ${usd(r.radius_usd)}.`);
+    refreshLive();
+  } catch (err) { showToast(`Not saved: ${err.message}`); }
+}
+async function revokeSessionKey() {
+  const b = $('#killswitch');
+  if (!brain.live) return showToast('The killswitch talks to the vault: start the Brain first.');
+  try {
+    const r = await api('/api/vault/demo/session', { method: 'POST', body: { authorized: false } });
+    $('.hold-label', b).textContent = r.authorized ? 'Still authorized?' : 'Session key revoked on-chain ✓';
+    b.disabled = !r.authorized;
+    showToast('Killswitch: the vault no longer accepts anything signed by the AI session key.');
+    refreshLive();
+  } catch (err) { showToast(`Killswitch failed: ${err.message}`); }
 }
 (() => {
   const b = $('#killswitch'), fill = $('.hold-fill', b);
@@ -1378,7 +1355,7 @@ async function loadProfile() {
     const p = Math.min(1, (now - t0) / 1600);
     fill.style.width = p * 100 + '%';
     if (p < 1) raf = requestAnimationFrame(step);
-    else { reset(); $('.hold-label', b).textContent = 'Session key revoked ✓'; b.disabled = true; showToast('Killswitch: the AI session key is revoked. Nothing can move until you issue a new mandate.'); }
+    else { reset(); revokeSessionKey(); }
   };
   b.addEventListener('pointerdown', () => { t0 = performance.now(); raf = requestAnimationFrame(step); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, reset));
@@ -1387,20 +1364,111 @@ async function loadProfile() {
 /* =========================================================================================
    QR, toasts, ambience
    ========================================================================================= */
-function renderQR() {
-  const N = 21, finder = (x, y) => [[0, 0], [N - 7, 0], [0, N - 7]].some(([fx, fy]) => {
-    const dx = x - fx, dy = y - fy;
-    return dx >= 0 && dx < 7 && dy >= 0 && dy < 7 && (dx === 0 || dx === 6 || dy === 0 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4));
-  });
-  const inFinderZone = (x, y) => (x < 8 && y < 8) || (x > N - 9 && y < 8) || (x < 8 && y > N - 9);
-  let seed = 42; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  let html = '';
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const on = inFinderZone(x, y) ? finder(x, y) : r() > 0.52;
-    html += `<i class="${on ? '' : 'o'}" style="animation-delay:${(x + y) * 12}ms"></i>`;
-  }
-  $('#qr').innerHTML = html;
+/* =========================================================================================
+   Virtual sessions: real pairing through the Brain's /admin/sessions (cloudflared quick tunnel → phone gateway :8001)
+   ========================================================================================= */
+const VS_STATE = { PENDING: ['Waiting for the phone', 'badge-amber'], ACTIVE: ['Connected', 'badge-green'],
+  RELINK_REQUIRED: ['Tunnel changed: relink', 'badge-amber'], REVOKED: ['Revoked', 'badge-red'] };
+let vsTimer = null;
+async function createVirtualSession() {
+  if (!brain.live) return showToast('Sessions are created by the Brain: start it with ./dev_up.sh.');
+  const btn = $('#vs-create');
+  btn.disabled = true; btn.firstElementChild.textContent = 'Opening the secure tunnel…';
+  try {
+    const s = await api('/admin/sessions', { method: 'POST', body: { name: $('#vs-name').value.trim() || 'My phone', can_trade: $('#vs-trade').checked }, timeout: 45000 });
+    showSessionQr(s);
+    showToast('Session ready: scan the QR code with your phone.');
+    loadSessions();
+  } catch (err) { showToast(`Could not create the session: ${err.message}`); }
+  finally { btn.disabled = false; btn.firstElementChild.textContent = 'Generate a session'; }
 }
+function showSessionQr(s) {
+  $('#vs-qr').innerHTML = safeSvg(s.qr_svg) || '<div class="qr-empty">QR</div>';
+  $('#vs-link').innerHTML = `<a href="${esc(s.link)}" target="_blank" rel="noopener">${esc(s.link)}</a>`;
+  $('#vs-code').innerHTML = `Pairing code <b>${esc(s.pair_code)}</b><br><span class="caption">Check that your phone shows the same code, then approve it below.</span>`;
+  $('#gw-tunnel').textContent = new URL(s.link).host;
+  $('#gw-badge').textContent = 'Tunnel up'; $('#gw-badge').className = 'badge badge-green';
+}
+async function loadSessions() {
+  if (!brain.live) {
+    $('#vs-list').innerHTML = '<div class="empty-state"><span class="caption">Start the Brain to pair a phone.</span></div>';
+    $('#gw-badge').textContent = 'Brain offline'; $('#gw-badge').className = 'badge badge-red';
+    return;
+  }
+  let list = [];
+  try { list = await api('/admin/sessions'); } catch { return; }
+  const live = list.filter(s => s.state !== 'REVOKED');
+  $('#vs-count').textContent = `${live.filter(s => s.state === 'ACTIVE').length} connected · ${live.length} open`;
+  if ($('#gw-badge').textContent === '—' || $('#gw-badge').textContent === 'Brain offline') { $('#gw-badge').textContent = 'Ready'; $('#gw-badge').className = 'badge badge-blue'; }
+  $('#vs-list').innerHTML = live.length ? live.map(s => {
+    const [txt, cls] = VS_STATE[s.state] || [s.state, ''];
+    const seen = s.last_seen_at ? new Date(s.last_seen_at * 1000).toLocaleString() : '—';
+    const canApprove = s.state === 'PENDING' && s.has_credential;
+    return `<div class="card glass trade" data-sid="${esc(s.id)}">
+      <div class="row-between" style="align-items:flex-start;flex-wrap:wrap">
+        <div><div class="trade-title">${esc(s.name)} ${s.can_trade ? '<span class="badge badge-amber">can trade</span>' : '<span class="badge">read-only</span>'}</div>
+          <div class="caption">${esc(s.user_agent ? s.user_agent.slice(0, 60) : 'phone not paired yet')} · last seen ${esc(seen)} · ${esc(s.last_ip || '')} ${esc(s.last_country || '')}</div></div>
+        <span class="badge ${cls}">${esc(txt)}</span>
+      </div>
+      <div class="trade-actions">
+        ${s.state === 'PENDING' ? (canApprove
+          ? `<input class="vs-code-in" maxlength="6" inputmode="numeric" placeholder="6-digit code"><button class="pill-btn good" data-vs="approve">Approve phone</button>`
+          : '<span class="caption">Waiting for the phone to open the link and register its passkey…</span>') : ''}
+        ${s.state === 'RELINK_REQUIRED' ? '<button class="pill-btn strong" data-vs="reconnect">New link &amp; QR</button>' : ''}
+        <button class="pill-btn danger" data-vs="revoke">Revoke</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><b>No sessions</b><span class="caption">Generate one to link your phone.</span></div>';
+}
+$('#vs-list').addEventListener('click', async e => {
+  const b = e.target.closest('[data-vs]'); if (!b) return;
+  const card = b.closest('[data-sid]'), id = card.dataset.sid;
+  try {
+    if (b.dataset.vs === 'approve') {
+      const code = $('.vs-code-in', card).value.trim();
+      if (!/^\d{6}$/.test(code)) return showToast('Type the 6-digit code shown on the phone.');
+      await api(`/admin/sessions/${encodeURIComponent(id)}/approve`, { method: 'POST', body: { code } });
+      showToast('Phone approved: the session is active.');
+    } else if (b.dataset.vs === 'reconnect') {
+      showSessionQr(await api(`/admin/sessions/${encodeURIComponent(id)}/reconnect`, { method: 'POST', timeout: 45000 }));
+      showToast('New link issued: scan the new QR code.');
+    } else {
+      await api(`/admin/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      showToast('Session revoked and wiped.');
+    }
+  } catch (err) { showToast(err.message); }
+  loadSessions();
+});
+async function virtualKillswitch() {
+  if (!brain.live) return;
+  try {
+    const r = await api('/admin/killswitch', { method: 'POST' });
+    showToast(`Killswitch: ${r.revoked_sessions} session(s) revoked, tunnel stopped.`);
+    $('#vs-qr').innerHTML = '<div class="qr-empty">Generate a session to get a QR code</div>'; $('#vs-link').textContent = ''; $('#vs-code').textContent = '';
+    $('#gw-tunnel').textContent = 'stopped'; $('#gw-badge').textContent = 'Stopped'; $('#gw-badge').className = 'badge badge-red';
+  } catch (err) { showToast(err.message); }
+  loadSessions();
+}
+// poll the session list while the Sessions tab is open, so a phone pairing shows up by itself
+setInterval(() => { if (brain.live && !document.hidden && $('#panel-virtual-session').classList.contains('active')) loadSessions(); }, 4000);
+
+/* portfolio holdings straight from the vault */
+function renderHoldings(v) {
+  recordVaultValue(v.total_usd);
+  if ($('#panel-portfolio').classList.contains('active')) drawTrend();
+  const rows = v.holdings.filter(h => h.amount > 0);
+  const byMarket = { crypto: 0, chinese_market: 0, commodities: 0 };
+  rows.forEach(h => { byMarket[h.market] = (byMarket[h.market] || 0) + h.usd; });
+  const sum = Object.values(byMarket).reduce((a, b) => a + b, 0) || 1, share = k => Math.round(byMarket[k] / sum * 100);
+  const d = $('#alloc-donut'); d.style.setProperty('--a', share('crypto')); d.style.setProperty('--b', share('chinese_market')); d.style.setProperty('--c', share('commodities'));
+  $('#alloc-legend').innerHTML = [['#cde38a', 'Crypto', 'crypto'], ['#7fb3ff', 'Chinese mkt', 'chinese_market'], ['#e8a64b', 'Commodities', 'commodities']]
+    .map(([c, n, k]) => `<li><i style="background:${c}"></i>${n}<b>${share(k)}%</b></li>`).join('');
+  const total = rows.reduce((s, h) => s + h.usd, 0) || 1;
+  $('#holdings-table tbody').innerHTML = rows.length ? rows.map(h => `<tr><td><b>${esc(h.symbol)}</b></td><td>${esc(h.where)}</td><td>${h.amount.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
+    <td>${usd(h.usd)}</td><td>${Math.round(h.usd / total * 100)}%</td><td class="muted">—</td><td class="muted">—</td><td><span class="badge badge-green">on-chain</span></td></tr>`).join('')
+    : '<tr><td colspan="8" class="muted">The vault is empty. Use Deposit to fund it.</td></tr>';
+}
+
 function showToast(msg) {
   const t = document.createElement('div');
   t.className = 'toast';
@@ -1460,10 +1528,7 @@ function bindTilt() {
 })();
 
 /* timers */
-let watchdogLeft = 38 * 60 + 10;
 setInterval(() => {
-  watchdogLeft = watchdogLeft > 0 ? watchdogLeft - 1 : 3600;
-  $('#watchdog-timer').textContent = `${Math.floor(watchdogLeft / 60)}:${String(watchdogLeft % 60).padStart(2, '0')}`;
   const now = new Date(), next = new Date(now); next.setUTCHours(24, 0, 0, 0);
   const m = Math.floor((next - now) / 60000);
   $('#epoch-timer').textContent = `${String(Math.floor(m / 60)).padStart(2, '0')}h ${String(m % 60).padStart(2, '0')}m`;
@@ -1536,13 +1601,12 @@ function maybeShowQuizBanner() { $('#quiz-banner').hidden = store.get('tecc_quiz
    ========================================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
   renderActionPills();
-  renderPegGuardNote();
   maybeShowQuizBanner();
   selectAction('Stake', false);
-  renderPipeline(DEMO_AGENTS, ['done', 'done', 'done', 'running', '', '']);
+  restorePipeline();
+  if (!restoreResult()) renderOpportunities();
   renderTrades();
-  renderScans();
-  renderQR();
+  renderDecisions();
   refreshTether();
   spawnLeaves();
   bindTilt();
@@ -1550,7 +1614,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProfile();
   switchTab(location.hash.slice(1) || 'home');
   probeBrain();
-  syncVaultFromChain();
-  setInterval(probeBrain, 4000);
+  setInterval(probeBrain, 20000);
+  setInterval(() => { if (brain.live && !document.hidden) refreshLive(); }, 15000);
   document.fonts?.ready.then(moveIndicator);
 });

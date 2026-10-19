@@ -420,14 +420,17 @@ def execute(
         # Breaking the tether with a verified passkey: the vault opens its own biometric window (on the local test
         # chain the owner does it here; on a real network the user's device submits it), and the off-chain tracker
         # lets this one order past today's radius.
+        # On the live vault the window alone is not enough for the AI's session key: the owner also signs a one-time
+        # approval for this exact execution (router breakout=True → TetherGuardHook.submitSignApproval).
         open_live_biometric_window(proposal.account)
         limit = max(limit, router.tether_tracker.get_spent(proposal.account) + amount)
         intent = intent.model_copy(update={"status": "pending_signature",
                                            "detail": "tether broken with a verified passkey (FaceID window)"})
 
-    sent = router.submit(intent, proposal.account, limit_usd=limit)
+    sent = router.submit(intent, proposal.account, limit_usd=limit, breakout=needs_faceid)
     message = {
-        "submitted": f"Executed: ${amount:,.0f} signed with the session key and accepted by the vault.",
+        "submitted": (f"Executed with your passkey: ${amount:,.0f} broke the tether once and the vault accepted it."
+                      if needs_faceid else f"Executed: ${amount:,.0f} signed with the session key and accepted by the vault."),
         "simulated": f"Approved: ${amount:,.0f} routed to the {card.market} market (simulated — no live node configured).",
     }.get(sent.status, f"Not executed: {sent.detail}")
     return ExecuteResponse(mode=card.mode, intent=sent, learned=learned, message=message)

@@ -56,6 +56,20 @@ Shortcuts for testing:
 
 ## 2. Dashboard: http://127.0.0.1:3000/app.html
 
+> **Everything here is live.** Numbers, the leash, the Morning Review, sessions and PegGuard come from the Brain and the vault on the local chain. With the Brain off, screens say "offline" instead of showing sample data. Start everything with `./dev_up.sh` (it also starts the phone gateway on :8001 and allows the real Cloudflare tunnel).
+
+| Where | What is real now |
+|---|---|
+| Top strip, **Tether left today**, **Brain trust τ** | `/api/vault/demo` (on-chain radius, spend, remaining) and `/api/profile/demo` (τ), refreshed every 15 s |
+| **Live pipeline** | The latest command (ask bar or composer): running, then **Completed** or **Refused** until the next one. Fresh browser = **No commands**. Requests are numbered from **#1** |
+| **Review → Needs your decision** | Routes the Brain won't run on its own (needs your tap or FaceID). **Approve** sends `/api/mandate/execute` |
+| **Review → Done by the AI** | The vault's on-chain Morning Review records; **ratify / flag / note** are on-chain transactions that change the leash |
+| **Sessions → Generate a session** | Opens a real `trycloudflare.com` tunnel to the phone gateway and shows its QR and 6-digit code. Scan it, register the passkey on the phone, type the code, then **Approve phone** |
+| **Biometric** chip (status strip) | Click it: the first time it creates a passkey for this vault (Touch ID / FaceID), then signs in with it. The Brain verifies the P-256 signature and opens a 5-minute window. Use **http://localhost:5500**: passkeys don't work on an IP address |
+| **Review → Approve** on a "Needs FaceID" route | Asks for your passkey, then the vault lets that one execution break the leash (owner sign-approval on-chain). Without the passkey it stays refused |
+| **PegGuard switch**, **Hold to revoke**, **Save the leash**, **Withdraw** | `/api/arbitrage/toggle`, `/api/vault/demo/session`, `/api/vault/demo/radius`, `/api/vault/demo/withdraw` (the vault refuses without a passkey window) |
+
+
 The top navigation has **Home · Opportunities · Portfolio · Review · Sessions · Safety**.
 
 ### 2.1 Talk to the Brain in your own words (free text)

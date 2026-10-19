@@ -170,19 +170,21 @@ def vault(account: Account) -> dict[str, Any]:
 
     ledger_records = _ledger(market.network)._read()
 
+    # A USDC deposit calls the token contract, so the target alone doesn't say which venue it was for: the Brain's
+    # own ledger (recordId -> venue, written when it executed) names it.
     reviews = []
     for rec in hook.call(rpc, "getPendingReviews", acct)[0]:
         rid, target, value, ts, status, note = rec
-        tx_hash = ledger_records.get(str(rid), {}).get("tx_hash", "")
+        logged = ledger_records.get(str(rid), {})
         reviews.append({
             "id": rid,
             "target": target,
-            "venue_id": venue_of.get(target.lower()),
+            "venue_id": venue_of.get(target.lower()) or logged.get("venue_id"),
             "value_usd": _usd8(value),
             "timestamp": ts,
             "status": REVIEW_STATUS.get(status, str(status)),
             "note": note,
-            "tx_hash": tx_hash,
+            "tx_hash": logged.get("tx_hash", ""),
         })
 
     recent_txs = []
