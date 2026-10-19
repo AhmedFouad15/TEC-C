@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlparse
 
-DEFAULT_TEMP_TUNNEL_URL = "http://127.0.0.1:8001"
+DEFAULT_TEMP_TUNNEL_URL = "https://xxxx.trycloudflare.co"
 URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.(?:com|co)")
 
 
@@ -77,7 +77,7 @@ class TunnelManager:
     def __init__(
         self,
         cloudflared_path: str | None = None,
-        port: int = 8001,
+        port: int = 8000,
         default_url: str | None = None,
         spawn_binary: bool | None = None,
     ) -> None:

@@ -229,7 +229,12 @@ def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
         # Security headers
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self' 'unsafe-inline'; connect-src 'self' wss: https:; img-src 'self' data:; frame-ancestors 'none'"
+            "default-src 'self' 'unsafe-inline' https:; "
+            "font-src 'self' https://fonts.gstatic.com data:; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "connect-src 'self' wss: https: http:; "
+            "img-src 'self' data: https:; "
+            "frame-ancestors 'none'"
         )
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -280,6 +285,20 @@ def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
         ip, country = _client_ip_country(request)
         svc.db.update_touch(session_id, ip=ip, country=country, user_agent=request.headers.get("user-agent"))
         return render_phone_ui_html(sess)
+
+    @app.get("/s/{session_id}/status")
+    def get_session_status(session_id: str) -> dict[str, Any]:
+        """GET /s/{id}/status: Status query for mobile pairing lifecycle."""
+        svc = _get_service()
+        sess = svc.db.get_session(session_id)
+        if not sess:
+            raise HTTPException(status_code=404, detail="Virtual session not found")
+        return {
+            "id": sess["id"],
+            "state": sess["state"],
+            "has_credential": bool(sess.get("has_credential")),
+            "can_trade": bool(sess.get("can_trade")),
+        }
 
     @app.post("/webauthn/register/options")
     def register_options(req: RegisterOptionsReq) -> dict[str, Any]:
