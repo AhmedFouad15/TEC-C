@@ -244,5 +244,33 @@ cd agent
 
 ---
 
+## 🖥️ One-Command Local Development
+
+#### To Launch Everything:
+
+Open PowerShell in the project directory (`C:\Users\Ahmed\OneDrive\Desktop\china`) and run [`dev_up.ps1`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/dev_up.ps1):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\dev_up.ps1
+```
+
+**What this does automatically:**
+
+1. Starts the local blockchain and deploys the vault contracts.
+2. Starts the Backend Brain API on [http://127.0.0.1:8000](http://127.0.0.1:8000).
+3. Starts the Frontend Server on [http://localhost:5500](http://localhost:5500) and opens it in your default browser.
+
+#### To Stop Everything:
+
+Run [`dev_down.ps1`](file:///C:/Users/Ahmed/OneDrive/Desktop/CHINA/dev_down.ps1):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\dev_down.ps1
+```
+
+*(This cleanly terminates all background processes on ports 8000, 5500, and 8545).*
+
+---
+
 ## 📄 License
 This project is licensed under the [MIT License](LICENSE).
