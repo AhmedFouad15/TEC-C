@@ -114,6 +114,33 @@ def run_once(
             )
             _LOG.add(event)
             triggered.append(event)
+
+    # Autonomous PegGuard De-Peg Scanner: runs automatically for any account where the user enabled arbitrage
+    from tecc_brain.api.arbitrage import get_arbitrage_scanner
+    from tecc_brain.graph.pipeline import load_or_create_profile
+
+    arb_scanner = get_arbitrage_scanner(store)
+    snap_prices = {sym: peg.price for sym, peg in snapshot.pegs.items()}
+    for account in accounts:
+        profile = load_or_create_profile(store, account)
+        if profile.arbitrage_enabled or arb_scanner.is_enabled(account):
+            arb_scanner.set_enabled(account, True)
+            tick_report = arb_scanner.scan_tick(account, price_overrides=snap_prices)
+            for out in tick_report.outcomes:
+                if out.status in ("executed", "noted_unprofitable", "skipped_watermark"):
+                    ev = MonitorEvent(
+                        account=account,
+                        symbol=out.symbol,
+                        trigger=f"pegguard_{out.status}",
+                        buy_sell_score=round(out.decision.layer4.token_score_t, 3) if out.decision else 0.5,
+                        regime=out.decision.layer2.regime_name if out.decision else "depegged",
+                        at=datetime.now(timezone.utc),
+                        pipeline_status=out.status,
+                        summary=out.detail,
+                    )
+                    _LOG.add(ev)
+                    triggered.append(ev)
+
     return triggered
 
 

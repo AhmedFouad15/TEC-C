@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {IERC7579Hook} from "../interfaces/IERC7579Hook.sol";
 import {AggregatorV3Interface} from "../interfaces/AggregatorV3Interface.sol";
 import {IERC20, IERC20Metadata} from "../interfaces/IERC20.sol";
+import {P256Verifier} from "../validators/P256Verifier.sol";
 
 /**
  * @title TetherGuardHook
@@ -152,8 +153,14 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Native precompile address for RIP-7212 secp256r1 curve verification
     address public constant RIP7212_PRECOMPILE = address(0x100);
 
+    /// @notice Default primary passkey identifier
+    bytes32 public constant PRIMARY_PASSKEY_ID = keccak256("TECC_PRIMARY_PASSKEY");
+
     /// @notice Factory / deployer address allowed to set initial passkey coordinates during onboarding
     address public deployer;
+
+    /// @notice Optional external Solidity P-256 fallback verifier contract (for Ethereum L1 / FISCO BCOS)
+    address public fallbackP256Verifier;
 
     /// @notice Initializes the hook deployer address
     constructor() {
@@ -169,8 +176,20 @@ contract TetherGuardHook is IERC7579Hook {
         bool isRegistered;
     }
 
-    /// @notice Hardware WebAuthn P-256 Passkey coordinates registered per account
+    /// @notice Primary Hardware WebAuthn P-256 Passkey coordinates registered per account
     mapping(address => WebAuthnPasskey) public accountPasskeys;
+
+    /// @notice Multi-device passkey registry per account (account => keyId => WebAuthnPasskey)
+    mapping(address => mapping(bytes32 => WebAuthnPasskey)) public accountPasskeysById;
+
+    /// @notice Registered passkey IDs per account for multi-device enumeration
+    mapping(address => bytes32[]) public accountPasskeyIds;
+
+    /// @notice Count of active passkeys per account
+    mapping(address => uint256) public activeAccountPasskeyCount;
+
+    /// @notice Designated emergency passkey recovery guardian per account
+    mapping(address => address) public passkeyRecoveryGuardians;
 
     /// @notice Gasless sign approval nonces per account for replay protection
     mapping(address => uint256) public signApprovalNonces;
@@ -563,6 +582,28 @@ contract TetherGuardHook is IERC7579Hook {
 
     /// @notice Reverted when a biometric challenge is reused, protecting against replay attacks.
     error ChallengeAlreadyUsed();
+
+    /// @notice Reverted when a P-256 signature violates low-s canonical form (s > n/2) (Nuance 2).
+    error MalleableP256Signature();
+
+    /// @notice Reverted when WebAuthn authenticatorData is malformed (< 37 bytes) or lacks User Present (UP) flag.
+    error InvalidAuthenticatorData();
+
+    /// @notice Reverted when WebAuthn authenticatorData lacks the User Verified (UV = 0x04) biometric bit (Nuance 3).
+    error BiometricUserVerificationRequired();
+
+    /// @notice Reverted when attempting to revoke the last active passkey on an account.
+    error CannotRevokeLastPasskey();
+
+    /// @notice Reverted when an invalid recovery guardian address is provided.
+    error InvalidGuardianAddress();
+
+    event AccountPasskeyAdded(address indexed account, bytes32 indexed keyId, uint256 qx, uint256 qy);
+    event AccountPasskeyRevoked(address indexed account, bytes32 indexed keyId);
+    event PasskeyRecoveryGuardianUpdated(address indexed account, address indexed guardian);
+    event AccountPasskeyRecovered(
+        address indexed account, address indexed guardian, bytes32 indexed newKeyId, uint256 newQx, uint256 newQy
+    );
 
     function _checkAccountOrOwner(address account) internal view {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -1687,15 +1728,12 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     // =========================================================================
-    // --- WebAuthn P-256 (RIP-7212) Native Precompile Biometric Verification ---
+    // --- WebAuthn P-256 (RIP-7212 + L1/FISCO Fallback) Biometric Verification ---
     // =========================================================================
 
     /**
-     * @notice Configures the WebAuthn P-256 Passkey coordinates (qx, qy) for an account.
+     * @notice Configures the primary WebAuthn P-256 Passkey coordinates (qx, qy) for an account.
      * @dev Allows deployer to register initial coordinates during onboarding if not yet registered.
-     * @param account The address of the smart account.
-     * @param qx Affine X coordinate of the user's secp256r1 public key.
-     * @param qy Affine Y coordinate of the user's secp256r1 public key.
      */
     function setAccountPasskey(address account, uint256 qx, uint256 qy) external {
         if (msg.sender != account && msg.sender != policies[account].rootOwner) {
@@ -1704,22 +1742,131 @@ contract TetherGuardHook is IERC7579Hook {
             }
         }
         require(qx != 0 && qy != 0, "INVALID_COORDINATES");
+        bool wasRegistered = accountPasskeys[account].isRegistered;
         accountPasskeys[account] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
+
+        if (!accountPasskeysById[account][PRIMARY_PASSKEY_ID].isRegistered) {
+            accountPasskeyIds[account].push(PRIMARY_PASSKEY_ID);
+            if (!wasRegistered) {
+                activeAccountPasskeyCount[account] += 1;
+            }
+        }
+        accountPasskeysById[account][PRIMARY_PASSKEY_ID] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
+
         emit PasskeyConfigured(account, qx, qy);
+        emit AccountPasskeyAdded(account, PRIMARY_PASSKEY_ID, qx, qy);
     }
 
     /**
-     * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 precompile at 0x100.
-     * @dev Opens the 5-minute Biometric Verification window upon successful hardware verification.
-     *      Coordinates (qx, qy) must strictly match the account's registered passkey.
-     *      SEC-01: Enforces deadline and tracks challenge replay protection.
-     * @param account The address of the smart account.
-     * @param messageHash The signed challenge digest.
-     * @param r Signature r value.
-     * @param s Signature s value (normalized).
-     * @param qx Public key X coordinate.
-     * @param qy Public key Y coordinate.
-     * @param deadline Expiration timestamp for the biometric challenge.
+     * @notice Registers a backup or secondary device passkey (e.g., laptop / tablet) for multi-device resilience (Nuance 4).
+     */
+    function addAccountPasskey(address account, bytes32 keyId, uint256 qx, uint256 qy)
+        external
+        onlyAccountOrOwner(account)
+    {
+        require(qx != 0 && qy != 0 && keyId != bytes32(0), "INVALID_COORDINATES");
+        if (!accountPasskeysById[account][keyId].isRegistered) {
+            accountPasskeyIds[account].push(keyId);
+            activeAccountPasskeyCount[account] += 1;
+        }
+        accountPasskeysById[account][keyId] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
+        if (!accountPasskeys[account].isRegistered) {
+            accountPasskeys[account] = WebAuthnPasskey({qx: qx, qy: qy, isRegistered: true});
+            emit PasskeyConfigured(account, qx, qy);
+        }
+        emit AccountPasskeyAdded(account, keyId, qx, qy);
+    }
+
+    /**
+     * @notice Revokes a specific device passkey by keyId while retaining at least one active passkey (Nuance 4).
+     */
+    function revokeAccountPasskey(address account, bytes32 keyId) external onlyAccountOrOwner(account) {
+        WebAuthnPasskey storage pk = accountPasskeysById[account][keyId];
+        if (!pk.isRegistered) revert UnauthorizedPasskey();
+        if (activeAccountPasskeyCount[account] <= 1) revert CannotRevokeLastPasskey();
+
+        uint256 revokedQx = pk.qx;
+        uint256 revokedQy = pk.qy;
+        delete accountPasskeysById[account][keyId];
+        activeAccountPasskeyCount[account] -= 1;
+
+        if (accountPasskeys[account].qx == revokedQx && accountPasskeys[account].qy == revokedQy) {
+            delete accountPasskeys[account];
+            bytes32[] storage ids = accountPasskeyIds[account];
+            for (uint256 i = 0; i < ids.length; i++) {
+                WebAuthnPasskey storage candidate = accountPasskeysById[account][ids[i]];
+                if (candidate.isRegistered) {
+                    accountPasskeys[account] = candidate;
+                    break;
+                }
+            }
+        }
+        emit AccountPasskeyRevoked(account, keyId);
+    }
+
+    /**
+     * @notice Configures an Emergency Passkey Recovery Guardian for device-loss recovery (Nuance 4).
+     */
+    function setPasskeyRecoveryGuardian(address account, address guardian) external onlyAccountOrOwner(account) {
+        if (guardian == address(0) || guardian == account) revert InvalidGuardianAddress();
+        passkeyRecoveryGuardians[account] = guardian;
+        emit PasskeyRecoveryGuardianUpdated(account, guardian);
+    }
+
+    /**
+     * @notice Allows the designated Emergency Passkey Recovery Guardian to rotate/register a new passkey if all devices are lost.
+     */
+    function recoverAccountPasskey(address account, bytes32 newKeyId, uint256 newQx, uint256 newQy) external {
+        address guardian = passkeyRecoveryGuardians[account];
+        if (guardian == address(0) || msg.sender != guardian) revert UnauthorizedGuardian();
+        require(newQx != 0 && newQy != 0 && newKeyId != bytes32(0), "INVALID_COORDINATES");
+
+        if (!accountPasskeysById[account][newKeyId].isRegistered) {
+            accountPasskeyIds[account].push(newKeyId);
+            activeAccountPasskeyCount[account] += 1;
+        }
+        accountPasskeysById[account][newKeyId] = WebAuthnPasskey({qx: newQx, qy: newQy, isRegistered: true});
+        accountPasskeys[account] = WebAuthnPasskey({qx: newQx, qy: newQy, isRegistered: true});
+
+        emit AccountPasskeyRecovered(account, guardian, newKeyId, newQx, newQy);
+        emit PasskeyConfigured(account, newQx, newQy);
+    }
+
+    /**
+     * @notice Checks whether (qx, qy) matches any active passkey (primary or backup device) registered for `account`.
+     */
+    function isAuthorizedAccountPasskey(address account, uint256 qx, uint256 qy) public view returns (bool) {
+        if (qx == 0 || qy == 0) return false;
+        WebAuthnPasskey storage primary = accountPasskeys[account];
+        if (primary.isRegistered && primary.qx == qx && primary.qy == qy) {
+            return true;
+        }
+        bytes32[] storage ids = accountPasskeyIds[account];
+        for (uint256 i = 0; i < ids.length; i++) {
+            WebAuthnPasskey storage pk = accountPasskeysById[account][ids[i]];
+            if (pk.isRegistered && pk.qx == qx && pk.qy == qy) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @notice Configures an optional external Solidity P-256 fallback verifier contract.
+     */
+    function setFallbackP256Verifier(address verifier) external {
+        if (msg.sender != deployer) revert UnauthorizedCaller();
+        fallbackP256Verifier = verifier;
+    }
+
+    /**
+     * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 (0x100) with automatic
+     *         pure-Solidity fallback for Ethereum L1 and FISCO BCOS, and opens the 5-minute grace window.
+     * @dev Enforces:
+     *      - Deadline & replay protection (`usedBiometricChallenges`)
+     *      - Multi-device passkey authorization (`isAuthorizedAccountPasskey`)
+     *      - Strict low-s signature non-malleability (`s <= P256_N / 2`) (Nuance 2)
+     *      - RIP-7212 0x100 precompile with automatic Solidity P-256 fallback (Nuance 1)
      */
     function completeBiometricVerificationWithP256(
         address account,
@@ -1736,24 +1883,22 @@ contract TetherGuardHook is IERC7579Hook {
         if (usedBiometricChallenges[account][messageHash]) {
             revert ChallengeAlreadyUsed();
         }
-
-        // Enforce that public key coordinates strictly match registered passkey for this account
-        WebAuthnPasskey storage pk = accountPasskeys[account];
-        if (!pk.isRegistered || pk.qx != qx || pk.qy != qy) {
+        if (!isAuthorizedAccountPasskey(account, qx, qy)) {
             revert UnauthorizedPasskey();
         }
+        if (!P256Verifier.isCanonicalLowS(r, s)) {
+            revert MalleableP256Signature();
+        }
 
-        // 1. Verify P-256 signature via native RIP-7212 precompile at 0x100
-        bytes memory input = abi.encode(messageHash, r, s, qx, qy);
-        (bool success, bytes memory output) = RIP7212_PRECOMPILE.staticcall(input);
-        if (!success || output.length != 32 || abi.decode(output, (uint256)) != 1) {
+        // Verify P-256 signature via native RIP-7212 precompile (0x100) or L1/FISCO Solidity P-256 fallback
+        if (!P256Verifier.verifyWithFallback(messageHash, r, s, qx, qy, fallbackP256Verifier)) {
             revert InvalidP256Signature();
         }
 
         // Mark challenge as consumed to prevent replay attacks
         usedBiometricChallenges[account][messageHash] = true;
 
-        // 2. Open 5-minute Biometric Verification Window
+        // Open 5-minute Biometric Verification Window
         uint256 validUntil = block.timestamp + BIOMETRIC_VERIFICATION_WINDOW;
         biometricVerifiedUntil[account] = validUntil;
         lastUserActivity[account] = block.timestamp;
@@ -1763,12 +1908,6 @@ contract TetherGuardHook is IERC7579Hook {
 
     /**
      * @notice Backward-compatible overload for WebAuthn P-256 biometric verification.
-     * @param account The address of the smart account.
-     * @param messageHash The signed challenge digest.
-     * @param r Signature r value.
-     * @param s Signature s value.
-     * @param qx Public key X coordinate.
-     * @param qy Public key Y coordinate.
      */
     function completeBiometricVerificationWithP256(
         address account,
@@ -1781,6 +1920,36 @@ contract TetherGuardHook is IERC7579Hook {
         completeBiometricVerificationWithP256(
             account, messageHash, r, s, qx, qy, block.timestamp + BIOMETRIC_VERIFICATION_WINDOW
         );
+    }
+
+    /**
+     * @notice Full W3C WebAuthn biometric verification enforcing on-chain `authenticatorData` flags (Nuance 3).
+     * @dev Explicitly asserts that both Bit 0 (UP: User Present, 0x01) AND Bit 2 (UV: User Verified, 0x04)
+     *      are set in `authenticatorData[32]`, rejecting passive keypresses without actual FaceID/TouchID.
+     */
+    function completeBiometricVerificationWithWebAuthn(
+        address account,
+        bytes calldata authenticatorData,
+        bytes32 clientDataHash,
+        uint256 r,
+        uint256 s,
+        uint256 qx,
+        uint256 qy,
+        uint256 deadline
+    ) external {
+        if (authenticatorData.length < P256Verifier.MIN_AUTH_DATA_LENGTH) {
+            revert InvalidAuthenticatorData();
+        }
+        uint8 flags = uint8(authenticatorData[32]);
+        if ((flags & P256Verifier.AUTH_DATA_FLAG_UP) == 0) {
+            revert InvalidAuthenticatorData();
+        }
+        if ((flags & P256Verifier.AUTH_DATA_FLAG_UV) == 0) {
+            revert BiometricUserVerificationRequired();
+        }
+
+        bytes32 messageHash = P256Verifier.computeWebAuthnMessageHash(authenticatorData, clientDataHash);
+        completeBiometricVerificationWithP256(account, messageHash, r, s, qx, qy, deadline);
     }
 
     /**

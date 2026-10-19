@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from tecc_brain.intent import rules
 from tecc_brain.intent.firewall import scan
+from tecc_brain.intent.prompts import INTENT_PROMPT as PROMPT
 from tecc_brain.intent.rules import ParseOutcome
 from tecc_brain.intent.sieve import mask, restore
 from tecc_brain.models import ActionType, Mandate, Portfolio
@@ -29,12 +30,6 @@ from tecc_brain.reference import Reference
 LLM_TIMEOUT_S = 8.0
 MAX_HORIZON_DAYS = 3650
 _CONSTRAINT = re.compile(r"^(?:avoid|venue):[a-z0-9_]+$")
-
-PROMPT = """You convert a wallet owner's request into JSON. Sensitive values are replaced by tokens like <AMT_1>;
-copy tokens exactly, never invent numbers or addresses. Reply with ONE JSON object and nothing else:
-{{"action": one of {actions}, "asset": token symbol, "amount": number or token, "horizon_days": integer (default 365),
-"constraints": list of strings like "avoid:curve" or "venue:aave"}}
-Request: {request}"""
 
 
 def call_with_timeout(complete: Callable[[str], str], prompt: str, timeout_s: float) -> str:

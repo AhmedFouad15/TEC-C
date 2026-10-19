@@ -150,3 +150,26 @@ def test_crypto_execution_action_dispatch(monkeypatch):
     transfer_intent = sample_intent(venue_id="aave_v3_usdc", usd=100.0, asset="USDC", action=ActionType.TRANSFER)
     calldata_transfer = executor._execution(transfer_intent)
     assert len(calldata_transfer) > 0
+
+
+def test_simulated_executors_are_labelled():
+    """D9: FISCO BCOS, Arbitrum and PegGuard make no RPC call when unconfigured, so their results say so — in fields
+    the API and UI can show, not only in prose."""
+    fisco = FiscoBcosExecutor().submit(sample_intent(venue_id="shibor_mmf", market="chinese_market"), "demo")
+    arb = ArbitrumCommoditiesExecutor().submit(sample_intent(venue_id="paxg_hold", asset="PAXG", market="commodities"), "demo")
+    for res in (fisco, arb):
+        assert res.status == "simulated" and res.simulated is True
+        assert res.tx_hash is None
+        assert res.detail.startswith("SIMULATED:")
+
+
+def test_pegguard_submissions_are_labelled_simulated():
+    res = PegGuardArbitrageExecutor().submit(
+        sample_intent(venue_id="curve_steth_eth", usd=400.0, asset="ETH", action=ActionType.BUY_DISCOUNT, market="arbitrage"), "demo")
+    assert res.status == "simulated"
+    assert res.simulated is True and res.detail.startswith("SIMULATED:")
+
+
+def test_intents_are_not_simulated_by_default():
+    assert sample_intent().simulated is False
+

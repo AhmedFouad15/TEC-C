@@ -142,7 +142,8 @@ def test_market_files_make_the_router_live(arbitrum, tmp_path, monkeypatch):
     monkeypatch.setenv("TECC_STATE_DIR", str(tmp_path))
     path = save_market(MarketFile(network="arbitrum", rpc_url=rpc.url, deployment=dep, mandate=mandate,
                                   session_key="0x" + bytes(session.key).hex()))
-    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600  # holds a private key
+    if os.name != "nt":
+        assert stat.S_IMODE(os.stat(path).st_mode) == 0o600  # holds a private key
     assert load_market("arbitrum").deployment == dep
     router = build_router(crypto_network="sepolia")
     assert router.commodities.is_live and not router.chinese_market.is_live

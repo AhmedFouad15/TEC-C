@@ -18,7 +18,8 @@ def run(text, store, account="demo", scenario="demo", radius=500.0):
 
 def test_agents_are_the_teams_architecture():
     assert AGENT_ORDER == (
-        "gatekeeper_intake", "profile", "nlp_sentinel", "econometric_liquidity", "gatekeeper_aggregator", "web3_executor",
+        "gatekeeper_intake", "profile", "nlp_sentinel", "econometric_liquidity", "gatekeeper_aggregator", "brain",
+        "web3_executor",
     )
     nodes = set(build_graph().get_graph().nodes)
     assert set(AGENT_ORDER) <= nodes

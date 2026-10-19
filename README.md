@@ -2,7 +2,8 @@
 ### Autonomous On-Chain Agent Wallet with Mathematical Security Invariants
 
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
-[![Foundry](https://img.shields.io/badge/Foundry-156%2F156%20Passing-brightgreen?logo=ethereum)](https://getfoundry.sh/)
+[![Foundry](https://img.shields.io/badge/Foundry-167%2F167%20Passing-brightgreen?logo=ethereum)](https://getfoundry.sh/)
+[![Python Brain](https://img.shields.io/badge/Python%20Brain-594%2F594%20Passing-blue?logo=python)](https://fastapi.tiangolo.com/)
 [![ERC-7579](https://img.shields.io/badge/ERC--7579-Modular%20Account-blue)](https://erc7579.com/)
 [![ERC-4337](https://img.shields.io/badge/ERC--4337-Account%20Abstraction-purple)](https://eips.ethereum.org/EIPS/eip-4337)
 [![RIP-7212](https://img.shields.io/badge/RIP--7212-P256%20Precompile%20%40%200x100-orange)](https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md)
@@ -22,44 +23,46 @@
 
 ```
 TEC-C/
+├── agent/                                   # Off-Chain AI Brain & Execution Engines
+│   ├── tecc_brain/
+│   │   ├── api/                             # FastAPI Endpoints (Mandate, Risk, Profile, Arbitrage, Biometrics)
+│   │   ├── biometrics/                      # WebAuthn NIST P-256 Passkey Biometric Engine
+│   │   ├── pegguard/                        # Autonomous 25-Asset Scanner & Stateful Watermark Memory
+│   │   ├── virtual_session/                 # Remote Phone Access Gateway & Cloudflare Quick-Tunnel
+│   │   ├── graph/                           # LangGraph AI Cognitive Planner & Intent Pipeline
+│   │   ├── sentinel/                        # Fear & Greed, Grok, and Multi-Oracle Sentiment
+│   │   ├── strategy/                        # Autonomous Playbooks & Portfolio Risk Engine
+│   │   └── app.py                           # FastAPI Application Entrypoint (Port 8000)
+│   └── tests/                               # 594 Unit, Property & Integration Tests (100% Passing)
 ├── contracts/                               # Smart Contracts Layer (Foundry)
 │   ├── src/                                 # Production Smart Contracts (100% NatSpec)
 │   │   ├── TecAccount.sol                   # ERC-7579 Modular Smart Account
 │   │   ├── hooks/
 │   │   │   └── TetherGuardHook.sol          # Dual-Axis Policy Hook & Invariant Engine
 │   │   ├── validators/
+│   │   │   ├── P256Verifier.sol             # RIP-7212 0x100 + Pure-Solidity P-256 Curve Fallback
 │   │   │   ├── SessionKeyValidator.sol      # EIP-712 AI Agent Mandate Validator
-│   │   │   └── WebAuthnP256Validator.sol    # RIP-7212 / Passkey FaceID Validator
+│   │   │   └── WebAuthnP256Validator.sol    # Hardware Passkey / Biometric Validator
 │   │   ├── paymaster/
 │   │   │   └── TecPaymaster.sol             # ERC-4337 Gas Sponsorship & Anti-Griefing
 │   │   └── interfaces/                      # Standard ERC & Chainlink Interfaces
-│   ├── test/                                # 12 Test Suites (156 passing tests)
-│   │   ├── DeadmanAndHeartbeat.t.sol        # Watchdog & recovery tests
-│   │   ├── MultiTokenTether.t.sol           # Chainlink USD oracle normalization
-│   │   ├── SessionKeyValidator.t.sol        # Session key mandate verification
-│   │   ├── TecAccount.t.sol                 # Account initialization & hook delegation
-│   │   ├── TecPaymaster.t.sol               # Sponsorship limits & gas griefing
+│   ├── test/                                # 13 Foundry Test Suites (167 passing tests)
+│   │   ├── WebAuthnP256Validator.t.sol      # RIP-7212, Pure-Solidity Fallback, Low-S, UV & Recovery
 │   │   ├── TetherGuardHook.t.sol            # Velocity limits & morning review
+│   │   ├── CrossChainTetherTest.t.sol       # Multi-chain state lock & par-repo facility
 │   │   ├── VaultComprehensiveFuzz.t.sol     # Invariant property fuzzing (256 runs)
-│   │   ├── VaultEdgeCases.t.sol             # Boundary condition & zero-value tests
-│   │   ├── VaultGasBenchmark.t.sol          # Multi-chain empirical gas matrix
-│   │   ├── VaultLifecycleScenarios.t.sol    # Multi-day enterprise lifecycle
-│   │   ├── VaultSecurityHardening.t.sol     # SEC-01..08 security regression tests
-│   │   └── WebAuthnP256Validator.t.sol      # P-256 precompile signature tests
-│    ├── script/
-│   │   ├── DeployTecC.s.sol                 # Foundry deployment script
-│   │   └── export_shared_artifacts.py       # Contract ABI & artifact exporter
+│   │   └── ...                              # All 13 contract test suites
 │   ├── foundry.toml                         # Compiler & optimizer configuration
 │   └── README.md                            # Smart contracts deep dive
 ├── shared/
+│   ├── api_spec.json                        # Exported OpenAPI 3.1 specification (35 endpoints)
 │   └── contracts.json                       # Exported ABIs and bytecode for frontend/AI
+├── Virtual_Session_Design.pdf               # Remote phone access design & security model
 ├── Tec-C_Vault_User_and_Architecture_Guide.pdf # 8-page comprehensive whitepaper guide
 ├── Tec-C_4_Person_Execution_Roadmap.pdf     # Team milestone & operational breakdown
 ├── Tec-c_Plain_English_Guide.pdf            # Plain English user manual
 ├── project.pdf                              # Original architecture blueprint
 ├── excution.pdf                             # System execution specification
-├── .github/workflows/ci.yml                 # Root GitHub Actions CI workflow
-├── .gitignore                               # Git ignore configuration
 ├── LICENSE                                  # MIT License
 └── README.md                                # Root repository guide (this file)
 ```
@@ -182,27 +185,66 @@ Empirical transaction fee benchmarks computed from the on-chain test suite and e
 
 ---
 
-## 🧪 Test Verification & Coverage
+## 🧪 Test Verification & Coverage (761 Passing Tests)
 
-Tec-C features 100% green tests across **12 Foundry suites** containing **156 tests**:
+Tec-C features **761 automated tests** across Foundry smart contracts and the Python AI Brain / Virtual Session suites:
 
+### 1. Smart Contracts Layer: 167 / 167 Passing Tests
 ```bash
-Ran 12 test suites in 1.29s (8.29s CPU time): 156 tests passed, 0 failed, 0 skipped (156 total tests)
+Ran 13 test suites in 879.37ms (6.52s CPU time): 167 tests passed, 0 failed, 0 skipped (167 total tests)
 ```
+- `WebAuthnP256ValidatorTest`: 15 passed (RIP-7212 precompile `0x100`, L1/FISCO pure-Solidity NIST P-256 fallback, low-$s$ malleability protection, UV flag assertion, multi-device passkeys, and guardian recovery)
+- `TetherGuardHookTest`: 37 passed (Dynamic elasticity, breaking the tether, morning reviews)
+- `MultiTokenTetherTest`: 12 passed (Chainlink USD normalization)
+- `TecAccountTest`: 7 passed (ERC-7579 modular account execution)
+- `TecPaymasterTest`: 6 passed (Gas sponsorship & anti-griefing)
+- `CrossChainTetherTest`: 7 passed (Multi-chain state lock & FISCO BCOS par-repo facility)
+- `DeadmanAndHeartbeatTest`: 10 passed (AI heartbeat watchdog & 90-day deadman switch)
+- `VaultComprehensiveFuzzTest`: 5 passed (256 fuzz runs each)
+- `VaultSecurityHardeningTest`: 18 passed (SEC-01..08 security regression invariants)
+- `VaultEdgeCasesTest`: 19 passed (Zero-value & boundary conditions)
+- `VaultLifecycleScenariosTest`: 4 passed (Multi-day enterprise lifecycles)
+- `SessionKeyValidatorTest`: 8 passed (EIP-712 AI mandate verification)
+- `VaultGasBenchmarkTest`: 19 passed (Multi-chain empirical gas matrix)
 
-### Test Breakdown by Suite
-1. `DeadmanAndHeartbeatTest`: 10 passed
-2. `SessionKeyValidatorTest`: 8 passed
-3. `TecPaymasterTest`: 6 passed
-4. `TecAccountTest`: 7 passed
-5. `MultiTokenTetherTest`: 12 passed
-6. `VaultComprehensiveFuzzTest`: 5 passed (256 fuzz runs each)
-7. `VaultLifecycleScenariosTest`: 4 passed (multi-day enterprise lifecycles)
-8. `TetherGuardHookTest`: 37 passed
-9. `VaultEdgeCasesTest`: 19 passed
-10. `VaultSecurityHardeningTest`: 18 passed (SEC-01..08 regressions)
-11. `WebAuthnP256ValidatorTest`: 11 passed (RIP-7212 precompile calls)
-12. `VaultGasBenchmarkTest`: 19 passed (empirical multi-chain benchmarks)
+### 2. Python AI Brain & Virtual Session Layer: 594 / 594 Passing Tests
+```bash
+594 passed, 11 warnings in 31.27s (100% passing)
+```
+- `test_virtual_session.py`: 10 passed (Cloudflare Quick-Tunnel, WebAuthn Face ID pairing, laptop approval, step-up tokens, and route isolation)
+- `test_pegguard.py`: 18 passed (Autonomous 25-asset catalog, depeg scanner, stateful unprofitable-price watermark memory)
+- `test_biometrics.py`: 15 passed (NIST P-256 signing, low-$s$ normalization, UP/UV authenticatorData parser, guardian recovery)
+- `test_pipeline.py`, `test_brain.py`, `test_planner.py`: Cognitive intent parser, firewall sieve, and risk engine
+
+---
+
+## ⚡ Autonomous PegGuard Depeg Scanner & Memory
+- **25 Assets Across 4 Classes**:
+  1. *Fiat-Backed & Decentralized Stablecoins (Class B — Par-Pegged)*: USDC, USDT, DAI, USDe, PYUSD, EURC, GHO, crvUSD.
+  2. *Liquid Staking Tokens (LSTs — Yield-Accruing / Fair-Value Ratio)*: stETH, wstETH, rETH, cbETH.
+  3. *Liquid Restaking Tokens (LRTs — Class A Restaked)*: weETH, ezETH, rsETH, eETH.
+  4. *Wrapped, Bridged & Synthetic Pegged Assets (Class C)*: WBTC, cbBTC, tBTC, WETH, ARB, wstUSR, USDS, sUSDe, sDAI.
+- **Stateful Watermark Memory**: Remembers unprofitable depeg prices per asset so the engine never wastes gas checking the same unprofitable trade repeatedly; scans again only when price diverges further below the recorded watermark.
+
+---
+
+## 🛡️ Decentralized Biometrics & 4 Production Nuances
+- **RIP-7212 Precompile (`0x100`) + Pure-Solidity Fallback**:
+  - Automatically queries native precompile `0x100` on Arbitrum One, Optimism, Polygon, and Base (~3.4k gas).
+  - Falls back to pure-Solidity NIST P-256 Jacobian projective coordinate verification via EIP-198 `modexp` (`0x05`) on Ethereum L1 Mainnet and FISCO BCOS nodes.
+- **Signature Malleability Defense**: Strictly enforces $0 < s \le n/2$ to prevent UserOp signature replay.
+- **W3C `authenticatorData` Flags**: Asserts Bit 0 (`UP = 0x01`, User Present) and Bit 2 (`UV = 0x04`, User Verified) to ensure biometric FaceID/TouchID was verified.
+- **Multi-Device Passkeys & Emergency Guardian**: Allows registering multiple passkeys per account with an emergency guardian recovery mechanism.
+
+---
+
+## 📱 Virtual Session: Remote Phone Access
+- **Two Separate Servers**:
+  - *Admin App (`127.0.0.1:8000`, Never Tunneled)*: Local management, session creation, pairing approvals, API keys, and audit logs.
+  - *Mobile Gateway (`127.0.0.1:8001`, Tunneled)*: Tunneled via Cloudflare quick-tunnel (`https://xxxx.trycloudflare.co`). Exposes only allow-listed routes; returns 404 for any internal or admin endpoint.
+- **Biometric Passkey Pairing**: 6-digit confirmation code displayed on phone and approved on laptop.
+- **Action-Bound Step-Up Biometrics**: Sensitive trade actions require a 60-second single-use `HMAC(server_secret, action_hash || nonce)` step-up token.
+- **Kill Switch**: Instant one-click revocation of all active sessions and tunnel termination.
 
 ---
 
@@ -210,16 +252,18 @@ Ran 12 test suites in 1.29s (8.29s CPU time): 156 tests passed, 0 failed, 0 skip
 
 ### Prerequisites
 - [Foundry](https://getfoundry.sh/) (`forge`, `cast`, `anvil`)
+- Python 3.10+ / 3.11+
 
-### Compile Contracts
+### Run Smart Contract Tests (167 Tests)
 ```bash
 cd contracts
-forge build
+forge test
 ```
 
-### Run All 156 Tests
+### Run Python AI Brain & Virtual Session Tests (594 Tests)
 ```bash
-forge test
+cd agent
+python -m pytest -q
 ```
 
 ### Check Bytecode Sizes (EIP-170 Compliance)
