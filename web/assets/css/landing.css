@@ -438,7 +438,7 @@ html, body { overflow-x: clip; }
 /* no live backdrop blur anywhere on the landing: it forced a re-blur of the animated forest every frame */
 
 /* soft dark edge across the top of the screen over the forest (like the Pyko reference): a plain gradient, no live blur */
-.top-shade { position: fixed; left: 0; right: 0; top: 0; height: 34vh; z-index: 8; pointer-events: none; opacity: 0; transition: opacity .8s;
-  background: linear-gradient(180deg, rgba(8, 11, 8, .82) 0%, rgba(8, 11, 8, .70) 7%, rgba(8, 11, 8, .56) 16%, rgba(8, 11, 8, .42) 27%, rgba(8, 11, 8, .29) 40%, rgba(8, 11, 8, .17) 55%, rgba(8, 11, 8, .08) 72%, rgba(8, 11, 8, .02) 88%, rgba(8, 11, 8, 0) 100%); }
+.top-shade { position: fixed; left: 0; right: 0; top: 0; height: 46vh; z-index: 8; pointer-events: none; opacity: 0; transition: opacity .8s;
+  background: linear-gradient(180deg, rgba(6, 9, 6, .94) 0%, rgba(6, 9, 6, .86) 8%, rgba(6, 9, 6, .74) 17%, rgba(6, 9, 6, .60) 28%, rgba(6, 9, 6, .45) 40%, rgba(6, 9, 6, .31) 53%, rgba(6, 9, 6, .18) 67%, rgba(6, 9, 6, .08) 82%, rgba(6, 9, 6, 0) 100%); }
 .on-light .top-shade { opacity: 1; }
 .on-light .site-header.scrolled { background: none; }
