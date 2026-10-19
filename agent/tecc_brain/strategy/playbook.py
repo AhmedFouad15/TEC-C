@@ -114,6 +114,7 @@ def reduce_exposure_cards(portfolio: Portfolio, view: MarketView, risk: Portfoli
             reduced_by_cluster[cluster] = reduced_by_cluster.get(cluster, 0.0) + position.amount_usd
         cards.append(
             _reduce_card(
+                ref,
                 position.asset, position.venue_id, entry.destination or SAFE_RAIL, position.amount_usd,
                 headline=f"Exit {position.asset} position: {worst} is failing",
                 explanation=[entry.rationale, f"Moves ${position.amount_usd:,.0f} out of the affected position."],
@@ -134,6 +135,7 @@ def reduce_exposure_cards(portfolio: Portfolio, view: MarketView, risk: Portfoli
         amount = min(remaining, source.amount_usd)
         cards.append(
             _reduce_card(
+                ref,
                 source.asset, source.venue_id, SAFE_RAIL, amount,
                 headline=f"Trim {breach.cluster} exposure to {breach.cap:.0%} of NAV",
                 explanation=[
@@ -147,9 +149,12 @@ def reduce_exposure_cards(portfolio: Portfolio, view: MarketView, risk: Portfoli
 
 
 def _reduce_card(
-    asset: str, from_venue: str | None, destination: str, amount: float, *, headline: str, explanation: list[str]
+    ref: Reference, asset: str, from_venue: str | None, destination: str, amount: float, *, headline: str,
+    explanation: list[str],
 ) -> Card:
+    dest = ref.venues.get(destination)
     return Card(
+        market=dest.market if dest is not None else "crypto",
         label=CardLabel.REDUCE_EXPOSURE,
         candidate=Candidate(
             venue_id=destination,
@@ -187,6 +192,7 @@ def opportunity_cards(
             continue
         cards.append(
             Card(
+                market="arbitrage",  # buying a temporarily mispriced peg is PegGuard's job
                 label=CardLabel.OPPORTUNITY,
                 candidate=Candidate(
                     venue_id=symbol, action=ActionType.BUY_DISCOUNT, asset_in=symbol, amount_usd=budget_usd, apy=edge

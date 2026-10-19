@@ -193,7 +193,8 @@ contract SessionKeyValidator is IERC7579Validator {
 
         SessionKeyData storage sk = sessionKeys[sender][sessionKey];
         if (!sk.isActive) return EIP1271_FAILED;
-        if (block.timestamp < sk.validAfter || block.timestamp > sk.validUntil) return EIP1271_FAILED;
+        uint256 currentTimestamp = block.timestamp > 1e11 ? block.timestamp / 1000 : block.timestamp;
+        if (currentTimestamp < sk.validAfter || currentTimestamp > sk.validUntil) return EIP1271_FAILED;
 
         if (sk.mandateRoot != bytes32(0) && data.length >= 117) {
             bytes32 mandateDigest = bytes32(data[85:117]);

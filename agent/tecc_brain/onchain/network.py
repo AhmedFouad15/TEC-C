@@ -60,7 +60,10 @@ def rpc_url_for(network: NetworkName | None = None) -> str:
     elif network == "arbitrum":
         env_var = "ARBITRUM_RPC_URL"
     elif network == "fisco_bcos":
-        env_var = "FISCO_BCOS_RPC_URL"
+        url = os.environ.get("FISCO_BCOS_RPC_URL", "http://127.0.0.1:8555")
+        if not (url.startswith("https://") or url.startswith("http://127.0.0.1") or url.startswith("http://localhost")):
+            raise NetworkConfigError("FISCO_BCOS_RPC_URL must be https:// or local test RPC (127.0.0.1 / localhost)")
+        return url
     else:
         raise NetworkConfigError(f"Unsupported network: {network}")
 

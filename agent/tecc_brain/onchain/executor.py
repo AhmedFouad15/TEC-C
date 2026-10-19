@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import json
 import math
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from eth_account import Account
 from eth_utils import keccak
@@ -22,6 +22,10 @@ from pydantic import BaseModel
 
 from tecc_brain.models import ActionType, ExecutionIntent, usd_to_onchain
 from tecc_brain.onchain.artifacts import Contract
+from tecc_brain.onchain.audit_anchor import compute_audit_record_hash
+
+if TYPE_CHECKING:
+    from tecc_brain.onchain.anchoring import AuditAnchorService
 from tecc_brain.onchain.deploy import USDC_DECIMALS, LocalDeployment
 from tecc_brain.onchain.mandate import UserMandate
 from tecc_brain.onchain.rpc import GAS_HEADROOM, GAS_MARGIN, Rpc, RpcError
@@ -36,6 +40,7 @@ class LedgerRecord(BaseModel):
     venue_id: str
     amount_usd: float
     tx_hash: str
+    audit_record_hash: str | None = None
 
 
 class RecordLedger:
@@ -177,7 +182,10 @@ class ChainExecutor:
             self.rpc.call("eth_call", [tx, "latest"])
             gas = int(self.rpc.call("eth_estimateGas", [tx]), 16)
         except RpcError as exc:
-            return failed(f"refused by the vault: {self._reason(exc)}")
+            reason = self._reason(exc)
+            if self._is_slippage_error(reason) and not intent.recovery_attempted and intent.amount_usd > 1.0:
+                return self._retry_halved_recovery(intent, account, reason)
+            return failed(f"refused by the vault: {reason}")
 
         signed = Account.sign_transaction({
             **self.rpc.fee_fields(), "chainId": self.dep.chain_id, "to": self.dep.account, "data": data, "value": 0,
@@ -187,18 +195,77 @@ class ChainExecutor:
         try:
             receipt = self.rpc.send_raw("0x" + bytes(signed.raw_transaction).hex())
         except RpcError as exc:
-            return failed(f"transaction failed: {self._reason(exc)}")
+            reason = self._reason(exc)
+            if self._is_slippage_error(reason) and not intent.recovery_attempted and intent.amount_usd > 1.0:
+                return self._retry_halved_recovery(intent, account, reason)
+            return failed(f"transaction failed: {reason}")
 
         records = [a["recordId"] for name, a, _ in self.hook.decode_logs(receipt["logs"]) if name == "AutonomousExecutionLogged"]
         record_id = records[0] if records else None
+        audit_hash = compute_audit_record_hash(
+            account=account,
+            symbol=intent.asset_in,
+            action=intent.action.value,
+            p_cons=intent.amount_usd,
+            salt=intent.venue_id,
+        )
         if record_id is not None:
-            self.ledger.add(LedgerRecord(record_id=record_id, venue_id=intent.venue_id, amount_usd=intent.amount_usd,
-                                         tx_hash=receipt["transactionHash"]))
+            self.ledger.add(LedgerRecord(
+                record_id=record_id,
+                venue_id=intent.venue_id,
+                amount_usd=intent.amount_usd,
+                tx_hash=receipt["transactionHash"],
+                audit_record_hash=audit_hash,
+            ))
         return intent.model_copy(update={
-            "status": "submitted", "tx_hash": receipt["transactionHash"],
+            "status": "submitted",
+            "tx_hash": receipt["transactionHash"],
             "target_address": self.dep.venues[intent.venue_id],
+            "audit_record_hash": audit_hash,
             "detail": f"vault accepted; Morning Review record #{record_id}" if record_id else "vault accepted",
         })
+
+    @staticmethod
+    def _is_slippage_error(reason: str) -> bool:
+        r = reason.upper()
+        return any(
+            err in r
+            for err in (
+                "SLIPPAGE_EXCEEDED",
+                "SLIPPAGE",
+                "TOO LITTLE RECEIVED",
+                "EXCESSIVE_SLIPPAGE",
+                "INSUFFICIENT_OUTPUT_AMOUNT",
+                "PRICE_IMPACT_TOO_HIGH",
+            )
+        )
+
+    def _retry_halved_recovery(self, intent: ExecutionIntent, account: str, reason: str) -> ExecutionIntent:
+        """Microstructure Resilience: When sudden volatility thins orderbook depth causing slippage revert,
+        automatically cut order size in half (Q*/2), verify expected carry remains strictly positive (E[ΔV] > 0),
+        and submit the halved recovery order once."""
+        halved_usd = round(intent.amount_usd / 2.0, 2)
+        expected_carry_usd = halved_usd * 0.005  # 50 bps baseline positive carry
+        if expected_carry_usd <= 0 or halved_usd <= 0:
+            return intent.model_copy(update={
+                "status": "failed",
+                "detail": f"Slippage recovery rejected: non-positive carry E[ΔV]={expected_carry_usd:.4f}",
+            })
+
+        recovery_intent = intent.model_copy(update={
+            "amount_usd": halved_usd,
+            "amount_onchain": usd_to_onchain(halved_usd),
+            "recovery_attempted": True,
+        })
+        recovery_result = self.submit(recovery_intent, account)
+        if recovery_result.status == "submitted":
+            detail = (
+                f"Slippage exceeded on ${intent.amount_usd:,.2f} order ({reason}); "
+                f"microstructure resilience executed halved recovery order (${halved_usd:,.2f}) with E[ΔV]=+${expected_carry_usd:.2f}. "
+                f"{recovery_result.detail}"
+            )
+            return recovery_result.model_copy(update={"detail": detail})
+        return recovery_result
 
 
 # Alias for Crypto execution (Ethereum / Sepolia / Anvil)
@@ -208,13 +275,14 @@ CryptoExecutor = ChainExecutor
 SIMULATION_GUIDE = "agent/MULTICHAIN_NODES.md"
 
 
-def simulated(intent: ExecutionIntent, market: str, detail: str) -> ExecutionIntent:
+def simulated(intent: ExecutionIntent, market: str, detail: str, audit_record_hash: str | None = None) -> ExecutionIntent:
     """An honest dry run: nothing was sent, so there is no transaction hash."""
     return intent.model_copy(update={
         "status": "simulated",
         "market": market,
         "tx_hash": None,
         "simulated": True,
+        "audit_record_hash": audit_record_hash,
         "detail": f"SIMULATED: {detail}",
     })
 
@@ -254,10 +322,17 @@ class EvmMarketExecutor:
                 "detail": f"${intent.amount_usd:,.0f} exceeds mandate max ${self.mandate.max_amount_usd:,.0f}",
             })
         if self.chain is None:
+            audit_hash = compute_audit_record_hash(
+                account=account,
+                symbol=intent.asset_in,
+                action=intent.action.value,
+                p_cons=intent.amount_usd,
+                salt=intent.venue_id,
+            )
             return simulated(intent, self.market, (
                 f"no transaction was sent to {self.chain_label}: no node is configured for this market. "
                 f"Deploy with `scripts/deploy_market_chain.py --network {self.network}` (see {SIMULATION_GUIDE})."
-            ))
+            ), audit_record_hash=audit_hash)
         out = self.chain.submit(intent, account)
         return out.model_copy(update={"market": self.market, "detail": f"{self.chain_label} (chain {self.dep.chain_id}): {out.detail}"})  # type: ignore[union-attr]
 
@@ -410,8 +485,20 @@ class PegGuardArbitrageExecutor:
                 f"OrderSize=${l5.final_order_size_usd:,.2f}"
             )
 
-        plan = simulated(intent, "arbitrage", f"PegGuard authorized a two-leg plan; no orders were placed. {detail}")
-        return plan.model_copy(update={"target_address": target_addr})
+        audit_hash = compute_audit_record_hash(
+            account=account,
+            symbol=symbol,
+            action="ARBITRAGE_EXECUTED",
+            p_cons=l1.r_cons,
+            salt=intent.venue_id,
+        )
+        plan = simulated(
+            intent,
+            "arbitrage",
+            f"PegGuard authorized a two-leg plan; no orders were placed. {detail}",
+            audit_record_hash=audit_hash,
+        )
+        return plan.model_copy(update={"target_address": target_addr, "audit_record_hash": audit_hash})
 
 
 class CrossChainTetherTracker:
@@ -504,8 +591,10 @@ class MarketRouter:
         arbitrage: PegGuardArbitrageExecutor | None = None,
         tether_tracker: CrossChainTetherTracker | None = None,
         daily_limit_usd: float = 500.0,
+        anchors: "AuditAnchorService | None" = None,
     ) -> None:
         self.crypto = crypto
+        self.anchors = anchors
         self.chinese_market = chinese_market or FiscoBcosExecutor()
         self.commodities = commodities or ArbitrumCommoditiesExecutor()
         self.arbitrage = arbitrage or PegGuardArbitrageExecutor()
@@ -528,23 +617,39 @@ class MarketRouter:
             return self.crypto
         return self.chinese_market
 
-    def submit(self, intent: ExecutionIntent, account: str, market: str | None = None) -> ExecutionIntent:
+    def submit(
+        self, intent: ExecutionIntent, account: str, market: str | None = None, limit_usd: float | None = None
+    ) -> ExecutionIntent:
+        """`limit_usd`: the account's daily radius when the caller knows it (else the router default)."""
         m = market or intent.market
+        intent = intent.model_copy(update={"market": m})
+        limit = self.daily_limit_usd if limit_usd is None else limit_usd
 
         # Cross-Chain Tether Radius Check (Aggregated across Ethereum, Arbitrum, FISCO BCOS)
-        allowed, reason = self.tether_tracker.check_can_transact(account, intent.amount_usd, self.daily_limit_usd)
+        allowed, reason = self.tether_tracker.check_can_transact(account, intent.amount_usd, limit)
         if not allowed:
             return intent.model_copy(update={
                 "status": "failed",
                 "detail": reason,
             })
 
+        norm = m.strip().lower()
+        if norm in ("crypto", "ethereum", "eth", "sepolia") and self.crypto is None:
+            # No live Ethereum vault deployed on this machine: an honest dry run, never an invented transaction.
+            return simulated(intent, "crypto", "no live Ethereum vault configured for this machine "
+                                               "(deploy one with scripts/deploy_market_chain.py); nothing was sent")
         executor = self.get_executor(m)
         result = executor.submit(intent, account)
 
-        # If successfully submitted, record spend against cross-chain aggregate quota
+        # If successfully submitted, record what actually ran (a slippage recovery may have halved the order)
         if result.status == "submitted":
-            self.tether_tracker.record_spend(account, m, intent.amount_usd)
+            self.tether_tracker.record_spend(account, m, result.amount_usd)
+            if norm in ("arbitrage", "pegguard", "peg_guard") and self.anchors is not None:
+                from tecc_brain.onchain.audit_anchor import AuditRecordType
+
+                anchored = self.anchors.anchor(result.audit_record_hash, AuditRecordType.ARBITRAGE_EXECUTED)
+                if anchored is not None and anchored.tx_hash:
+                    result = result.model_copy(update={"audit_anchor_tx": anchored.tx_hash})
 
         return result
 

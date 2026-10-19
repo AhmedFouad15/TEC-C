@@ -179,6 +179,7 @@
           "mandate"
         ],
         "summary": "Execute",
+        "description": "The user approves one card. The Brain's per-card verdict is binding here: a BLOCKED card (AI veto) is\nrefused, a BREAKOUT card always needs FaceID; only what has not already run automatically is executed, and\nit goes through the shared MarketRouter (cross-chain tether radius, live vault or honest simulation).",
         "operationId": "execute_api_mandate_execute_post",
         "requestBody": {
           "content": {
@@ -672,7 +673,7 @@
           "options"
         ],
         "summary": "Monitor Events",
-        "description": "What the hourly job (or the last manual trigger) has found recently \u2014 for a UI timeline/log panel.",
+        "description": "What the hourly job (or the last manual trigger) has found recently — for a UI timeline/log panel.",
         "operationId": "monitor_events_api_monitor_events_get",
         "parameters": [
           {
@@ -807,7 +808,7 @@
           "arbitrage"
         ],
         "summary": "Arbitrage Assets",
-        "description": "Returns the complete 24-asset 4-category PegGuard catalog across Ethereum L1, Arbitrum L2, and FISCO BCOS.",
+        "description": "Returns the complete 25-asset 4-category PegGuard catalog across Ethereum L1, Arbitrum L2, and FISCO BCOS.",
         "operationId": "arbitrage_assets_api_arbitrage_assets_get",
         "responses": {
           "200": {
@@ -833,7 +834,7 @@
           "arbitrage"
         ],
         "summary": "Scan Arbitrage",
-        "description": "Executes one autonomous PegGuard de-peg scan pass (only runs if `enabled == True` for `req.account`).",
+        "description": "One PegGuard de-peg scan pass (only if `enabled == True` for `req.account`). PegGuard decides what is\nprofitable; the AI Brain decides what of it runs now, inside the soft tether and the cross-chain radius.",
         "operationId": "scan_arbitrage_api_arbitrage_scan_post",
         "requestBody": {
           "content": {
@@ -1105,6 +1106,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BiometricAccountStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Settings",
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/x-search": {
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Set X Search",
+        "operationId": "set_x_search_api_settings_x_search_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/XSearchUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/XSearchSetting"
                 }
               }
             }
@@ -1409,6 +1472,25 @@
         }
       }
     },
+    "/": {
+      "get": {
+        "summary": "Index",
+        "description": "Serves the interactive demo frontend for the Tec-C Agent Wallet.",
+        "operationId": "index__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -1498,6 +1580,45 @@
           "mode"
         ],
         "title": "Allocation"
+      },
+      "AnchorResult": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "anchored",
+              "not_configured",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "record_hash": {
+            "type": "string",
+            "title": "Record Hash"
+          },
+          "tx_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tx Hash"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "record_hash"
+        ],
+        "title": "AnchorResult"
       },
       "ApproveSessionRequest": {
         "properties": {
@@ -1590,7 +1711,9 @@
               "skipped_watermark",
               "noted_unprofitable",
               "executed",
-              "execution_failed"
+              "execution_failed",
+              "held_for_approval",
+              "vetoed_by_brain"
             ],
             "title": "Status"
           },
@@ -1636,6 +1759,18 @@
                 "type": "null"
               }
             ]
+          },
+          "audit_record_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Record Hash",
+            "description": "Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)"
           },
           "detail": {
             "type": "string",
@@ -1949,7 +2084,8 @@
               "EXECUTE",
               "SPLIT",
               "PROPOSE",
-              "REJECT"
+              "REJECT",
+              "HOLD"
             ],
             "title": "Decision"
           },
@@ -2038,7 +2174,7 @@
           "producer"
         ],
         "title": "BrainReport",
-        "description": "The final, validated decision of one run \u2014 whoever produced it."
+        "description": "The final, validated decision of one run — whoever produced it. HOLD is never a model's verdict: it is the\nfail-closed state when the configured model did not answer (timeout, provider or network error)."
       },
       "Candidate": {
         "properties": {
@@ -2124,6 +2260,30 @@
             },
             "type": "array",
             "title": "Explanation"
+          },
+          "market": {
+            "type": "string",
+            "enum": [
+              "crypto",
+              "chinese_market",
+              "commodities",
+              "arbitrage"
+            ],
+            "title": "Market",
+            "description": "Market executor the Brain routes this card to when it runs",
+            "default": "crypto"
+          },
+          "option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Id",
+            "description": "The options-list option this card answers (options flow only)"
           }
         },
         "type": "object",
@@ -2501,7 +2661,7 @@
               }
             ],
             "title": "Comment",
-            "description": "Free text, if any \u2014 stored ONLY as a learning note (like /api/review/sync); never parsed for actions, amounts or recipients, and never seen by Agent 1/2/3 or the executor."
+            "description": "Free text, if any — stored ONLY as a learning note (like /api/review/sync); never parsed for actions, amounts or recipients, and never seen by Agent 1/2/3 or the executor."
           }
         },
         "type": "object",
@@ -2557,6 +2717,18 @@
               }
             ],
             "description": "The single validated decision record (same contract as /propose)"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Id",
+            "description": "Approve a PROPOSE/BREAKOUT option manually: POST /api/mandate/execute with this id, label BEST and the option_id"
           }
         },
         "type": "object",
@@ -2594,6 +2766,19 @@
             ],
             "title": "Venue Id",
             "description": "Needed only when several cards share a label"
+          },
+          "option_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Id",
+            "description": "Options-list proposals: the option to approve"
           }
         },
         "type": "object",
@@ -2657,7 +2842,7 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Amount Onchain",
-            "description": "USD \u00d7 1e8, the unit TetherGuardHook meters the radius in"
+            "description": "USD × 1e8, the unit TetherGuardHook meters the radius in"
           },
           "target_address": {
             "anyOf": [
@@ -2707,6 +2892,36 @@
             "title": "Simulated",
             "description": "True when no transaction was actually sent (FISCO BCOS, Arbitrum and PegGuard executors are demo abstractions that generate the hash locally); `tx_hash` is then not on any chain",
             "default": false
+          },
+          "recovery_attempted": {
+            "type": "boolean",
+            "title": "Recovery Attempted",
+            "description": "True if this intent is an automated recovery retry (e.g. halved order on slippage exceeded)",
+            "default": false
+          },
+          "audit_record_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Record Hash",
+            "description": "Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)"
+          },
+          "audit_anchor_tx": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Anchor Tx",
+            "description": "FISCO BCOS transaction that anchored audit_record_hash; None while it is not anchored"
           },
           "detail": {
             "type": "string",
@@ -2764,6 +2979,18 @@
             "maxLength": 1000,
             "title": "Note",
             "default": ""
+          },
+          "audit_record_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Record Hash",
+            "description": "Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)"
           }
         },
         "type": "object",
@@ -3576,6 +3803,34 @@
         "title": "Mandate",
         "description": "A user's request, parsed into typed form."
       },
+      "ModelSetting": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured",
+            "description": "An API key is set; otherwise this component runs its offline fallback"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "xai",
+              "gemini"
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured",
+          "provider",
+          "model"
+        ],
+        "title": "ModelSetting"
+      },
       "OLSFitResult": {
         "properties": {
           "alpha": {
@@ -3749,7 +4004,7 @@
           "amount_usd"
         ],
         "title": "OptionRequest",
-        "description": "One predefined, pre-approved action \u2014 never free text. `option_id` is the UI's own label, echoed back\nso the frontend can match a result row to the card it rendered, and is never interpreted as an instruction."
+        "description": "One predefined, pre-approved action — never free text. `option_id` is the UI's own label, echoed back\nso the frontend can match a result row to the card it rendered, and is never interpreted as an instruction."
       },
       "OptionResult": {
         "properties": {
@@ -4134,7 +4389,7 @@
           "autonomy_preview"
         ],
         "title": "Personalization",
-        "description": "What the BrainProfile changed or predicts at draft time \u2014 all shown to the user before they confirm."
+        "description": "What the BrainProfile changed or predicts at draft time — all shown to the user before they confirm."
       },
       "ProfileSummary": {
         "properties": {
@@ -4504,7 +4759,8 @@
           "FIRST_USE_VENUE",
           "LOW_CONFIDENCE",
           "INJECTION_SUSPECTED",
-          "NO_CANDIDATES"
+          "NO_CANDIDATES",
+          "MODEL_UNAVAILABLE"
         ],
         "title": "ReasonCode"
       },
@@ -4827,6 +5083,7 @@
             "maximum": 1000000.0,
             "exclusiveMinimum": 0.0,
             "title": "Order Size Usd",
+            "description": "Size PegGuard sizes each trade from; what runs is capped by the soft tether",
             "default": 250.0
           },
           "price_overrides": {
@@ -4842,7 +5099,7 @@
               }
             ],
             "title": "Price Overrides",
-            "description": "Optional map of symbol -> current ratio R_direct(t) to inspect"
+            "description": "Demo/simulation input: symbol -> current ratio R_direct(t). Trades it triggers are capped by the same soft tether, Brain and tether radius, and are never anchored on chain as de-pegs."
           },
           "symbols": {
             "anyOf": [
@@ -4857,7 +5114,11 @@
               }
             ],
             "title": "Symbols",
-            "description": "Optional subset of symbols to scan (defaults to all 24 assets in PEGGUARD_ASSET_CATALOG)"
+            "description": "Optional subset of symbols to scan (defaults to all 25 assets in PEGGUARD_ASSET_CATALOG)"
+          },
+          "vault": {
+            "$ref": "#/components/schemas/VaultIn",
+            "description": "Today's vault radius and spend (as for /propose)"
           }
         },
         "type": "object",
@@ -4906,12 +5167,40 @@
             "title": "Executed Count",
             "default": 0
           },
+          "held_count": {
+            "type": "integer",
+            "title": "Held Count",
+            "default": 0
+          },
           "outcomes": {
             "items": {
               "$ref": "#/components/schemas/AssetScanOutcome"
             },
             "type": "array",
             "title": "Outcomes"
+          },
+          "brain_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrainReport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The AI Brain's decision over every PegGuard-authorized trade in this tick (same contract as /propose)"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Id",
+            "description": "Approve a held trade with POST /api/mandate/execute (label OPPORTUNITY)"
           },
           "active_watermarks": {
             "additionalProperties": {
@@ -4988,7 +5277,7 @@
               }
             ],
             "title": "Sharpe",
-            "description": "(E[R] \u2212 Shibor) / sd(R) over one year"
+            "description": "(E[R] − Shibor) / sd(R) over one year"
           },
           "cvar_95": {
             "anyOf": [
@@ -5015,7 +5304,7 @@
           "total"
         ],
         "title": "ScoreBreakdown",
-        "description": "Every term of score = excess \u2212 (1+\u03bb)\u00b7PD\u00b7LGD \u2212 c_in \u2212 c_out_stress + w_a\u00b7a, fractions per year."
+        "description": "Every term of score = excess − (1+λ)·PD·LGD − c_in − c_out_stress + w_a·a, fractions per year."
       },
       "SetGuardianRequest": {
         "properties": {
@@ -5038,6 +5327,33 @@
         ],
         "title": "SetGuardianRequest"
       },
+      "SettingsView": {
+        "properties": {
+          "x_search": {
+            "$ref": "#/components/schemas/XSearchSetting"
+          },
+          "sentinel": {
+            "$ref": "#/components/schemas/ModelSetting"
+          },
+          "brain": {
+            "$ref": "#/components/schemas/ModelSetting"
+          },
+          "pegguard": {
+            "type": "string",
+            "const": "deterministic",
+            "title": "Pegguard",
+            "description": "PegGuard never calls an LLM (Math > AI)",
+            "default": "deterministic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x_search",
+          "sentinel",
+          "brain"
+        ],
+        "title": "SettingsView"
+      },
       "Signal": {
         "type": "string",
         "enum": [
@@ -5052,7 +5368,7 @@
           "ignored"
         ],
         "title": "Signal",
-        "description": "A review signal: an on-chain Morning Review event or an explicit UI choice (BRAIN_DESIGN \u00a73.2)."
+        "description": "A review signal: an on-chain Morning Review event or an explicit UI choice (BRAIN_DESIGN §3.2)."
       },
       "StrategyResult": {
         "properties": {
@@ -5122,6 +5438,28 @@
             },
             "type": "array",
             "title": "Changes"
+          },
+          "audit_record_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Record Hash"
+          },
+          "audit_anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnchorResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Review notes are anchored on FISCO BCOS (hash only)"
           }
         },
         "type": "object",
@@ -5298,6 +5636,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Recorded At"
+          },
+          "audit_record_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Record Hash",
+            "description": "Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)"
           }
         },
         "type": "object",
@@ -5422,7 +5772,7 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Approval Posterior",
-            "description": "Beta posterior mean \u03b1/(\u03b1+\u03b2) of your past approvals"
+            "description": "Beta posterior mean α/(α+β) of your past approvals"
           },
           "observations": {
             "type": "integer",
@@ -5504,6 +5854,68 @@
           "qy"
         ],
         "title": "VerifyWebAuthnRequest"
+      },
+      "XSearchSetting": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether the Sentinel's X-pulse calls attach xAI's live x_search tool"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "env",
+              "runtime"
+            ],
+            "title": "Source",
+            "description": "'env' = TECC_ENABLE_X_SEARCH; 'runtime' = set via this API"
+          },
+          "env_default": {
+            "type": "boolean",
+            "title": "Env Default",
+            "description": "TECC_ENABLE_X_SEARCH, the value after a restart"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "False while GROK_API_KEY is unset: the Sentinel then runs offline anyway"
+          },
+          "price_note": {
+            "type": "string",
+            "title": "Price Note",
+            "default": "Billed by xAI per post returned ($5 per 1,000 posts) on top of tokens."
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "source",
+          "env_default",
+          "available"
+        ],
+        "title": "XSearchSetting"
+      },
+      "XSearchUpdate": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "true/false to override; null to return to TECC_ENABLE_X_SEARCH"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "XSearchUpdate"
       }
     }
   }

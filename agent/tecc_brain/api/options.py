@@ -30,7 +30,13 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from tecc_brain.api.deps import Account, Scenario, VaultIn, get_brain_llm, get_news_sentinel, get_proposals, get_ref, get_store
+from tecc_brain.api.deps import (
+    Account, Scenario, VaultIn, get_brain_llm, get_news_sentinel, get_proposals, get_ref, get_router, get_store,
+)
+from tecc_brain.graph.pipeline import PipelineResult
+from tecc_brain.intent.firewall import scan
+from tecc_brain.intent.rules import ParseOutcome
+from tecc_brain.onchain.executor import MarketRouter
 from tecc_brain.graph.brain import BrainLLM, BrainReport, build_brain_input, synthesize
 from tecc_brain.graph.pipeline import ProfileSummary, load_or_create_profile
 from tecc_brain.market import SnapshotSource
@@ -96,6 +102,10 @@ class EvaluateOptionsResponse(BaseModel):
     profile: ProfileSummary | None = None
     trace: list[str] = Field(default_factory=list)
     brain_report: BrainReport | None = Field(None, description="The single validated decision record (same contract as /propose)")
+    proposal_id: str | None = Field(
+        None, description="Approve a PROPOSE/BREAKOUT option manually: POST /api/mandate/execute with this id, "
+                          "label BEST and the option_id",
+    )
 
 
 def _best_venue_for(option: OptionRequest, ref: Reference):
@@ -120,6 +130,7 @@ def evaluate_options(
     ref: Reference = Depends(get_ref),
     brain_llm: BrainLLM | None = Depends(get_brain_llm),
     sentinel: NewsRiskSentinel = Depends(get_news_sentinel),
+    market_router: MarketRouter = Depends(get_router),
 ) -> EvaluateOptionsResponse:
     vault = req.vault.to_state()
     profile = load_or_create_profile(store, req.account)
@@ -194,8 +205,8 @@ def evaluate_options(
                 if allocated < option.amount_usd:
                     reasons.append(f"Partially funded: ${allocated:,.0f} of ${option.amount_usd:,.0f} fits inside today's soft tether; "
                                    f"the rest is proposed for approval or tomorrow's radius.")
-        cards.append(Card(label=CardLabel.BEST, candidate=candidate, mode=mode,
-                          headline=f"{option.option_id}: {venue.name}", explanation=reasons))
+        cards.append(Card(label=CardLabel.BEST, candidate=candidate, mode=mode, market=venue.market,
+                          option_id=option.option_id, headline=f"{option.option_id}: {venue.name}", explanation=reasons))
 
     # AI Brain: the same single-pass, tighten-only synthesis as /propose. Without a model (or on any invalid
     # verdict) the baseline above is returned unchanged, expressed as a BrainReport.
@@ -218,17 +229,27 @@ def evaluate_options(
     funded_count = 0
     used = 0.0
     intents: list[ExecutionIntent] = []
+    auto_executed: dict[str, float] = {}
     for i, card in enumerate(final.cards):
         option, venue, _ = scored[i]
         s = card.candidate.score
         # Strict cap: the validator tolerates a cent of rounding, the allocation does not.
         allocated = min(auto_by_card.get(f"c{i}", 0.0), caps[i]) if card.mode == AutonomyMode.AUTO else 0.0
         if allocated > 0:
-            funded_count += 1
-            used += allocated
-            intents.append(ExecutionIntent(card_label=CardLabel.BEST, venue_id=venue.id, action=venue.action,
-                                           asset_in=option.asset, amount_usd=allocated, amount_onchain=usd_to_onchain(allocated),
-                                           target_address=venue.target_address))
+            # Same execution path as /propose: the shared MarketRouter (cross-chain tether radius, live or simulated)
+            sent = market_router.submit(
+                ExecutionIntent(card_label=CardLabel.BEST, venue_id=venue.id, action=venue.action, asset_in=option.asset,
+                                amount_usd=allocated, amount_onchain=usd_to_onchain(allocated),
+                                target_address=venue.target_address, market=venue.market),
+                req.account, limit_usd=vault.tether_radius_usd,
+            )
+            intents.append(sent)
+            if sent.status in ("submitted", "simulated", "signed"):
+                funded_count += 1
+                used += sent.amount_usd
+                auto_executed[option.option_id] = sent.amount_usd
+            else:
+                allocated = 0.0
         results.append(OptionResult(
             option_id=option.option_id, venue_id=venue.id, mode=card.mode, allocated_usd=allocated, requested_usd=option.amount_usd,
             score_pct_per_yr=s.total * 100, cvar_95_pct=(s.cvar_95 * 100 if s.cvar_95 is not None else None), sharpe=s.sharpe,
@@ -237,6 +258,13 @@ def evaluate_options(
 
     trace = final.trace
     status = "REJECT_ALL" if funded_count == 0 else "EXECUTE_ONE" if funded_count == 1 else "SPLIT"
+    proposal_id = None
+    if any(c.mode != AutonomyMode.BLOCKED for c in final.cards):
+        # N1: what /execute needs to approve an option by hand (PROPOSE after the Brain, or the unfunded remainder)
+        parse = ParseOutcome(mandate=final.mandate, verdict=scan(final.mandate.raw_text))
+        record = PipelineResult(status="blocked" if final.mode == AutonomyMode.BLOCKED else "decided", parse=parse,
+                                decision=final, brain_report=report)
+        proposal_id = proposals.add(req.account, record, vault, auto_executed_usd=auto_executed)
     trace.append(f"Decision: {status} ({funded_count} option(s) funded, ${used:,.0f} of ${limit:,.0f} soft tether used).")
 
     if req.comment:
@@ -252,7 +280,7 @@ def evaluate_options(
         profile = outcome.profile
 
     return EvaluateOptionsResponse(
-        status=status, results=results, intents=intents, trace=trace, brain_report=report,
+        status=status, results=results, intents=intents, trace=trace, brain_report=report, proposal_id=proposal_id,
         profile=ProfileSummary(account=profile.account, tier=profile.tier, lam=profile.lam, tau=profile.tau,
                                soft_limit_usd=soft_limit(profile, vault)),
     )

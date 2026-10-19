@@ -90,6 +90,7 @@ REDEMPTION_PAUSED = 1.0
 _REDEMPTION_VALUES = {REDEMPTION_OPEN, REDEMPTION_DELAYED, REDEMPTION_PAUSED}
 
 Peg = Literal["USD", "ETH", "XAU"]
+Market = Literal["crypto", "chinese_market", "commodities", "arbitrage"]
 
 _STATIC = ConfigDict(frozen=True, extra="forbid")
 
@@ -141,6 +142,7 @@ class Venue(BaseModel):
     )
     exposures: list[str] = Field(default_factory=list, description="Pegged assets this position depends on")
     target_address: str | None = Field(None, description="On-chain target, filled at deployment (Phase 7)")
+    market: Market = Field("crypto", description="Which market executor settles this venue (routes the ExecutionIntent)")
     note: str = ""
 
 
@@ -282,6 +284,10 @@ class FeedbackEvent(BaseModel):
     amount_usd: float = Field(0.0, ge=0)
     at: datetime
     note: str = Field("", max_length=1000)
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
 
     @field_validator("at")
     @classmethod
@@ -410,6 +416,8 @@ class Card(BaseModel):
     mode: AutonomyMode
     headline: str
     explanation: list[str] = Field(default_factory=list)
+    market: Market = Field("crypto", description="Market executor the Brain routes this card to when it runs")
+    option_id: str | None = Field(None, description="The options-list option this card answers (options flow only)")
 
 
 class Decision(BaseModel):
@@ -445,5 +453,16 @@ class ExecutionIntent(BaseModel):
         False,
         description="True when no transaction was actually sent (FISCO BCOS, Arbitrum and PegGuard executors are "
                     "demo abstractions that generate the hash locally); `tx_hash` is then not on any chain",
+    )
+    recovery_attempted: bool = Field(
+        False,
+        description="True if this intent is an automated recovery retry (e.g. halved order on slippage exceeded)",
+    )
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
+    audit_anchor_tx: str | None = Field(
+        None, description="FISCO BCOS transaction that anchored audit_record_hash; None while it is not anchored"
     )
     detail: str = ""

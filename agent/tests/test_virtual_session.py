@@ -302,6 +302,25 @@ def test_stepup_biometric_trade_action_and_replay_protection(
     sess = admin.post("/admin/sessions", json={"name": "Trade Session", "can_trade": True}).json()
     sess_id = sess["id"]
 
+    # N7: the phone approves a REAL proposal card through the same /api/mandate/execute code path
+    from tecc_brain.api.deps import ProposalCache, get_proposals, get_store
+
+    class _MemStore:
+        def __init__(self) -> None:
+            self.d: dict[str, Any] = {}
+
+        def load(self, a: str) -> Any:
+            return self.d.get(a.lower())
+
+        def save(self, prof: Any) -> None:
+            self.d[prof.account.lower()] = prof
+
+    store, proposals = _MemStore(), ProposalCache()
+    admin_app.dependency_overrides[get_store] = lambda: store
+    admin_app.dependency_overrides[get_proposals] = lambda: proposals
+    proposed = TestClient(admin_app).post("/api/mandate/propose", json={"text": "Deposit 450 USDC into Aave"}).json()
+    trade_params = {"proposal_id": proposed["proposal_id"], "label": "BEST"}
+
     opt = gateway.post("/webauthn/register/options", json={"session_id": sess_id}).json()
     key, qx, qy = generate_p256_keypair()
     auth_data = build_authenticator_data(rp_id="xxxx.trycloudflare.co", user_present=True, user_verified=True, sign_count=1)
@@ -332,15 +351,15 @@ def test_stepup_biometric_trade_action_and_replay_protection(
     no_token = gateway.post(
         "/api/trade/execute",
         cookies={"tecc_vs_session": cookie},
-        json={"stepup_token": "", "params": {"amount": 100}},
+        json={"stepup_token": "", "params": trade_params},
     )
     assert no_token.status_code == 403
 
-    # Step 2: Request step-up challenge for action "execute" with params {"amount": 100}
+    # Step 2: Request step-up challenge for action "execute" with params trade_params
     step_opts = gateway.post(
         "/webauthn/stepup/options",
         cookies={"tecc_vs_session": cookie},
-        json={"action": "execute", "params": {"amount": 100}},
+        json={"action": "execute", "params": trade_params},
     ).json()
 
     # Step 3: Sign step-up assertion (sign_count must increase from 1 to 2)
@@ -362,7 +381,7 @@ def test_stepup_biometric_trade_action_and_replay_protection(
             "client_data_json": b64url_encode(step_cd.encode()),
             "r": hex(sr),
             "s": hex(ss),
-            "params": {"amount": 100},
+            "params": trade_params,
         },
     )
     assert step_verify.status_code == 200
@@ -372,18 +391,22 @@ def test_stepup_biometric_trade_action_and_replay_protection(
     trade_res = gateway.post(
         "/api/trade/execute",
         cookies={"tecc_vs_session": cookie},
-        json={"stepup_token": token, "params": {"amount": 100}},
+        json={"stepup_token": token, "params": trade_params},
     )
-    assert trade_res.status_code == 200
-    assert trade_res.json()["status"] == "executed"
+    assert trade_res.status_code == 200, trade_res.text
+    body = trade_res.json()
+    assert body["status"] == "simulated"  # really routed (no live node on this machine), not a canned "executed"
+    assert body["result"]["intent"]["amount_usd"] == 50.0  # only what did not already run automatically
 
     # Step 5: Replay of same token MUST fail (single-use)
     replay_res = gateway.post(
         "/api/trade/execute",
         cookies={"tecc_vs_session": cookie},
-        json={"stepup_token": token, "params": {"amount": 100}},
+        json={"stepup_token": token, "params": trade_params},
     )
     assert replay_res.status_code == 403
+    admin_app.dependency_overrides.pop(get_store, None)
+    admin_app.dependency_overrides.pop(get_proposals, None)
 
 
 def test_killswitch_revokes_all_and_stops_tunnel(

@@ -85,6 +85,7 @@ def deploy_local(
     # USDC moves are ERC-20 transfers whose call target is the token itself, so the token is whitelisted too
     # (tier 1, a core stablecoin). See SUMMARY: the hook does not check the transfer's recipient.
     hook.transact(rpc, "setTargetWhitelist", account.address, usdc.address, True, 1, sender=owner, key=k)
+    hook.transact(rpc, "setTargetWhitelist", account.address, validator.address, True, 1, sender=owner, key=k)
 
     protocol = Contract.load("MockDeFiProtocol")
     venues: dict[str, str] = {}

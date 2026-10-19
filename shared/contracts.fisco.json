@@ -6,8 +6,8 @@
     "co_hosts": "Tsinghua University PBCSF & WeBank",
     "version": "1.0.0",
     "network": "FISCO BCOS (WeBank Consortium Chain)",
-    "chainId": 2026,
-    "note": "Multi-chain deployment for the Chinese Market. Features native enterprise gas quota sponsorship ($0.00 gas fee for cardholders). Routes onshore Shibor MMF and cross-border digital settlement assets."
+    "chainId": 20200,
+    "note": "Multi-chain deployment for the Onshore Market. Features native enterprise gas quota sponsorship ($0.00 gas fee for cardholders). Routes onshore Shibor MMF and cross-border digital settlement assets."
   },
   "defaultParameters": {
     "tetherRadiusDefaultWei": "500000000000000000",
@@ -21,22 +21,29 @@
   },
   "deployedAddresses": {
     "EntryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-    "TetherGuardHook": "0x000000000000000000000000000000000000dEaD",
-    "SessionKeyValidator": "0x000000000000000000000000000000000000dEaD",
+    "TetherGuardHook": "0xF8e31cb472bc70500f08Cd84917E5A1912Ec8397",
+    "SessionKeyValidator": "0xc0F115A19107322cFBf1cDBC7ea011C19EbDB4F8",
     "TecPaymaster": "0x000000000000000000000000000000000000dEaD",
-    "TecAccount": "0x000000000000000000000000000000000000dEaD",
-    "USDC": "0x000000000000000000000000000000000000dEaD",
-    "ShiborFeed": "0x000000000000000000000000000000000000dEaD"
+    "TecAccount": "0xc96304e3c037f81dA488ed9dEa1D8F2a48278a75",
+    "USDC": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+    "ShiborFeed": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A"
   },
   "venues": {
-    "shibor_mmf": "0x000000000000000000000000000000000000dEaD"
+    "shibor_mmf": "0x5fc748f1FEb28d7b76fa1c6B07D8ba2d5535177c",
+    "paxg_hold": "0x2a810409872AfC346F9B5b26571Fd6eC42EA4849",
+    "lido_stake": "0xffa7CA1AEEEbBc30C874d32C7e22F052BbEa0429",
+    "curve_steth_eth": "0xab16A69A5a8c12C732e0DEFF4BE56A70bb64c926",
+    "aave_v3_usdc": "0x1f10F3Ba7ACB61b2F50B9d6DdCf91a6f787C0E82",
+    "compound_v3_usdc": "0x525C7063E7C20997BaaE9bDa922159152D0e8417",
+    "eigenlayer_restake": "0x8A93d247134d91e0de6f96547cB0204e5BE8e5D8",
+    "uniswap_v3_usdc_eth": "0xF32D39ff9f6Aa7a7A64d7a4F00a54826Ef791a55"
   },
   "eip712": {
     "domain": {
       "name": "Tec-C UserMandate",
       "version": "1",
-      "chainId": 2026,
-      "verifyingContract": "0x000000000000000000000000000000000000dEaD"
+      "chainId": 20200,
+      "verifyingContract": "0xc0F115A19107322cFBf1cDBC7ea011C19EbDB4F8"
     }
   }
 }

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from typing import Any
 
@@ -124,6 +125,71 @@ class StepupVerifyReq(BaseModel):
 class TradeExecuteReq(BaseModel):
     stepup_token: str = Field(description="60-second single-use step-up token")
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+def gateway_account() -> str:
+    """The wallet this laptop serves. One owner per machine: the phone acts for that account only."""
+    return os.environ.get("TECC_VIRTUAL_SESSION_ACCOUNT", "demo")
+
+
+def _dep(dependency):
+    """Resolve an admin-app dependency the same way the admin app would (honours its test overrides)."""
+    from tecc_brain.app import app as admin_app
+
+    return admin_app.dependency_overrides.get(dependency, dependency)()
+
+
+def _wallet_state() -> dict[str, Any]:
+    from tecc_brain.api.arbitrage import get_arbitrage_scanner
+    from tecc_brain.api.deps import get_anchors, get_router, get_store
+    from tecc_brain.pegguard import PEGGUARD_ASSET_CATALOG
+    from tecc_brain.strategy.portfolio import load_demo_portfolio
+
+    account = gateway_account()
+    store, router = _dep(get_store), _dep(get_router)
+    scanner = get_arbitrage_scanner(store=store, router=router, anchors=_dep(get_anchors))
+    portfolio = load_demo_portfolio() if account == "demo" else None
+    radius = router.daily_limit_usd
+    spent = router.tether_tracker.get_spent(account)
+    return {
+        "account": account,
+        "scanner_active": scanner.is_enabled(account),
+        "monitored_assets_count": len(PEGGUARD_ASSET_CATALOG),
+        "watermarks": scanner.get_watermarks(account),
+        "positions": [p.model_dump() for p in portfolio.positions] if portfolio else [],
+        "radius_usd": radius,
+        "spent_today_usd": spent,
+        "remaining_usd": max(0.0, radius - spent),
+    }
+
+
+def _trade_execute(params: dict[str, Any]) -> dict[str, Any]:
+    """Approve one card of a proposal — exactly /api/mandate/execute (AI veto refused, BREAKOUT needs FaceID)."""
+    from pydantic import ValidationError
+
+    from tecc_brain.api.deps import get_proposals, get_ref, get_router, get_store
+    from tecc_brain.api.mandate import ExecuteRequest, execute
+
+    try:
+        req = ExecuteRequest(account=gateway_account(), **{k: v for k, v in params.items() if k != "account"})
+    except (TypeError, ValidationError) as exc:
+        raise HTTPException(status_code=422, detail=f"execute needs proposal_id and label: {exc}") from exc
+    out = execute(req, store=_dep(get_store), proposals=_dep(get_proposals), ref=_dep(get_ref), router=_dep(get_router))
+    return {"status": out.intent.status, "result": out.model_dump(mode="json")}
+
+
+def _trade_arbitrage_toggle(params: dict[str, Any]) -> dict[str, Any]:
+    from tecc_brain.api.arbitrage import get_arbitrage_scanner
+    from tecc_brain.api.deps import get_anchors, get_router, get_store
+
+    if not isinstance(params.get("enabled"), bool):
+        raise HTTPException(status_code=422, detail="arbitrage/toggle needs a boolean 'enabled'")
+    scanner = get_arbitrage_scanner(store=_dep(get_store), router=_dep(get_router), anchors=_dep(get_anchors))
+    enabled = scanner.set_enabled(gateway_account(), params["enabled"])
+    return {"status": "enabled" if enabled else "disabled", "result": {"enabled": enabled}}
+
+
+TRADE_ACTIONS = {"execute": _trade_execute, "arbitrage/toggle": _trade_arbitrage_toggle}
 
 
 def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
@@ -357,37 +423,46 @@ def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
 
     @app.get("/api/dashboard")
     def get_dashboard(sess: dict[str, Any] = Depends(require_active_session_cookie)) -> dict[str, Any]:
-        """GET /api/dashboard: Read-only summary."""
+        """GET /api/dashboard: Read-only summary of the owner's live state (never API keys)."""
+        state = _wallet_state()
         return {
             "session_id": sess["id"],
             "state": sess["state"],
             "can_trade": sess["can_trade"],
-            "scanner_active": True,
-            "monitored_assets_count": 25,
-            "active_positions_count": 0,
-            "vault_tether_radius_usd": 500.0,
+            "account": state["account"],
+            "scanner_active": state["scanner_active"],
+            "monitored_assets_count": state["monitored_assets_count"],
+            "active_positions_count": len(state["positions"]),
+            "vault_tether_radius_usd": state["radius_usd"],
+            "spent_today_usd": state["spent_today_usd"],
+            "remaining_today_usd": state["remaining_usd"],
             "api_keys": None,  # Section 5.7: API keys never reach the phone
         }
 
     @app.get("/api/positions")
     def get_positions(sess: dict[str, Any] = Depends(require_active_session_cookie)) -> dict[str, Any]:
-        """GET /api/positions: Read-only positions."""
+        """GET /api/positions: Read-only positions and today's tether health."""
+        state = _wallet_state()
+        radius = state["radius_usd"]
         return {
-            "positions": [],
-            "total_value_usd": 0.0,
-            "tether_health": "100%",
+            "positions": state["positions"],
+            "total_value_usd": round(sum(p["amount_usd"] for p in state["positions"]), 2),
+            "tether_health": f"{(state['remaining_usd'] / radius * 100) if radius > 0 else 0:.0f}%",
         }
 
     @app.get("/api/signals")
     def get_signals(sess: dict[str, Any] = Depends(require_active_session_cookie)) -> dict[str, Any]:
-        """GET /api/signals: PegGuard and Sentinel live signals."""
-        return {
-            "signals": [
-                "PegGuard Scanner active across 25 pegged assets.",
-                "All par-pegged stablecoins within 0.15% parity threshold.",
-            ],
-            "timestamp": int(time.time()),
-        }
+        """GET /api/signals: hourly-monitor events and PegGuard watermarks for the owner's account."""
+        from tecc_brain.monitor.hourly import get_event_log
+
+        state = _wallet_state()
+        signals = [f"PegGuard scanner {'active' if state['scanner_active'] else 'off'} across "
+                   f"{state['monitored_assets_count']} pegged assets."]
+        signals += [f"{sym}: unprofitable de-peg noted at {wm.unprofitable_price:.4f} (EV {wm.ev_bps:+.1f} bps)."
+                    for sym, wm in state["watermarks"].items()]
+        signals += [f"{e.symbol}: {e.trigger} signal ({e.regime}) — {e.summary}"
+                    for e in get_event_log().recent(10) if e.account == state["account"]]
+        return {"signals": signals, "timestamp": int(time.time())}
 
     # -------------------------------------------------------------------------
     # Trade Action (Section 7, 5.5 & 5.8)
@@ -400,12 +475,16 @@ def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
         request: Request,
         sess: dict[str, Any] = Depends(require_active_session_cookie),
     ) -> dict[str, Any]:
-        """POST /api/trade/*: Trade action requiring cookie + stepup_token + can_trade."""
+        """POST /api/trade/*: Trade action requiring cookie + stepup_token + can_trade. Runs the SAME code path as the
+        laptop app — the Brain's per-card verdict, the soft tether and the MarketRouter all apply."""
         if not sess["can_trade"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Mobile session is read-only. Trading permission disabled for this session.",
             )
+        if action not in TRADE_ACTIONS:  # checked before the step-up token is spent
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"unknown trade action; allowed: {', '.join(sorted(TRADE_ACTIONS))}")
 
         svc = _get_service()
         from tecc_brain.virtual_session.webauthn_engine import compute_action_hash
@@ -419,15 +498,16 @@ def create_gateway_app(service: VirtualSessionService | None = None) -> FastAPI:
             )
 
         ip, country = _client_ip_country(request)
+        result = TRADE_ACTIONS[action](req.params)
         svc.db.log_event(
             session_id=sess["id"],
             event="trade_executed",
             ip=ip,
             country=country,
-            detail=f"action={action} params={json.dumps(req.params)}",
+            detail=f"action={action} params={json.dumps(req.params)} status={result.get('status')}",
         )
         return {
-            "status": "executed",
+            **result,
             "action": action,
             "session_id": sess["id"],
             "timestamp": int(time.time()),

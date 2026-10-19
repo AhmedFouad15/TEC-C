@@ -1,0 +1,132 @@
+{
+  "_meta": {
+    "project": "Tec-C (Tethered Expense Corporate Card)",
+    "description": "Verified Free Chainlink Price Feed Aggregators across Ethereum, Arbitrum, and Sepolia testnets. All feeds are directly queryable via free eth_call to latestRoundData() on public RPC nodes without any API key.",
+    "version": "1.0.0"
+  },
+  "ethereum": {
+    "chainId": 1,
+    "rpcUrl": "https://ethereum.publicnode.com",
+    "rpcUrls": [
+      "https://ethereum.publicnode.com",
+      "https://rpc.ankr.com/eth",
+      "https://eth.llamarpc.com"
+    ],
+    "feeds": {
+      "ETH/USD": {
+        "address": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "decimals": 8,
+        "tokenAddress": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+        "symbol": "ETH"
+      },
+      "BTC/USD": {
+        "address": "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
+        "decimals": 8,
+        "tokenAddress": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+        "symbol": "WBTC"
+      },
+      "USDC/USD": {
+        "address": "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6",
+        "decimals": 8,
+        "tokenAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "symbol": "USDC"
+      },
+      "USDT/USD": {
+        "address": "0x3E7d1eAB13ad0104d2750B8863b489D65364e32D",
+        "decimals": 8,
+        "tokenAddress": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        "symbol": "USDT"
+      },
+      "PAXG/USD": {
+        "address": "0x9B97304ea279A58d75739679344493399F6cB563",
+        "decimals": 8,
+        "tokenAddress": "0x45804880De22913dAFE09f4980848ECE6EcbAf78",
+        "symbol": "PAXG"
+      },
+      "stETH/USD": {
+        "address": "0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8",
+        "decimals": 8,
+        "tokenAddress": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+        "symbol": "stETH"
+      },
+      "LINK/USD": {
+        "address": "0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c",
+        "decimals": 8,
+        "tokenAddress": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+        "symbol": "LINK"
+      }
+    }
+  },
+  "arbitrum": {
+    "chainId": 42161,
+    "rpcUrl": "https://arb1.arbitrum.io/rpc",
+    "feeds": {
+      "ETH/USD": {
+        "address": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
+        "decimals": 8,
+        "tokenAddress": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+        "symbol": "ETH"
+      },
+      "BTC/USD": {
+        "address": "0x6ce185860a4963106506C203335A2910413708e9",
+        "decimals": 8,
+        "tokenAddress": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+        "symbol": "WBTC"
+      },
+      "USDC/USD": {
+        "address": "0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3",
+        "decimals": 8,
+        "tokenAddress": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "symbol": "USDC"
+      },
+      "USDT/USD": {
+        "address": "0x3f3f5dF88dC9F13eac63DF89EC16ef64E7841741",
+        "decimals": 8,
+        "tokenAddress": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+        "symbol": "USDT"
+      },
+      "PAXG/USD": {
+        "address": "0x0c9973e7a27d00e656B9f153348dA46CaD70d03d",
+        "decimals": 8,
+        "tokenAddress": "0xfeb4483660e5700215918e1702b779a868778ac2",
+        "symbol": "PAXG"
+      },
+      "ARB/USD": {
+        "address": "0xb2A824043730FE05F3DA2efaFa1CBbe83fa548D6",
+        "decimals": 8,
+        "tokenAddress": "0x912CE59144191C1204E64559FE8253a0e49E6548",
+        "symbol": "ARB"
+      }
+    }
+  },
+  "sepolia": {
+    "chainId": 11155111,
+    "rpcUrl": "https://rpc.sepolia.org",
+    "feeds": {
+      "ETH/USD": {
+        "address": "0x694AA1769357215DE4FAC081bf1f309aDC325306",
+        "decimals": 8,
+        "tokenAddress": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+        "symbol": "ETH"
+      },
+      "BTC/USD": {
+        "address": "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43",
+        "decimals": 8,
+        "tokenAddress": "0x29f2D40B0605204364af54EC677bD022dA425d03",
+        "symbol": "WBTC"
+      },
+      "USDC/USD": {
+        "address": "0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E",
+        "decimals": 8,
+        "tokenAddress": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "symbol": "USDC"
+      },
+      "LINK/USD": {
+        "address": "0xc59E3633BAAC79493d908e63626716e204A45EdF",
+        "decimals": 8,
+        "tokenAddress": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
+        "symbol": "LINK"
+      }
+    }
+  }
+}

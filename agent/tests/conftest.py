@@ -79,3 +79,20 @@ def arbitrum_like_url():
     yield url
     proc.terminate()
     proc.wait(timeout=5)
+
+
+@pytest.fixture(autouse=True)
+def _simulated_markets_only():
+    """API tests never reach a live node a developer may have deployed locally (agent/.state/markets): every test
+    gets its own router with honest simulated markets and a fresh cross-chain tether tracker."""
+    from tecc_brain.api.deps import get_anchors, get_router
+    from tecc_brain.app import app
+    from tecc_brain.onchain.anchoring import AuditAnchorService
+    from tecc_brain.onchain.executor import MarketRouter
+
+    router = MarketRouter(anchors=AuditAnchorService(None))
+    app.dependency_overrides[get_router] = lambda: router
+    app.dependency_overrides[get_anchors] = lambda: AuditAnchorService(None)
+    yield router
+    app.dependency_overrides.pop(get_router, None)
+    app.dependency_overrides.pop(get_anchors, None)

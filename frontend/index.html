@@ -1,0 +1,2649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tec-C: Autonomous Agent Wallet | Command Center</title>
+  <style>
+    :root {
+      --bg: #F3F2EE;
+      --surface: #FFFFFF;
+      --border: #D4D2CA;
+      --border-subtle: #E7E5DE;
+      --border-input: #CFCDC4;
+      --text: #1E1E1C;
+      --muted: #77756D;
+      --green: #2E8B57;
+      --green-bg: #E3F3EA;
+      --green-dark: #1F6B41;
+      --blue: #2F5BEA;
+      --blue-bg: #E6EEFF;
+      --amber: #C98A00;
+      --amber-bg: #FFF3D6;
+      --red: #C0392B;
+      --red-bg: #FBF1F0;
+      --yellow-note: #FFE45C;
+      --yellow-border: #D9B800;
+      --yellow-input: #FFF3A8;
+      --font: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; font-family: inherit; }
+
+    /* Top Bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-badge {
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--text);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .spacer { flex: 1 1 20px; }
+    .top-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 13px;
+      background: var(--surface);
+      transition: all 0.2s;
+    }
+    .top-pill:hover { border-color: var(--text); }
+    .top-pill-btn { cursor: pointer; }
+    .donut-chart {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: conic-gradient(var(--green) 0 42%, var(--border-subtle) 0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+    .donut-inner {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+    }
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.active { background: var(--green); box-shadow: 0 0 0 2px var(--green-bg); }
+    .status-dot.locked { background: #B9B7AE; }
+    .status-dot.warning { background: var(--amber); }
+    .status-dot.danger { background: var(--red); }
+    .avatar-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    /* Layout */
+    .app-body {
+      display: flex;
+      flex: 1;
+      align-items: stretch;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      flex: 0 0 220px;
+      box-sizing: border-box;
+      padding: 20px 14px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .nav-item {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text);
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-item:hover { background: var(--bg); }
+    .nav-item.active {
+      background: var(--text);
+      color: #fff;
+      font-weight: 600;
+    }
+    .nav-badge {
+      background: var(--border-subtle);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0 8px;
+      font-size: 11px;
+      line-height: 18px;
+      font-weight: 700;
+    }
+    .nav-item.active .nav-badge {
+      background: #fff;
+      color: var(--text);
+    }
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Main Container */
+    .main-content {
+      flex: 1 1 800px;
+      min-width: 0;
+      padding: 28px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; gap: 24px; animation: fadeIn 0.2s ease-in-out; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Page Header */
+    .page-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .page-subtitle {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    /* Cards & Containers */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      box-sizing: border-box;
+    }
+    .card-title {
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    /* Button Groups & Pills */
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .pill-btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border-input);
+      border-radius: 999px;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .pill-btn:hover { border-color: var(--text); }
+    .pill-btn.active {
+      border-color: var(--text);
+      background: var(--text);
+      color: #fff;
+      font-weight: 600;
+    }
+    .pill-btn:disabled {
+      background: var(--bg);
+      border-style: dashed;
+      color: #A9A79E;
+      cursor: not-allowed;
+    }
+
+    /* Primary Action Button */
+    .btn-primary {
+      padding: 14px 24px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--text);
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      width: 100%;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover { opacity: 0.92; }
+    .btn-primary:active { transform: scale(0.99); }
+
+    /* Market Grid */
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .market-card {
+      border: 1px solid var(--border-input);
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      background: #fff;
+      transition: all 0.15s;
+    }
+    .market-card:hover { border-color: var(--text); }
+    .market-card.active {
+      border: 2px solid var(--text);
+      background: #FAFAFA;
+    }
+    .market-name { font-weight: 700; font-size: 13px; }
+    .market-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* Slider Component */
+    .slider-track-wrap {
+      position: relative;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--border-subtle);
+      margin: 10px 0 6px 0;
+      cursor: pointer;
+    }
+    .slider-fill {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--text);
+      width: 10%;
+      transition: width 0.15s ease-out;
+    }
+    .slider-thumb {
+      position: absolute;
+      top: -5px;
+      width: 18px;
+      height: 18px;
+      margin-left: -9px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      transition: left 0.15s ease-out;
+    }
+
+    /* Live Pipeline Timeline */
+    .timeline {
+      border-left: 2px solid var(--border);
+      margin: 16px 0 0 10px;
+      display: flex;
+      flex-direction: column;
+    }
+    .timeline-step {
+      position: relative;
+      padding: 0 0 20px 24px;
+    }
+    .timeline-dot {
+      position: absolute;
+      left: -12px;
+      top: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .timeline-dot.done { background: var(--green); color: #fff; }
+    .timeline-dot.running {
+      border: 3px solid var(--blue);
+      background: #fff;
+      animation: pulse 1.5s infinite;
+    }
+    .timeline-dot.waiting {
+      border: 2px solid var(--border-input);
+      background: #fff;
+      color: var(--muted);
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(47, 91, 234, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(47, 91, 234, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(47, 91, 234, 0); }
+    }
+
+    /* Candidate Cards (Screen 2) */
+    .candidate-card {
+      flex: 1 1 260px;
+      min-width: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .candidate-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+    .candidate-card.chosen {
+      border: 3px solid var(--text);
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 3px 10px;
+      display: inline-block;
+    }
+    .badge-green { background: var(--green-bg); color: var(--green); }
+    .badge-blue { background: var(--blue-bg); color: var(--blue); }
+    .badge-amber { background: var(--amber-bg); color: var(--amber); }
+    .badge-red { background: var(--red-bg); color: var(--red); }
+
+    /* Tables */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .data-table tr:hover td { background: #FAFAFA; }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 1000;
+    }
+    .toast {
+      background: var(--text);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.25s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(40px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    /* Modal Overlays & Dialogs */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 30, 28, 0.55);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .modal-overlay.active {
+      display: flex;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .modal-dialog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      max-width: 580px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: relative;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 14px;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      line-height: 1;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+    }
+    .modal-close:hover { color: var(--text); background: var(--bg); }
+    .faceid-anim {
+      width: 80px;
+      height: 80px;
+      border: 3px solid var(--blue);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 12px auto;
+      position: relative;
+      animation: pulseFace 1.8s infinite;
+    }
+    @keyframes pulseFace {
+      0% { box-shadow: 0 0 0 0 rgba(47, 91, 234, 0.4); }
+      70% { box-shadow: 0 0 0 18px rgba(47, 91, 234, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(47, 91, 234, 0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span>Tec-C</span>
+      <span class="brand-badge">Agent Vault</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="top-pill">
+      <span style="color:var(--muted)">Vault</span>
+      <b id="top-vault-val">$48,210</b>
+      <span style="color:var(--green);font-weight:600">+1.2%</span>
+    </div>
+    <div class="top-pill">
+      <div class="donut-chart" id="tether-donut"><div class="donut-inner"></div></div>
+      <span style="color:var(--muted)">Tether</span>
+      <b id="top-tether-val">$420 / $1,000</b>
+    </div>
+    <div class="top-pill">
+      <span class="status-dot active"></span>
+      <span style="color:var(--muted)">Brain heartbeat</span>
+      <b id="top-heartbeat-text">Live</b>
+    </div>
+    <div class="top-pill top-pill-btn" onclick="toggleBiometricWindow()" title="Click to simulate biometric FaceID unlock">
+      <span class="status-dot" id="bio-dot" style="background:#B9B7AE"></span>
+      <span style="color:var(--muted)">Biometric window</span>
+      <b id="bio-status-text">Locked</b>
+    </div>
+    <div class="top-pill top-pill-btn" onclick="openDepositModal()" style="background:var(--green-bg);border-color:var(--green);color:var(--green-dark);font-weight:700" title="Deposit on any connected chain">
+      <span>+ Deposit</span>
+    </div>
+    <div class="top-pill top-pill-btn" onclick="openWithdrawModal()" style="border-color:var(--text);font-weight:700" title="Biometric withdrawal to external address">
+      <span>&#8679; Withdraw (FaceID)</span>
+    </div>
+    <div class="avatar-btn" id="top-pending-badge" title="Pending Reviews">3</div>
+    <div class="avatar-btn" style="background:var(--border-subtle);cursor:pointer;" onclick="switchTab('settings')" title="Vault Settings">⚙</div>
+  </header>
+
+  <div class="app-body">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <a href="#home" class="nav-item active" onclick="switchTab('home')">
+        <span>Home</span>
+      </a>
+      <a href="#opportunities" class="nav-item" onclick="switchTab('opportunities')">
+        <span>Opportunities</span>
+        <span class="nav-badge" id="opp-count">3</span>
+      </a>
+      <a href="#portfolio" class="nav-item" onclick="switchTab('portfolio')">
+        <span>Portfolio &amp; Watchdog</span>
+      </a>
+      <a href="#review" class="nav-item" onclick="switchTab('review')">
+        <span>Morning Review</span>
+        <span class="nav-badge" id="review-badge">3</span>
+      </a>
+      <a href="#virtual-session" class="nav-item" onclick="switchTab('virtual-session')">
+        <span>Virtual Sessions</span>
+      </a>
+      <a href="#settings" class="nav-item" onclick="switchTab('settings')">
+        <span>Safety &amp; Settings</span>
+      </a>
+
+      <div class="sidebar-footer">
+        <div><strong>Tec-C FinTechathon 2026</strong></div>
+        <div>Tsinghua PBCSF &bull; WeBank</div>
+        <div>ERC-7579 &bull; RIP-7212 P-256</div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 1: HOME - COMMAND CENTER -->
+      <!-- ======================================================== -->
+      <section id="panel-home" class="view-panel active">
+        <div>
+          <h1 class="page-title">Command Center</h1>
+          <p class="page-subtitle">Configure structured mandates inside your daily leash. The Brain explores, rates, and synthesizes.</p>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+          
+          <!-- Command Composer -->
+          <div class="card" style="flex:1.4 1 420px;display:flex;flex-direction:column;gap:18px;">
+            <div class="card-title">
+              <span>New Command Composer</span>
+              <span class="badge badge-green" id="active-action-badge">Stake Mandate</span>
+            </div>
+
+            <!-- Block 1: Action -->
+            <div>
+              <div class="section-label">1 &bull; Action</div>
+              <div class="pill-group" id="action-pills">
+                <button class="pill-btn" onclick="selectAction('Find opportunities')">Find opportunities</button>
+                <button class="pill-btn" onclick="selectAction('Invest')">Invest</button>
+                <button class="pill-btn active" onclick="selectAction('Stake')">Stake</button>
+                <button class="pill-btn" onclick="selectAction('Swap')">Swap</button>
+                <button class="pill-btn" onclick="selectAction('Rebalance')">Rebalance</button>
+                <button class="pill-btn" onclick="selectAction('Reduce risk')">Reduce risk</button>
+                <button class="pill-btn" onclick="selectAction('Exit position')">Exit position</button>
+                <button class="pill-btn" onclick="selectAction('Park idle cash')">Park idle cash</button>
+              </div>
+            </div>
+
+            <!-- Block 2: Market -->
+            <div>
+              <div class="section-label">2 &bull; Market</div>
+              <div class="market-grid" id="market-grid">
+                <div class="market-card active" data-market="Crypto" onclick="selectMarket('Crypto', 'Ethereum L1')">
+                  <div class="market-name">Crypto</div>
+                  <div class="market-sub">Ethereum L1</div>
+                  <span class="status-dot active" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" data-market="Chinese market" onclick="selectMarket('Chinese market', 'FISCO BCOS')">
+                  <div class="market-name">Chinese market</div>
+                  <div class="market-sub">FISCO BCOS</div>
+                  <span class="status-dot active" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" data-market="Commodities" onclick="selectMarket('Commodities', 'Arbitrum One')">
+                  <div class="market-name">Commodities</div>
+                  <div class="market-sub">Arbitrum One</div>
+                  <span class="status-dot active" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" data-market="Arbitrage" onclick="selectMarket('Arbitrage', 'PegGuard 24/7')">
+                  <div class="market-name">Arbitrage</div>
+                  <div class="market-sub">PegGuard 24/7</div>
+                  <span class="status-dot warning" style="margin-top:6px"></span>
+                </div>
+                <div class="market-card" data-market="Any" onclick="selectMarket('Any', 'All enabled')">
+                  <div class="market-name">Any</div>
+                  <div class="market-sub">All enabled</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Block 3: Asset or Scope -->
+            <div>
+              <div class="section-label">3 &bull; Asset or Scope (Dynamically Adaptive)</div>
+              <div class="pill-group" id="asset-pills">
+                <!-- Dynamically generated based on Action -->
+              </div>
+            </div>
+
+            <!-- Block 4: Capital Amount -->
+            <div>
+              <div class="section-label">4 &bull; Capital Amount &amp; Tether Utilization</div>
+              <div class="pill-group" id="capital-pills">
+                <button class="pill-btn" onclick="setSliderPercent(5)">5%</button>
+                <button class="pill-btn active" id="btn-pct-10" onclick="setSliderPercent(10)">10%</button>
+                <button class="pill-btn" onclick="setSliderPercent(25)">25%</button>
+                <button class="pill-btn" onclick="setSliderPercent(50)">50%</button>
+              </div>
+              <div class="slider-track-wrap" onclick="handleSliderClick(event)">
+                <div class="slider-fill" id="slider-fill" style="width:10%;"></div>
+                <div class="slider-thumb" id="slider-thumb" style="left:10%;"></div>
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="slider-caption">
+                10% = $4,821 &bull; uses $482 of the $580 left in today's Tether Radius
+              </div>
+            </div>
+
+            <!-- Block 5: Risk Tier -->
+            <div>
+              <div class="section-label">5 &bull; Policy Risk Tier</div>
+              <div class="pill-group" id="tier-pills">
+                <button class="pill-btn" onclick="selectTier('Tier 1')">Tier 1 (Core Preservation)</button>
+                <button class="pill-btn active" onclick="selectTier('Tier 2')">Tier 2 (Growth Yield)</button>
+                <button class="pill-btn" disabled title="Tier 3 requires hardware Passkey biometric unlock">Tier 3 (Unrestricted &bull; Locked)</button>
+              </div>
+            </div>
+
+            <!-- Dynamic Prompt Preview -->
+            <div style="background:var(--bg);border-radius:10px;padding:12px 14px;font-style:italic;" id="prompt-preview">
+              &ldquo;Stake ETH and stETH in Crypto, using 10% of capital, Tier 2.&rdquo;
+            </div>
+
+            <button class="btn-primary" onclick="submitCommandToBrain()">
+              Submit to Brain
+            </button>
+          </div>
+
+          <!-- Live Pipeline Tracker -->
+          <div class="card" style="flex:1 1 300px;">
+            <div class="card-title">
+              <span>Live Pipeline</span>
+              <span style="font-size:12px;color:var(--muted)">Request #0412</span>
+            </div>
+
+            <div class="timeline" id="pipeline-timeline">
+              <div class="timeline-step">
+                <div class="timeline-dot done">&check;</div>
+                <div style="font-weight:600" id="pipe-step-1">Command Intake</div>
+                <div style="font-size:12px;color:var(--muted)">Submitted &bull; 0.2s</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot done">&check;</div>
+                <div style="font-weight:600" id="pipe-step-2">Brain Analysis</div>
+                <div style="font-size:12px;color:var(--muted)">3 options discovered &bull; 1.4s</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot running"></div>
+                <div style="font-weight:600" id="pipe-step-3">Multi-Agent Ratings</div>
+                <div style="margin-top:6px;display:flex;flex-direction:column;gap:5px;font-size:12px;">
+                  <div style="display:flex;justify-content:space-between"><span>News &amp; NLP</span><span style="color:var(--green);font-weight:600" id="pipe-news-val">done (+0.71)</span></div>
+                  <div style="display:flex;justify-content:space-between"><span>Econometrics</span><span style="color:var(--blue);font-weight:600" id="pipe-econ-val">running (CVaR -3.1%)</span></div>
+                  <div style="display:flex;justify-content:space-between"><span>Injection Defense</span><span style="color:var(--green);font-weight:600">pass (0 threats)</span></div>
+                </div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot waiting">&bull;</div>
+                <div style="font-weight:600;color:var(--muted)" id="pipe-step-4">Brain Decision Synthesis</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot waiting">&bull;</div>
+                <div style="font-weight:600;color:var(--muted)">Session Key Dispatch</div>
+              </div>
+              <div class="timeline-step">
+                <div class="timeline-dot waiting">&bull;</div>
+                <div style="font-weight:600;color:var(--muted)">TetherGuardHook PreCheck</div>
+              </div>
+            </div>
+
+            <button class="pill-btn" style="width:100%;margin-top:14px;border:1px solid var(--text);font-weight:600" onclick="switchTab('opportunities')">
+              View Evaluated Opportunities &rarr;
+            </button>
+          </div>
+
+          <!-- Status Widgets -->
+          <div style="flex:0.8 1 240px;display:flex;flex-direction:column;gap:16px;">
+            <div class="card">
+              <div class="section-label">Tether Leash Remaining</div>
+              <div style="font-size:26px;font-weight:800;margin-top:4px;" id="widget-tether-left">$580 <span style="font-size:13px;font-weight:400;color:var(--muted)">left today</span></div>
+              <div style="height:8px;border-radius:4px;background:var(--border-subtle);margin-top:10px;">
+                <div style="width:42%;height:8px;border-radius:4px;background:var(--green);" id="widget-tether-fill"></div>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:8px;">Epoch resets in 09h 14m</div>
+            </div>
+
+            <div class="card">
+              <div class="section-label">Overnight Ratifications</div>
+              <div style="font-size:26px;font-weight:800;margin-top:4px;" id="widget-pending-reviews">3 <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span></div>
+              <button class="pill-btn" style="width:100%;margin-top:12px;border:1px solid var(--text);font-weight:600" onclick="switchTab('review')">
+                Review Morning Trades &rarr;
+              </button>
+            </div>
+
+            <!-- Background PegGuard Arbitrage Toggle -->
+            <div class="card" style="border-left:4px solid var(--amber);">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span class="section-label" style="margin:0">PegGuard Arbitrage</span>
+                <span class="badge badge-amber" id="arb-status-badge">Active</span>
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:8px;">
+                Autonomous 24/7 background de-peg scanner across 25 assets.
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+                <span style="font-size:12px;font-weight:600;">Status: <span id="arb-state-text" style="color:var(--green)">Enabled</span></span>
+                <button class="pill-btn" id="arb-toggle-btn" style="padding:4px 12px;font-size:12px;" onclick="togglePegGuardArbitrage()">Turn Off</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 2: OPPORTUNITIES & DEEP RATINGS -->
+      <!-- ======================================================== -->
+      <section id="panel-opportunities" class="view-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 class="page-title">Opportunities &amp; AI Ratings</h1>
+            <p class="page-subtitle" id="opp-request-header">Request #0412 &bull; Stake ETH &amp; stETH in Crypto, 10% Capital, Tier 2</p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <span class="badge badge-blue" style="font-size:13px;padding:6px 14px;">Evaluated &bull; 3 Options</span>
+          </div>
+        </div>
+
+        <!-- Zone A: Candidates -->
+        <div class="section-label">Zone A &bull; Candidate Comparison for Current Command</div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;" id="candidates-container">
+          <!-- Dynamically Rendered by RenderCandidates() -->
+        </div>
+
+        <!-- Zone B: Deep Rating Breakdown -->
+        <div class="section-label" id="zone-b-title">Zone B &bull; Deep Rating Breakdown for Selected Option</div>
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          
+          <!-- 1. News & Sentiment -->
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">
+              <span>1. News &amp; NLP Sentiment</span>
+              <span class="badge badge-green" id="rating-news-badge">+0.71 Positive</span>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted)">FinBERT Confidence Score (-1.0 to +1.0)</div>
+              <div style="position:relative;height:10px;border-radius:5px;margin-top:8px;background:linear-gradient(90deg,#E7B4AD,#E7E5DE,#B4DBC4)">
+                <div id="sentiment-indicator" style="position:absolute;left:85%;top:-4px;width:6px;height:18px;margin-left:-3px;background:var(--text);border-radius:3px;transition:left 0.3s"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px">
+                <span>-1.0 Panic</span><span>0 Neutral</span><span>+1.0 Euphoria</span>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;">
+              <strong>Recent Headlines Analyzed:</strong>
+              <ul style="margin:6px 0 0 16px;line-height:1.6" id="headlines-list">
+                <li>Lido staking deposits hit record high (2h ago &bull; Positive)</li>
+                <li>Ethereum validator queue clears (5h ago &bull; Positive)</li>
+                <li>Staking rewards APY stable at 3.4% (7h ago &bull; Neutral)</li>
+              </ul>
+            </div>
+            <div style="background:var(--bg);border-radius:8px;padding:10px;font-size:12px;color:var(--muted);border-left:3px solid var(--blue)">
+              <strong>Vault Sovereignty Invariant:</strong> News informs trade sizing only; it can never freeze or halt the smart vault.
+            </div>
+          </div>
+
+          <!-- 2. Econometrics & Liquidity -->
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">
+              <span>2. Econometrics &amp; Liquidity</span>
+              <span class="badge badge-green">Acceptable</span>
+            </div>
+            <div style="display:flex;gap:10px;">
+              <div style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;">
+                <div style="font-size:11px;color:var(--muted)">Tail Risk (CVaR 95%)</div>
+                <div style="font-size:20px;font-weight:700" id="metric-cvar95">-3.1%</div>
+              </div>
+              <div style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;">
+                <div style="font-size:11px;color:var(--muted)">Extreme (CVaR 99%)</div>
+                <div style="font-size:20px;font-weight:700" id="metric-cvar99">-5.4%</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted)">Loss Distribution &bull; 95% CVaR Tail</div>
+              <svg width="100%" height="80" viewBox="0 0 280 80" style="margin-top:6px;">
+                <path d="M0 75 C40 75 60 60 90 30 C110 10 130 10 150 30 C180 60 200 72 230 75 L280 75" fill="none" stroke="#1E1E1C" stroke-width="2"/>
+                <path d="M200 72 C215 74 225 75 235 75 L280 75 L280 78 L200 78 Z" fill="#C0392B" opacity="0.5"/>
+                <line x1="200" y1="10" x2="200" y2="78" stroke="#C0392B" stroke-dasharray="4 3"/>
+              </svg>
+            </div>
+            <div style="border-top:1px solid var(--border-subtle);padding-top:10px;">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Liquidity Comparison</div>
+              <table style="width:100%;font-size:11px;border-collapse:collapse;">
+                <tr style="border-bottom:1px solid var(--border-subtle);color:var(--muted)">
+                  <th style="text-align:left;padding:3px 0">Protocol</th>
+                  <th style="text-align:right;padding:3px 0">APY</th>
+                  <th style="text-align:right;padding:3px 0">CVaR</th>
+                  <th style="text-align:right;padding:3px 0">Slippage</th>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;font-weight:600">Lido Staking</td>
+                  <td style="text-align:right;color:var(--green);font-weight:700">3.4%</td>
+                  <td style="text-align:right">-3.1%</td>
+                  <td style="text-align:right">0.08%</td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;font-weight:600">Aave v3 Lending</td>
+                  <td style="text-align:right;color:var(--blue);font-weight:700">2.6%</td>
+                  <td style="text-align:right">-2.4%</td>
+                  <td style="text-align:right">0.02%</td>
+                </tr>
+              </table>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="slippage-text">
+              Modeled slippage for $4,821 execution: <strong>0.08%</strong> (Liquidity depth $240M).
+            </div>
+          </div>
+
+          <!-- 3. Prompt-Injection Defense -->
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">
+              <span>3. Injection &amp; Policy Defense</span>
+              <span class="badge badge-green">Pass &bull; 0 Threats</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Target contract verified on bytecode whitelist</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Honeypot test: Clean verified contract</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Contract age: 4.2 years battle-tested</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span id="inj-amount-text">Amount check: Exactly matches mandate ($4,821)</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--green);font-weight:700">&check;</span>
+                <span>Instruction scan: Zero prompt override keywords</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Zone C: Brain Decision & Autonomous Synthesis -->
+        <div class="card" style="border:2px solid var(--text);background:#FAFAFA;display:flex;flex-direction:column;gap:16px;">
+          <div class="card-title" style="margin-bottom:0">
+            <span>Zone C &bull; Brain Decision &amp; Autonomous Synthesis</span>
+            <span class="badge badge-green" id="synthesis-badge">Autonomous Execution</span>
+          </div>
+
+          <!-- Agent Weights from Guide -->
+          <div style="background:#fff;border:1px solid var(--border-subtle);border-radius:10px;padding:12px 16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span class="section-label" style="margin:0">Agent Weights (Adjustable in Settings)</span>
+              <span style="font-size:11px;color:var(--muted)">Guide Page 3</span>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">
+              <div style="flex:1 1 120px;">
+                <div style="display:flex;justify-content:space-between"><span>News &amp; NLP</span><b id="weight-news-val">30%</b></div>
+                <input type="range" min="10" max="60" value="30" style="width:100%" oninput="updateAgentWeight('news', this.value)">
+              </div>
+              <div style="flex:1 1 120px;">
+                <div style="display:flex;justify-content:space-between"><span>Econometrics</span><b id="weight-econ-val">45%</b></div>
+                <input type="range" min="20" max="70" value="45" style="width:100%" oninput="updateAgentWeight('econ', this.value)">
+              </div>
+              <div style="flex:1 1 120px;">
+                <div style="display:flex;justify-content:space-between"><span>Injection Defense</span><b id="weight-inj-val">25%</b></div>
+                <input type="range" min="10" max="50" value="25" style="width:100%" oninput="updateAgentWeight('inj', this.value)">
+              </div>
+            </div>
+          </div>
+
+          <!-- Execution Outcome Modes from Guide -->
+          <div>
+            <div class="section-label">Execution Outcome Mode</div>
+            <div class="pill-group" id="outcome-modes">
+              <button class="pill-btn active" onclick="selectOutcomeMode('split')">Autonomous Split: A 70% ($3,375) &bull; B 30% ($1,446)</button>
+              <button class="pill-btn" onclick="selectOutcomeMode('single')">Proceed with Single Best (Option A 100%)</button>
+              <button class="pill-btn" onclick="selectOutcomeMode('idle')">Do Nothing (Negative Edge)</button>
+              <button class="pill-btn" onclick="selectOutcomeMode('breakout')">Needs Biometric Breakout</button>
+            </div>
+          </div>
+
+          <div style="font-size:13px;color:var(--text);line-height:1.6;" id="synthesis-rationale">
+            <strong>Synthesis Rationale:</strong> Options A and B both pass hard safety filters with close composite scores (0.68 vs 0.61). The Brain chooses a portfolio diversification split. Inside today's Tether Radius ($482 used of $580 left), executing autonomously without manual button clicks.
+          </div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <button class="btn-primary" style="flex:1 1 200px" id="btn-execute-trade" onclick="executeAutonomousTrade()">
+              Execute Autonomous Split Inside Tether ($482 of $580 Left)
+            </button>
+            <button class="pill-btn" onclick="showToast('Candidate vetoed: trade discarded.')">Discard</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 3: PORTFOLIO & HOURLY WATCHDOG -->
+      <!-- ======================================================== -->
+      <section id="panel-portfolio" class="view-panel">
+        <div>
+          <h1 class="page-title">Portfolio Holdings &amp; Watchdog</h1>
+          <p class="page-subtitle">Multi-chain treasury normalized to 8-decimal USD via Chainlink feeds &bull; 24-Hour Autonomous Watchdog</p>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          <!-- Valuation Card -->
+          <div class="card" style="flex:1.4 1 380px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div style="font-size:12px;color:var(--muted)">Total Portfolio Valuation</div>
+                <div style="font-size:32px;font-weight:800;letter-spacing:-0.02em;" id="portfolio-total-val">$48,210</div>
+                <div style="color:var(--green);font-size:13px;font-weight:600;">+$574 (+1.2%) in 24h</div>
+              </div>
+              <div class="pill-group">
+                <button class="pill-btn active" style="padding:4px 12px;font-size:12px;">24h</button>
+                <button class="pill-btn" style="padding:4px 12px;font-size:12px;">7d</button>
+                <button class="pill-btn" style="padding:4px 12px;font-size:12px;">30d</button>
+              </div>
+            </div>
+            <!-- Trend SVG -->
+            <svg width="100%" height="100" viewBox="0 0 500 100" style="margin-top:14px;">
+              <path d="M0 75 C40 70 70 60 110 64 C150 68 190 40 230 42 C270 44 300 28 340 30 C380 32 420 18 460 22 C485 24 495 14 500 12" fill="none" stroke="#1E1E1C" stroke-width="2.5"/>
+              <path d="M0 75 C40 70 70 60 110 64 C150 68 190 40 230 42 C270 44 300 28 340 30 C380 32 420 18 460 22 C485 24 495 14 500 12 L500 100 L0 100 Z" fill="#E7E5DE" opacity="0.6"/>
+            </svg>
+          </div>
+
+          <!-- Sector Allocation Card -->
+          <div class="card" style="flex:1 1 280px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+            <div style="width:110px;height:110px;border-radius:50%;background:conic-gradient(#1E1E1C 0 52%,#2F5BEA 0 74%,#C98A00 0 90%,#B9B7AE 0);display:flex;align-items:center;justify-content:center;flex:none">
+              <div style="width:65px;height:65px;border-radius:50%;background:#fff"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;flex:1 1 120px;">
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#1E1E1C;margin-right:6px"></span>Crypto</span><b>52%</b></div>
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#2F5BEA;margin-right:6px"></span>Chinese Mkt</span><b>22%</b></div>
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#C98A00;margin-right:6px"></span>Commodities</span><b>16%</b></div>
+              <div style="display:flex;justify-content:space-between"><span><span style="display:inline-block;width:10px;height:10px;background:#B9B7AE;margin-right:6px"></span>Arbitrage</span><b>10%</b></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Holdings Table -->
+        <div class="card">
+          <div class="card-title">
+            <span>Treasury Holdings</span>
+            <input type="text" placeholder="Search asset..." style="padding:6px 12px;border:1px solid var(--border-input);border-radius:999px;font-size:12px;width:180px;">
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Market</th>
+                <th>Amount</th>
+                <th>USD Value</th>
+                <th>Share</th>
+                <th>24h P&amp;L</th>
+                <th>Sentiment</th>
+                <th>Health Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>stETH</strong></td>
+                <td>Crypto (Ethereum)</td>
+                <td>6.20</td>
+                <td>$14,933</td>
+                <td>31%</td>
+                <td style="color:var(--green);font-weight:600">+4.1%</td>
+                <td>Positive (+0.71)</td>
+                <td><span class="badge badge-green">&bull; OK</span></td>
+              </tr>
+              <tr>
+                <td><strong>USDC</strong></td>
+                <td>Crypto (Arbitrum One)</td>
+                <td>10,200</td>
+                <td>$10,200</td>
+                <td>21%</td>
+                <td style="color:var(--muted)">0.0%</td>
+                <td>Neutral (0.00)</td>
+                <td><span class="badge badge-green">&bull; OK</span></td>
+              </tr>
+              <tr>
+                <td><strong>PAXG</strong></td>
+                <td>Commodities (Arbitrum)</td>
+                <td>3.10</td>
+                <td>$7,720</td>
+                <td>16%</td>
+                <td style="color:var(--green);font-weight:600">+1.8%</td>
+                <td>Neutral (+0.12)</td>
+                <td><span class="badge badge-amber">&bull; Watch</span></td>
+              </tr>
+              <tr style="background:var(--red-bg)">
+                <td><strong>e-CNY MMF</strong></td>
+                <td>Chinese Mkt (FISCO BCOS)</td>
+                <td>10,600</td>
+                <td>$10,600</td>
+                <td>22%</td>
+                <td style="color:var(--red);font-weight:600">-0.6%</td>
+                <td style="color:var(--red)">Negative (-0.45)</td>
+                <td><span class="badge badge-red">&bull; Re-evaluate</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Hourly Watchdog Section -->
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          <div class="card" style="flex:1.2 1 380px;display:flex;flex-direction:column;gap:14px;">
+            <div class="card-title">
+              <span>Hourly Watchdog Engine</span>
+              <span style="font-size:12px;color:var(--muted)">Next scan in <span id="watchdog-timer">38:10</span></span>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Last 24 Scans (22 Clean &bull; 1 Signal &bull; 1 Negative News)</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot warning" title="Market signal"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot active"></span><span class="status-dot active"></span>
+              <span class="status-dot danger" title="Negative news detected"></span>
+              <span class="status-dot active" style="outline:2px solid var(--text);outline-offset:2px"></span>
+            </div>
+            <button class="pill-btn" style="border:1px solid var(--text);margin-top:6px;font-weight:600" onclick="triggerManualWatchdog()">
+              Trigger Emergency Watchdog Sweep Now
+            </button>
+          </div>
+
+          <div class="card" style="flex:1 1 320px;display:flex;flex-direction:column;gap:12px;">
+            <div class="card-title">Active Watchdog Alerts</div>
+            <div id="watchdog-alert-card" style="border:1px solid var(--red);border-radius:10px;padding:12px;background:var(--red-bg);display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong>e-CNY MMF &bull; Negative News</strong>
+                <span class="badge badge-red" id="watchdog-alert-badge">Re-evaluating</span>
+              </div>
+              <div style="font-size:12px;color:var(--text)" id="watchdog-alert-desc">Brain triggered proposal to de-risk 10% into USDC collateral.</div>
+              <div style="font-size:11px;color:var(--muted)">Detected 22 min ago via News Risk Sentinel</div>
+              <div style="margin-top:8px;display:flex;gap:8px;" id="watchdog-alert-actions">
+                <button class="pill-btn" style="background:#fff;border-color:var(--red);color:var(--red);font-weight:700;padding:6px 12px;font-size:12px;" onclick="executeWatchdogDerisk()">
+                  Execute De-Risk (Swap 10% to USDC)
+                </button>
+                <button class="pill-btn" style="padding:6px 12px;font-size:12px;" onclick="dismissWatchdogAlert()">Dismiss</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 4: MORNING REVIEW & ADAPTIVE LEARNING -->
+      <!-- ======================================================== -->
+      <section id="panel-review" class="view-panel">
+        <div>
+          <h1 class="page-title">Morning Review &amp; Learning</h1>
+          <p class="page-subtitle">Spend 15 seconds reviewing what the AI traded while you were asleep. Reward accuracy, flag mistakes, or teach the Brain.</p>
+        </div>
+
+        <div style="max-width:780px;display:flex;flex-direction:column;gap:18px;">
+          <!-- Summary Bar -->
+          <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;">
+              <div><div style="font-size:12px;color:var(--muted)">Overnight Trades</div><div style="font-size:22px;font-weight:800" id="review-total-trades">5</div></div>
+              <div><div style="font-size:12px;color:var(--muted)">Capital Moved</div><div style="font-size:22px;font-weight:800" id="review-capital-moved">$1,240</div></div>
+              <div><div style="font-size:12px;color:var(--muted)">Reviewed</div><div style="font-size:22px;font-weight:800" id="review-progress">2 of 5</div></div>
+              <div style="flex:1"></div>
+              <button class="pill-btn" style="border:1px solid var(--text);font-weight:700" onclick="ratifyAllRemaining()">Ratify the Rest</button>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+                <span>Like streak toward a radius increase</span>
+                <span id="streak-text">3 of 5 &bull; Eligible for +10% step-up</span>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:6px;" id="streak-bar">
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--green)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--green)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--green)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--border-subtle)"></div>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--border-subtle)"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Trades List Container -->
+          <div id="trades-list" style="display:flex;flex-direction:column;gap:14px;">
+            <!-- Rendered by renderTrades() -->
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 5: VIRTUAL SESSIONS & REMOTE GATEWAY -->
+      <!-- ======================================================== -->
+      <section id="panel-virtual-session" class="view-panel">
+        <div>
+          <h1 class="page-title">Mobile Virtual Sessions</h1>
+          <p class="page-subtitle">Section 8.1: Encrypted Cloudflare Quick-Tunnel connecting your smartphone to the local agent wallet via WebAuthn NIST P-256 Passkeys.</p>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:18px;">
+          <div class="card" style="flex:1 1 360px;display:flex;flex-direction:column;gap:14px;">
+            <div class="card-title">Active Gateway Status</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+              <div style="display:flex;justify-content:space-between"><span>Local Gateway Port:</span><strong>8001 (Isolated)</strong></div>
+              <div style="display:flex;justify-content:space-between"><span>Tunnel Status:</span><span class="badge badge-green">Connected</span></div>
+              <div style="display:flex;justify-content:space-between"><span>Biometric Elevation:</span><strong>WebAuthn P-256</strong></div>
+            </div>
+            <div style="background:var(--bg);border-radius:8px;padding:12px;font-size:12px;">
+              <strong>Coffee Shop Scenario:</strong> Monitor positions and approve breakout trades with FaceID from your phone browser without opening firewall ports.
+            </div>
+            <button class="btn-primary" onclick="window.open('/virtual-sessions', '_blank')">
+              Open Laptop Admin Dashboard &rarr;
+            </button>
+          </div>
+
+          <div class="card" style="flex:1 1 300px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;">
+            <div class="card-title" style="width:100%">Scan to Connect Phone</div>
+            <div style="width:140px;height:140px;border:1px solid var(--border);border-radius:12px;padding:8px;background:#fff;display:flex;align-items:center;justify-content:center;">
+              <svg width="120" height="120" viewBox="0 0 100 100">
+                <rect width="100" height="100" fill="#fff"/>
+                <path d="M10 10 h30 v30 h-30 z M50 10 h40 v20 h-40 z M10 50 h20 v40 h-20 z M40 40 h20 v20 h-20 z M70 50 h20 v20 h-20 z M50 80 h40 v10 h-40 z" fill="#1E1E1C"/>
+              </svg>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Direct mobile link: <code>http://127.0.0.1:8001/s/demo</code></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- SCREEN 6: SAFETY & SETTINGS -->
+      <!-- ======================================================== -->
+      <section id="panel-settings" class="view-panel">
+        <div>
+          <h1 class="page-title">Safety &amp; Dynamic Elasticity Settings</h1>
+          <p class="page-subtitle">Configure your daily mathematical leash, trust multipliers, and emergency killswitch.</p>
+        </div>
+
+        <div class="card" style="max-width:600px;display:flex;flex-direction:column;gap:18px;">
+          <div>
+            <div class="section-label">Daily Tether Allowance</div>
+            <div style="display:flex;gap:12px;align-items:center;">
+              <input type="text" value="$1,000" id="setting-tether" style="padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:16px;font-weight:700;width:140px;">
+              <span style="font-size:12px;color:var(--muted)">Converted to 8-decimal USD via Chainlink</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">Dynamic Elasticity (Accuracy Feedback Loop)</div>
+            <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;cursor:pointer;">
+              <input type="checkbox" checked style="margin-top:3px;">
+              <div>
+                <strong>Enable Adaptive Elasticity</strong>
+                <div style="color:var(--muted);font-size:12px;margin-top:2px;">
+                  AI earns up to +10%/day step-ups on ratified streaks. Mistakes incur immediate -20% penalty.
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div>
+            <div class="section-label">Hard Ceiling</div>
+            <input type="text" value="$2,500" style="padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:14px;width:140px;">
+          </div>
+
+          <div style="border-top:1px solid var(--border-subtle);padding-top:16px;">
+            <div class="section-label" style="color:var(--red)">Emergency Circuit Breaker</div>
+            <button class="pill-btn" style="color:var(--red);border-color:var(--red);font-weight:700;" onclick="showToast('EMERGENCY: AI Session key immediately revoked on-chain.')">
+              Revoke AI Session Key (Killswitch)
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Modal: Multi-Chain Deposit -->
+  <div class="modal-overlay" id="modal-deposit">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">&#128229; Multi-Chain Deposit (Section 05)</div>
+        <button class="modal-close" onclick="closeModal('modal-deposit')">&times;</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.5">
+        Deposit funds seamlessly on any connected chain. Deposits credit your normalized 8-decimal USD vault balance via Chainlink price feeds.
+      </div>
+      <div>
+        <div class="section-label">Select Network &amp; Asset</div>
+        <select id="deposit-network" style="width:100%;padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:13px;background:#fff;" onchange="updateDepositAssetOptions()">
+          <option value="Ethereum Mainnet">Ethereum Mainnet (ETH, USDC, USDT)</option>
+          <option value="Arbitrum One">Arbitrum One L2 (ETH, USDC, USDT, PAXG)</option>
+          <option value="FISCO BCOS">FISCO BCOS Consortium (e-CNY, enterprise tokens)</option>
+          <option value="Optimism">Optimism (ETH, USDC)</option>
+          <option value="Polygon">Polygon (POL, USDC)</option>
+        </select>
+      </div>
+      <div>
+        <div class="section-label">Deposit Amount</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="number" id="deposit-amount" value="1.0" step="0.1" style="flex:1;padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:15px;font-weight:700;" oninput="updateDepositUSDConversion()">
+          <span style="font-weight:700" id="deposit-asset-symbol">ETH</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="deposit-usd-conversion">
+          &approx; $2,410.50 USD via Chainlink Oracle Feed
+        </div>
+      </div>
+      <div style="background:var(--bg);border-radius:8px;padding:10px;font-size:12px;">
+        <strong>Smart Safe Recipient:</strong> <code>0x7579...tecc-vault-master</code>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <button class="btn-primary" onclick="confirmDeposit()">Deposit to Agent Vault</button>
+        <button class="pill-btn" onclick="closeModal('modal-deposit')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Biometric Withdrawal -->
+  <div class="modal-overlay" id="modal-withdraw">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">&#128230; Biometric External Withdrawal</div>
+        <button class="modal-close" onclick="closeModal('modal-withdraw')">&times;</button>
+      </div>
+      <div style="background:var(--red-bg);border:1px solid var(--red);border-radius:8px;padding:12px;font-size:12px;color:var(--text);line-height:1.5">
+        <strong>Strict Security Invariant (Page 2 &bull; Section 05):</strong>
+        The AI session key has ZERO authority to withdraw funds to external addresses. External transfers strictly require hardware biometric verification (FaceID / TouchID via WebAuthn NIST P-256).
+      </div>
+      <div>
+        <div class="section-label">Recipient External Address</div>
+        <input type="text" id="withdraw-addr" value="0x71C...a891 (User Cold Hardware Wallet)" style="width:100%;padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:13px;">
+      </div>
+      <div>
+        <div class="section-label">Withdrawal Amount ($ USD)</div>
+        <input type="number" id="withdraw-amount" value="5000" step="500" style="width:100%;padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:16px;font-weight:700;">
+      </div>
+      <div id="withdraw-faceid-box" style="text-align:center;padding:10px 0;">
+        <div class="faceid-anim">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2F5BEA" stroke-width="2">
+            <path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/>
+            <circle cx="9" cy="9" r="1" fill="#2F5BEA"/>
+            <circle cx="15" cy="9" r="1" fill="#2F5BEA"/>
+            <path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/>
+          </svg>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">WebAuthn RIP-7212 P-256 Hardware Enclave Ready</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-primary" id="btn-withdraw-faceid" onclick="authenticateAndWithdraw()">Scan FaceID &amp; Transfer</button>
+        <button class="pill-btn" onclick="closeModal('modal-withdraw')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: High-Value Breakout Trade Alert -->
+  <div class="modal-overlay" id="modal-breakout">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">&#9889; High-Value Breakout Trade Alert</div>
+        <button class="modal-close" onclick="closeModal('modal-breakout')">&times;</button>
+      </div>
+      <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:12px;font-size:12px;line-height:1.5;">
+        <strong>Tether Leash Boundary Exceeded:</strong>
+        The AI Brain discovered an urgent flash opportunity of <b id="breakout-trade-val">$4,500</b> capturing a <b id="breakout-trade-profit">+$120</b> net profit.
+        Because $4,500 exceeds your daily leash ($1,000), autonomous execution was blocked.
+      </div>
+      <div style="font-size:13px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between"><span>Strategy:</span><strong>PegGuard Cross-DEX Arbitrage</strong></div>
+        <div style="display:flex;justify-content:space-between"><span>Execution Timeframe:</span><strong>30 seconds remaining</strong></div>
+        <div style="display:flex;justify-content:space-between"><span>Required Authorization:</span><span class="badge badge-amber">Hardware Biometric Elevation</span></div>
+      </div>
+      <div style="text-align:center;padding:10px 0;">
+        <div class="faceid-anim">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2F5BEA" stroke-width="2">
+            <path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4m0-6V5a2 2 0 0 0-2-2h-4"/>
+            <circle cx="9" cy="9" r="1" fill="#2F5BEA"/>
+            <circle cx="15" cy="9" r="1" fill="#2F5BEA"/>
+            <path d="M9 15c.83 1 2.17 1 3 1s2.17 0 3-1"/>
+          </svg>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">Scan FaceID to open a temporary 5-minute elevation window</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-primary" onclick="approveBreakoutTrade()">Approve via FaceID</button>
+        <button class="pill-btn" onclick="closeModal('modal-breakout')">Reject Opportunity</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Morning Review Note to Brain Composer -->
+  <div class="modal-overlay" id="modal-note">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">&#128221; Note to the AI Brain (Section 09)</div>
+        <button class="modal-close" onclick="closeModal('modal-note')">&times;</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">
+        Teach the Brain preferences and protocol affinities. Notes are ingested by <code>tecc_brain.learning.notes</code> to update future trade sizing and cost multipliers.
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span class="section-label" style="margin:0">Your Instruction to the Brain</span>
+          <span style="font-size:11px;color:var(--muted)" id="note-word-count">12 / 25 words</span>
+        </div>
+        <textarea id="note-text-input" rows="4" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border-input);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5" oninput="updateNoteWordCount(this.value)">Lido staking is approved, but prefer rocket pool (rETH) when yield difference is under 0.2%.</textarea>
+      </div>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer;background:var(--bg);padding:10px;border-radius:8px;">
+        <input type="checkbox" id="note-penalty-check" style="margin-top:2px">
+        <div>
+          <strong style="color:var(--red)">&bull; Penalize Autonomy (-10%)</strong>
+          <div style="font-size:11px;color:var(--muted)">Check if this note corrects a suboptimal bot behavior. Contracts today's leash by -10%.</div>
+        </div>
+      </label>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-primary" onclick="submitNoteToBrain()">Send Note to AI Brain</button>
+        <button class="pill-btn" onclick="closeModal('modal-note')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Dynamic Logic & State Machine -->
+  <script>
+    // Action Presets Data Engine
+    const ACTION_PRESETS = {
+      'Stake': {
+        assets: ['ETH', 'stETH', 'rETH', 'cbETH'],
+        defaultAssets: ['ETH', 'stETH'],
+        market: 'Crypto',
+        network: 'Ethereum L1',
+        pct: 10,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Staking Mandate Submitted',
+          step2: 'Scanning Validator Queues',
+          step3Name: 'News & Econometrics',
+          news: 'done (+0.71)',
+          econ: 'running (CVaR -3.1%)'
+        },
+        headlines: [
+          'Lido staking deposits hit record peak (2h ago &bull; Positive)',
+          'Ethereum validator exit queue clears completely (5h ago &bull; Positive)',
+          'Staking yield benchmark holds steady at 3.4% APY (7h ago &bull; Neutral)'
+        ],
+        newsScore: 0.71,
+        cvar95: '-3.1%',
+        cvar99: '-5.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Stake ETH on Lido',
+            badge: 'Chosen 70%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Staking &bull; 3.4% APY',
+            newsScore: '+0.71',
+            econScore: '0.64',
+            inj: 'Pass',
+            score: '0.68',
+            rationale: 'Liquid staking on Lido provides 3.4% APY with deep secondary curve liquidity and insured validator operators.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Supply ETH on Aave v3',
+            badge: 'Chosen 30%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Lending &bull; 2.6% APY',
+            newsScore: '+0.55',
+            econScore: '0.70',
+            inj: 'Pass',
+            score: '0.61',
+            rationale: 'Supplying collateral to Aave provides defensive lending yield with instant unbonding liquidity.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Buy stETH on DEX Secondary Pool',
+            badge: 'Rejected',
+            badgeClass: 'badge-red',
+            info: 'Crypto &bull; Curve Swap &bull; 0.9982 stETH/ETH',
+            newsScore: '+0.71',
+            econScore: '0.41',
+            inj: 'Warn',
+            score: '0.44',
+            rationale: 'Secondary discount margin (18 bps) is eroded by gas cost and DEX slippage. Direct staking preferred.'
+          }
+        ]
+      },
+      'Swap': {
+        assets: ['USDC', 'ETH', 'USDT', 'PAXG', 'stETH'],
+        defaultAssets: ['USDC', 'ETH'],
+        market: 'Crypto',
+        network: 'Ethereum / Arbitrum',
+        pct: 5,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'Swap Intent Verified',
+          step2: 'Scanning DEX Pool Orderbooks',
+          step3Name: 'Orderbook Depth & Slippage',
+          news: 'done (+0.62)',
+          econ: 'running (Slippage 0.03%)'
+        },
+        headlines: [
+          'Uniswap v3 concentrated liquidity pool depth exceeds $180M (1h ago &bull; Positive)',
+          'Gas fees drop below 12 gwei on Ethereum mainnet (3h ago &bull; Positive)',
+          'Stablecoin trading volumes surge across decentralized exchanges (6h ago &bull; Neutral)'
+        ],
+        newsScore: 0.62,
+        cvar95: '-1.8%',
+        cvar99: '-3.2%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Swap USDC to ETH via Uniswap v3',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Concentrated Liquidity &bull; 0.05% Fee Tier',
+            newsScore: '+0.62',
+            econScore: '0.84',
+            inj: 'Pass',
+            score: '0.78',
+            rationale: 'Highest concentrated pool depth ensures minimal slippage (0.03%) for the requested order size.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Swap via Curve TriCrypto Pool',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Crypto &bull; Dynamic Peg Invariant Pool',
+            newsScore: '+0.58',
+            econScore: '0.72',
+            inj: 'Pass',
+            score: '0.67',
+            rationale: 'Curve v2 dynamic fee model produces 0.05% slippage, slightly higher than Uniswap v3.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Batch Auction via CoW Protocol',
+            badge: 'Higher Latency',
+            badgeClass: 'badge-amber',
+            info: 'Crypto &bull; MEV Protected Batch Auction',
+            newsScore: '+0.65',
+            econScore: '0.59',
+            inj: 'Pass',
+            score: '0.61',
+            rationale: 'Batch auction eliminates frontrunning MEV but incurs 1-block delay in volatile regimes.'
+          }
+        ]
+      },
+      'Park idle cash': {
+        assets: ['USDC', 'e-CNY MMF', 'USDT', 'USDY'],
+        defaultAssets: ['USDC', 'e-CNY MMF'],
+        market: 'Chinese market',
+        network: 'FISCO BCOS / Arbitrum',
+        pct: 25,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'Cash Deployment Mandate',
+          step2: 'Scanning Sovereign & DeFi Hurdles',
+          step3Name: 'Shibor & Variable Yield Check',
+          news: 'done (+0.48)',
+          econ: 'running (Riskless Hurdle 2.85%)'
+        },
+        headlines: [
+          'PBOC liquidity open market operations support 1Y Shibor benchmark (2h ago &bull; Positive)',
+          'Money market funds on consortium chain report zero duration risk (4h ago &bull; Positive)',
+          'USDC lending rates on Arbitrum normalize to 4.8% APY (8h ago &bull; Neutral)'
+        ],
+        newsScore: 0.48,
+        cvar95: '-0.2%',
+        cvar99: '-0.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Park in Shibor 1Y MMF on FISCO BCOS',
+            badge: 'Chosen 60%',
+            badgeClass: 'badge-green',
+            info: 'Chinese Mkt &bull; WeBank Consortium &bull; 2.85% Shibor Yield',
+            newsScore: '+0.45',
+            econScore: '0.92',
+            inj: 'Pass',
+            score: '0.82',
+            rationale: 'Consortium zero-gas sovereign treasury MMF provides zero-volatility yield benchmarked to 1Y Shibor.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Deposit USDC into Aave v3 Lending Reserve',
+            badge: 'Chosen 40%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Arbitrum L2 &bull; 4.80% Variable Supply APY',
+            newsScore: '+0.52',
+            econScore: '0.78',
+            inj: 'Pass',
+            score: '0.72',
+            rationale: 'L2 native lending yield with over-collateralized liquidation buffers and instant withdrawal liquidity.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Compound v3 USDC Comet Vault',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Crypto &bull; Ethereum L1 &bull; 4.25% Net APY',
+            newsScore: '+0.50',
+            econScore: '0.69',
+            inj: 'Pass',
+            score: '0.65',
+            rationale: 'Solid base yield on L1, but gas fees slightly reduce net returns for allocations under $10,000.'
+          }
+        ]
+      },
+      'Reduce risk': {
+        assets: ['e-CNY MMF', 'stETH', 'PAXG'],
+        defaultAssets: ['e-CNY MMF'],
+        market: 'Chinese market',
+        network: 'FISCO BCOS',
+        pct: 15,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'De-Risking Directive Registered',
+          step2: 'Evaluating Stressed Collateral Nodes',
+          step3Name: 'Value-at-Risk Stress Simulation',
+          news: 'done (-0.45)',
+          econ: 'running (VaR Reduction -82%)'
+        },
+        headlines: [
+          'News Risk Sentinel detected distress signals on synthetic e-CNY note (22m ago &bull; Negative)',
+          'Consortium audit anchor confirmed off-chain exposure (1h ago &bull; Watch)',
+          'Collateral redemption windows remain liquid and operational (3h ago &bull; Neutral)'
+        ],
+        newsScore: -0.45,
+        cvar95: '-0.1%',
+        cvar99: '-0.2%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; De-Risk e-CNY MMF into Native USDC Collateral',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Cross-Chain De-Risking &bull; Eliminates Negative Headline Exposure',
+            newsScore: '-0.45',
+            econScore: '0.88',
+            inj: 'Pass',
+            score: '0.85',
+            rationale: 'Proactively shifting from stressed synthetic paper into native dollar collateral cuts 95% CVaR from -5.4% to -0.2%.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Rebalance into PAXG Gold Commodity Hedge',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Commodities &bull; Arbitrum &bull; Allocated Physical Gold',
+            newsScore: '+0.25',
+            econScore: '0.74',
+            inj: 'Pass',
+            score: '0.71',
+            rationale: 'Gold offers negative cross-correlation against crypto drawdowns, improving overall portfolio Sharpe.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Emergency Complete Vault Lockout',
+            badge: 'Overkill',
+            badgeClass: 'badge-amber',
+            info: 'Full Vault Lockout &bull; Halts all AI session activity',
+            newsScore: '-0.45',
+            econScore: '0.30',
+            inj: 'Pass',
+            score: '0.38',
+            rationale: 'Disproportionate response: only e-CNY MMF is stressed. Targeted de-risking preserves portfolio yield.'
+          }
+        ]
+      },
+      'Invest': {
+        assets: ['ETH', 'stETH', 'USDC', 'PAXG'],
+        defaultAssets: ['ETH', 'USDC'],
+        market: 'Crypto',
+        network: 'Ethereum / Arbitrum',
+        pct: 10,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Growth Investment Mandate',
+          step2: 'Scanning Multi-Chain Yield Venues',
+          step3Name: 'Sharpe & Hurdle Calibration',
+          news: 'done (+0.71)',
+          econ: 'running (Sharpe 1.84)'
+        },
+        headlines: [
+          'Ethereum network activity reaches 6-month high in DeFi transactions (2h ago &bull; Positive)',
+          'Tokenized physical gold demand rises among institutional treasuries (4h ago &bull; Positive)',
+          'Cross-chain bridges report record liquidity depth (7h ago &bull; Neutral)'
+        ],
+        newsScore: 0.71,
+        cvar95: '-3.1%',
+        cvar99: '-5.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Invest in Lido Staked ETH (stETH)',
+            badge: 'Chosen 70%',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Staking &bull; 3.4% APY + ETH Exposure',
+            newsScore: '+0.71',
+            econScore: '0.64',
+            inj: 'Pass',
+            score: '0.68',
+            rationale: 'Core Ethereum staking yield combined with blue-chip balance sheet security.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Invest in PAXG Tokenized Gold',
+            badge: 'Chosen 30%',
+            badgeClass: 'badge-green',
+            info: 'Commodities &bull; Arbitrum &bull; LBMA London Good Delivery Gold',
+            newsScore: '+0.35',
+            econScore: '0.75',
+            inj: 'Pass',
+            score: '0.65',
+            rationale: 'Tokenized gold provides real-world asset collateralization and low correlation to equities.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Invest in High-Yield Speculative LP Farm',
+            badge: 'Rejected',
+            badgeClass: 'badge-red',
+            info: 'DeFi &bull; Microcap LP Pool &bull; 24.5% APY',
+            newsScore: '+0.10',
+            econScore: '0.22',
+            inj: 'Warn',
+            score: '0.28',
+            rationale: 'Fails Invariant 2: Permanent loss risk (PD 45% × LGD 80%) far exceeds the acceptable risk tolerance.'
+          }
+        ]
+      },
+      'Rebalance': {
+        assets: ['All in market', 'ETH', 'USDC', 'PAXG'],
+        defaultAssets: ['All in market'],
+        market: 'Any',
+        network: 'Multi-Chain',
+        pct: 20,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Portfolio Rebalance Requested',
+          step2: 'Solving Quadratic Covariance Matrix',
+          step3Name: 'Markowitz Efficient Frontier',
+          news: 'done (+0.58)',
+          econ: 'running (Target 52/22/16/10)'
+        },
+        headlines: [
+          'Cross-asset covariance matrix stable across 30-day window (2h ago &bull; Positive)',
+          'Gold commodity correlation to equities drops to -0.14 (5h ago &bull; Positive)',
+          'Consortium chain money market rate anchors lower portfolio variance (8h ago &bull; Neutral)'
+        ],
+        newsScore: 0.58,
+        cvar95: '-2.1%',
+        cvar99: '-4.1%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Markowitz Max-Sharpe Rebalance',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Multi-Chain &bull; Target Weights 52/22/16/10',
+            newsScore: '+0.58',
+            econScore: '0.91',
+            inj: 'Pass',
+            score: '0.84',
+            rationale: 'Restores policy target weights, reducing idiosyncratic volatility while maximizing risk-adjusted return.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Equal-Weighted 25% Allocation',
+            badge: 'Sub-Optimal',
+            badgeClass: 'badge-blue',
+            info: 'Naive 1/N Allocation across 4 sectors',
+            newsScore: '+0.50',
+            econScore: '0.62',
+            inj: 'Pass',
+            score: '0.58',
+            rationale: '1/N allocation increases tail risk by over-allocating to volatile assets without risk weighting.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Volatility-Parity Allocation',
+            badge: 'Conservative',
+            badgeClass: 'badge-amber',
+            info: 'Inverse Volatility Weighted Allocation',
+            newsScore: '+0.54',
+            econScore: '0.79',
+            inj: 'Pass',
+            score: '0.73',
+            rationale: 'Minimizes portfolio drawdown variance but reduces staking yield below the Shibor hurdle.'
+          }
+        ]
+      },
+      'Exit position': {
+        assets: ['e-CNY MMF', 'stETH', 'PAXG'],
+        defaultAssets: ['e-CNY MMF'],
+        market: 'Chinese market',
+        network: 'FISCO BCOS',
+        pct: 22,
+        tier: 'Tier 1',
+        pipeline: {
+          step1: 'Position Liquidation Mandate',
+          step2: 'Checking Orderbook Redemption Queues',
+          step3Name: 'Zero-Slippage Exit Liquidity',
+          news: 'done (-0.45)',
+          econ: 'running (Unwind $10,600)'
+        },
+        headlines: [
+          'Redemption gateway open on FISCO BCOS with immediate settlement (1h ago &bull; Positive)',
+          'Consortium clearinghouse confirms 1:1 par redemption liquidity (3h ago &bull; Positive)',
+          'Synthetic note negative sentiment persists in market news (5h ago &bull; Watch)'
+        ],
+        newsScore: -0.45,
+        cvar95: '0.0%',
+        cvar99: '0.0%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Full Redemption into Liquid Cash Reserve',
+            badge: 'Chosen 100%',
+            badgeClass: 'badge-green',
+            info: 'Consortium Liquidation &bull; $10,600 Full Capital Recovery',
+            newsScore: '-0.45',
+            econScore: '0.95',
+            inj: 'Pass',
+            score: '0.89',
+            rationale: 'Completely removes distressed asset exposure, restoring $10,600 unencumbered cash buffer.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; Partial 50% Step-Down Exit',
+            badge: 'Alternative',
+            badgeClass: 'badge-blue',
+            info: 'Unwinds $5,300 while keeping half position active',
+            newsScore: '-0.45',
+            econScore: '0.65',
+            inj: 'Pass',
+            score: '0.60',
+            rationale: 'Leaves $5,300 vulnerable to ongoing news deterioration.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Swap for High-Beta Recovery Token',
+            badge: 'Rejected',
+            badgeClass: 'badge-red',
+            info: 'Speculative swap on secondary DEX',
+            newsScore: '+0.15',
+            econScore: '0.25',
+            inj: 'Warn',
+            score: '0.31',
+            rationale: 'Replaces one risk with an even higher unvetted risk.'
+          }
+        ]
+      },
+      'Find opportunities': {
+        assets: ['All in market', 'ETH', 'stETH', 'USDC', 'PAXG'],
+        defaultAssets: ['All in market'],
+        market: 'Any',
+        network: 'All Connected Chains',
+        pct: 10,
+        tier: 'Tier 2',
+        pipeline: {
+          step1: 'Multi-Chain Scan Initiated',
+          step2: 'Filtering 25 Assets Across 4 Chains',
+          step3Name: 'Risk-Adjusted Alpha Ranking',
+          news: 'done (+0.71)',
+          econ: 'running (Scanning 14 Protocols)'
+        },
+        headlines: [
+          'Cross-chain arbitrage spread widens on LST secondary pairs (1h ago &bull; Positive)',
+          'Shibor MMF offers attractive hurdle for low-volatility parking (3h ago &bull; Positive)',
+          'Ethereum staking rewards exceed lending rates by 80 bps (6h ago &bull; Neutral)'
+        ],
+        newsScore: 0.71,
+        cvar95: '-3.1%',
+        cvar99: '-5.4%',
+        candidates: [
+          {
+            id: 'A',
+            title: 'A &bull; Stake ETH on Lido (3.4% APY)',
+            badge: 'Rank 1',
+            badgeClass: 'badge-green',
+            info: 'Crypto &bull; Staking &bull; Highest risk-adjusted excess yield',
+            newsScore: '+0.71',
+            econScore: '0.64',
+            inj: 'Pass',
+            score: '0.68',
+            rationale: 'Leading blue-chip yield with optimal liquidity and minimal counterparty spread.'
+          },
+          {
+            id: 'B',
+            title: 'B &bull; PegGuard De-Peg Arbitrage on Class A Wrapped BTC',
+            badge: 'Rank 2',
+            badgeClass: 'badge-green',
+            info: 'Arbitrage &bull; 18 bps de-peg discount capturing +$84 profit',
+            newsScore: '+0.55',
+            econScore: '0.80',
+            inj: 'Pass',
+            score: '0.66',
+            rationale: 'Stateful watermark memory confirmed strictly lower de-peg price with positive expected carry.'
+          },
+          {
+            id: 'C',
+            title: 'C &bull; Aave v3 USDC Supply on Arbitrum (4.8% APY)',
+            badge: 'Rank 3',
+            badgeClass: 'badge-blue',
+            info: 'Crypto &bull; Lending &bull; Variable borrow demand spike',
+            newsScore: '+0.52',
+            econScore: '0.78',
+            inj: 'Pass',
+            score: '0.63',
+            rationale: 'Safe collateralized lending yield with no directional price beta.'
+          }
+        ]
+      }
+    };
+
+    // Global Interactive State
+    const state = {
+      action: 'Stake',
+      market: 'Crypto',
+      network: 'Ethereum L1',
+      assets: ['ETH', 'stETH'],
+      capitalPercent: 10,
+      riskTier: 'Tier 2',
+      vaultBalance: 48210,
+      tetherUsed: 420,
+      tetherTotal: 1000,
+      biometricUnlocked: false,
+      pegGuardEnabled: true,
+      selectedCandidate: 'A',
+      trades: [
+        {
+          id: 1,
+          title: 'Stake 0.4 ETH on Lido',
+          time: '02:14 UTC',
+          market: 'Crypto',
+          val: '$964',
+          slippage: '0.08%',
+          estSlippage: '0.10%',
+          pnl: '+$3.20',
+          tx: '0x9a4f...e1c8',
+          status: 'pending',
+          statusText: 'Pending Review',
+          statusBadge: 'badge-amber',
+          news: '+0.71',
+          econ: '0.64',
+          inj: 'Pass',
+          note: 'Lido staking is approved, but prefer rocket pool (rETH) when yield difference is under 0.2%.'
+        },
+        {
+          id: 2,
+          title: 'Swap 500 USDC to PAXG',
+          time: '03:40 UTC',
+          market: 'Commodities',
+          val: '$500',
+          slippage: '0.04%',
+          estSlippage: '0.05%',
+          pnl: '+$1.80',
+          tx: '0x3c7b...41a2',
+          status: 'pending',
+          statusText: 'Pending Review',
+          statusBadge: 'badge-amber',
+          news: '+0.35',
+          econ: '0.72',
+          inj: 'Pass',
+          note: 'Allocated gold hedge during weekend volatility.'
+        },
+        {
+          id: 3,
+          title: 'Supply 1 ETH to Aave v3',
+          time: '01:02 UTC',
+          market: 'Crypto',
+          val: '$2,410',
+          slippage: '0.01%',
+          estSlippage: '0.02%',
+          pnl: '+$4.50',
+          tx: '0x88f1...b902',
+          status: 'ratified',
+          statusText: 'Ratified &bull; Allowance Restored',
+          statusBadge: 'badge-green',
+          news: '+0.55',
+          econ: '0.70',
+          inj: 'Pass',
+          note: ''
+        }
+      ]
+    };
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.view-panel').forEach(el => el.classList.remove('active'));
+      
+      const targetNav = document.querySelector(`a[href="#${tabId}"]`);
+      if (targetNav) targetNav.classList.add('active');
+
+      const panel = document.getElementById(`panel-${tabId}`);
+      if (panel) panel.classList.add('active');
+    }
+
+    // MAIN DYNAMIC TRIGGER: Action Selection
+    function selectAction(actionName) {
+      state.action = actionName;
+      const preset = ACTION_PRESETS[actionName];
+      if (!preset) return;
+
+      // 1. Update action button states
+      document.querySelectorAll('#action-pills .pill-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent === actionName);
+      });
+
+      // 2. Adjust Action Badge in Composer Card Title
+      document.getElementById('active-action-badge').innerText = `${actionName} Mandate`;
+
+      // 3. Dynamically rebuild the Asset Scope pills
+      renderAssetPills(preset.assets, preset.defaultAssets);
+      state.assets = [...preset.defaultAssets];
+
+      // 4. Dynamically select the optimal Market
+      selectMarket(preset.market, preset.network, false);
+
+      // 5. Adjust Capital Percent Slider
+      setSliderPercent(preset.pct);
+
+      // 6. Adjust Risk Tier
+      selectTier(preset.tier, false);
+
+      // 7. Update Prompt Preview
+      updatePrompt();
+
+      // 8. Update Live Pipeline Tracker labels
+      document.getElementById('pipe-step-1').innerText = preset.pipeline.step1;
+      document.getElementById('pipe-step-2').innerText = preset.pipeline.step2;
+      document.getElementById('pipe-step-3').innerText = preset.pipeline.step3Name;
+      document.getElementById('pipe-news-val').innerText = preset.pipeline.news;
+      document.getElementById('pipe-econ-val').innerText = preset.pipeline.econ;
+
+      // 9. Dynamically re-render Screen 2 (Opportunities)
+      renderOpportunities();
+
+      showToast(`Action adjusted to "${actionName}": Assets, market & risk curves updated.`);
+    }
+
+    function renderAssetPills(allowedAssets, defaultAssets) {
+      const container = document.getElementById('asset-pills');
+      container.innerHTML = '';
+      allowedAssets.forEach(sym => {
+        const btn = document.createElement('button');
+        btn.className = `pill-btn ${defaultAssets.includes(sym) ? 'active' : ''}`;
+        btn.innerText = sym;
+        btn.onclick = () => toggleAsset(btn, sym);
+        container.appendChild(btn);
+      });
+    }
+
+    function toggleAsset(btn, sym) {
+      btn.classList.toggle('active');
+      if (state.assets.includes(sym)) {
+        state.assets = state.assets.filter(a => a !== sym);
+      } else {
+        state.assets.push(sym);
+      }
+      updatePrompt();
+      renderOpportunities();
+    }
+
+    function selectMarket(name, sub, triggerToast = true) {
+      state.market = name;
+      state.network = sub;
+      document.querySelectorAll('#market-grid .market-card').forEach(c => {
+        c.classList.toggle('active', c.getAttribute('data-market') === name);
+      });
+      updatePrompt();
+      renderOpportunities();
+      if (triggerToast) showToast(`Market set to ${name} (${sub})`);
+    }
+
+    function setSliderPercent(pct) {
+      state.capitalPercent = pct;
+      document.querySelectorAll('#capital-pills .pill-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent === `${pct}%`);
+      });
+      document.getElementById('slider-fill').style.width = `${pct}%`;
+      document.getElementById('slider-thumb').style.left = `${pct}%`;
+      
+      const dollars = Math.round(state.vaultBalance * (pct / 100));
+      const tetherRemaining = state.tetherTotal - state.tetherUsed;
+      const tetherUsage = Math.min(dollars, tetherRemaining);
+      
+      document.getElementById('slider-caption').innerHTML = 
+        `${pct}% = $${dollars.toLocaleString()} &bull; uses $${tetherUsage.toLocaleString()} of the $${tetherRemaining.toLocaleString()} left in today's Tether Radius`;
+      
+      updatePrompt();
+      updateSlippageForSize(dollars);
+      renderOpportunities();
+    }
+
+    function handleSliderClick(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = Math.min(100, Math.max(5, Math.round((clickX / rect.width) * 100)));
+      setSliderPercent(pct);
+    }
+
+    function selectTier(tier, triggerToast = true) {
+      state.riskTier = tier;
+      document.querySelectorAll('#tier-pills .pill-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.includes(tier));
+      });
+      updatePrompt();
+      renderOpportunities();
+      if (triggerToast) showToast(`Risk policy configured to ${tier}`);
+    }
+
+    function updatePrompt() {
+      const assetsText = state.assets.length > 0 ? state.assets.join(' and ') : 'assets';
+      const prompt = `&ldquo;${state.action} ${assetsText} in ${state.market}, using ${state.capitalPercent}% of capital, ${state.riskTier}.&rdquo;`;
+      document.getElementById('prompt-preview').innerHTML = prompt;
+    }
+
+    function updateSlippageForSize(dollars) {
+      let slipPct = '0.03%';
+      if (dollars > 10000) slipPct = '0.35%';
+      else if (dollars > 4000) slipPct = '0.08%';
+      else if (dollars > 1000) slipPct = '0.04%';
+      else slipPct = '0.01%';
+      
+      const el = document.getElementById('slippage-text');
+      if (el) {
+        el.innerHTML = `Modeled slippage for $${dollars.toLocaleString()} execution: <strong>${slipPct}</strong> (Liquidity depth $240M).`;
+      }
+    }
+
+    // Dynamic Screen 2 (Opportunities) Rendering
+    function renderOpportunities() {
+      const preset = ACTION_PRESETS[state.action] || ACTION_PRESETS['Stake'];
+      const dollars = Math.round(state.vaultBalance * (state.capitalPercent / 100));
+      const tetherRemaining = state.tetherTotal - state.tetherUsed;
+      const tetherToUse = Math.min(dollars, tetherRemaining);
+
+      // 1. Header
+      document.getElementById('opp-request-header').innerText = 
+        `Request #0412 &bull; ${state.action} ${state.assets.join(' and ')} in ${state.market}, ${state.capitalPercent}% Capital ($${dollars.toLocaleString()}), ${state.riskTier}`;
+
+      // 2. Candidates
+      const container = document.getElementById('candidates-container');
+      container.innerHTML = '';
+      preset.candidates.forEach((cand, idx) => {
+        const isSelected = cand.id === state.selectedCandidate || (idx === 0 && !['A','B','C'].includes(state.selectedCandidate));
+        const div = document.createElement('div');
+        div.className = `candidate-card ${isSelected ? 'chosen' : ''}`;
+        div.onclick = () => selectCandidateCard(div, cand.id);
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <b>${cand.title}</b>
+            <span class="badge ${cand.badgeClass}">${cand.badge}</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">${cand.info} &bull; $${dollars.toLocaleString()}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
+            <span class="badge" style="border:1px solid var(--border)">News ${cand.newsScore}</span>
+            <span class="badge" style="border:1px solid var(--border)">Econ ${cand.econScore}</span>
+            <span class="badge ${cand.inj === 'Warn' ? 'badge-amber' : ''}" style="border:1px solid var(--border)">Injection ${cand.inj}</span>
+          </div>
+          <div style="font-size:22px;font-weight:800;margin-top:6px;">
+            ${cand.score} <span style="font-size:12px;font-weight:400;color:var(--muted)">weighted score</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+
+      // 3. Deep Rating Breakdown
+      const activeCand = preset.candidates.find(c => c.id === state.selectedCandidate) || preset.candidates[0];
+      document.getElementById('zone-b-title').innerText = `Zone B &bull; Deep Rating Breakdown for ${activeCand.title}`;
+      document.getElementById('rating-news-badge').innerText = `${activeCand.newsScore} ${preset.newsScore > 0 ? 'Positive' : 'Cautious'}`;
+      document.getElementById('metric-cvar95').innerText = preset.cvar95;
+      document.getElementById('metric-cvar99').innerText = preset.cvar99;
+
+      // News gauge position
+      const sentimentPct = Math.round(((preset.newsScore + 1.0) / 2.0) * 100);
+      document.getElementById('sentiment-indicator').style.left = `${sentimentPct}%`;
+
+      // Headlines
+      const hList = document.getElementById('headlines-list');
+      hList.innerHTML = preset.headlines.map(h => `<li>${h}</li>`).join('');
+
+      // Amount check text
+      document.getElementById('inj-amount-text').innerText = `Amount check: Exactly matches mandate ($${dollars.toLocaleString()})`;
+
+      // Synthesis Rationale
+      const splitA = Math.round(dollars * 0.7);
+      const splitB = Math.round(dollars * 0.3);
+      document.getElementById('synthesis-rationale').innerHTML = `
+        <strong>Synthesis Rationale:</strong> ${activeCand.rationale}<br>
+        <strong>Autonomous Execution Plan:</strong> Allocates <strong>$${dollars.toLocaleString()}</strong> inside today's Tether leash ($${tetherToUse.toLocaleString()} used of $${tetherRemaining.toLocaleString()} left).
+      `;
+
+      // Execution Button
+      document.getElementById('btn-execute-trade').innerText = 
+        `Execute Autonomous ${state.action} ($${dollars.toLocaleString()} &bull; $${tetherToUse.toLocaleString()} Tether Leash)`;
+    }
+
+    function selectCandidateCard(cardEl, candId) {
+      state.selectedCandidate = candId;
+      document.querySelectorAll('#candidates-container .candidate-card').forEach(c => c.classList.remove('chosen'));
+      cardEl.classList.add('chosen');
+      renderOpportunities();
+      showToast(`Inspecting deep ratings for Option ${candId}`);
+    }
+
+    function submitCommandToBrain() {
+      showToast(`Submitting ${state.action} mandate to the Brain...`);
+      setTimeout(() => {
+        switchTab('opportunities');
+        showToast(`Brain evaluated 3 candidate routes for ${state.action} in ${state.market}.`);
+      }, 500);
+    }
+
+    function executeAutonomousTrade() {
+      const dollars = Math.round(state.vaultBalance * (state.capitalPercent / 100));
+      const tetherRemaining = state.tetherTotal - state.tetherUsed;
+      const tetherToUse = Math.min(dollars, tetherRemaining);
+
+      state.tetherUsed += tetherToUse;
+      document.getElementById('top-tether-val').innerText = `$${state.tetherUsed.toLocaleString()} / $${state.tetherTotal.toLocaleString()}`;
+      document.getElementById('widget-tether-left').innerHTML = `$${(state.tetherTotal - state.tetherUsed).toLocaleString()} <span style="font-size:13px;font-weight:400;color:var(--muted)">left today</span>`;
+      
+      const pctUsed = Math.min(100, Math.round((state.tetherUsed / state.tetherTotal) * 100));
+      document.getElementById('widget-tether-fill').style.width = `${pctUsed}%`;
+      document.getElementById('tether-donut').style.background = `conic-gradient(var(--green) 0 ${pctUsed}%, var(--border-subtle) 0)`;
+
+      // Add to Morning Review Trades
+      const newTrade = {
+        id: state.trades.length + 1,
+        title: `${state.action} ${state.assets.join('/')} on ${state.market}`,
+        time: 'Just now',
+        market: state.market,
+        val: `$${dollars.toLocaleString()}`,
+        slippage: '0.04%',
+        estSlippage: '0.05%',
+        pnl: '+$0.00',
+        tx: '0x' + Math.random().toString(16).slice(2, 10) + '...' + Math.random().toString(16).slice(2, 6),
+        status: 'pending',
+        statusText: 'Pending Review',
+        statusBadge: 'badge-amber',
+        news: '+0.70',
+        econ: '0.75',
+        inj: 'Pass',
+        note: `Autonomous ${state.action} executed inside leash.`
+      };
+
+      state.trades.unshift(newTrade);
+      renderTrades();
+
+      // Update badge counts
+      const pendingCount = state.trades.filter(t => t.status === 'pending').length;
+      document.getElementById('review-badge').innerText = pendingCount;
+      document.getElementById('top-pending-badge').innerText = pendingCount;
+      document.getElementById('widget-pending-reviews').innerHTML = `${pendingCount} <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span>`;
+
+      showToast(`Executed: $${dollars.toLocaleString()} ${state.action} signed on-chain with session key!`);
+    }
+
+    function renderTrades() {
+      const container = document.getElementById('trades-list');
+      container.innerHTML = '';
+      state.trades.forEach(trade => {
+        const isFirst = trade.id === state.trades[0].id;
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.style.border = isFirst ? '2px solid var(--text)' : '1px solid var(--border)';
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.gap = '12px';
+
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:800;font-size:16px;">${trade.title}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;">Executed at ${trade.time} &bull; ${trade.market} &bull; ${trade.val} Value</div>
+            </div>
+            <span class="badge ${trade.statusBadge}" id="trade-status-${trade.id}">${trade.statusText}</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;">
+            <span class="badge" style="border:1px solid var(--border)">News ${trade.news}</span>
+            <span class="badge" style="border:1px solid var(--border)">Econ ${trade.econ}</span>
+            <span class="badge" style="border:1px solid var(--border)">Slippage ${trade.slippage}</span>
+            <span class="badge badge-green">P&amp;L: ${trade.pnl}</span>
+            <span style="color:var(--muted);font-family:monospace">tx: ${trade.tx}</span>
+          </div>
+          ${trade.status === 'pending' ? `
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+              <button class="pill-btn" style="flex:1 1 140px;background:var(--green-bg);color:var(--green-dark);border-color:var(--green);font-weight:700" onclick="handleLikeAndRatify(${trade.id})">
+                &plus; Like &amp; Ratify
+              </button>
+              <button class="pill-btn" style="flex:1 1 140px;color:var(--red);border-color:var(--red);font-weight:700" onclick="handleFlagRevert(${trade.id})">
+                &times; Flag for Revert (-20%)
+              </button>
+              <button class="pill-btn" style="flex:1 1 140px;background:var(--text);color:#fff;font-weight:700" onclick="toggleNoteBox(${trade.id})">
+                &para; Note &amp; Educate
+              </button>
+            </div>
+            <div id="note-box-${trade.id}" style="display:none;background:var(--yellow-note);border:2px solid var(--yellow-border);border-radius:12px;padding:14px;flex-direction:column;gap:8px;margin-top:6px;">
+              <div style="font-size:12px;font-weight:700;color:#5C4A00;">Your Note to the Brain</div>
+              <textarea id="note-text-${trade.id}" rows="2" style="width:100%;border:0;border-radius:8px;padding:10px;background:var(--yellow-input);font-family:inherit;color:var(--text);resize:none;" oninput="updateWordCount(this, ${trade.id})">${trade.note}</textarea>
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                <div style="font-size:12px;color:#5C4A00;" id="word-count-${trade.id}">14 / 25 words</div>
+                <div style="display:flex;gap:12px;align-items:center;">
+                  <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#5C4A00;cursor:pointer;">
+                    <input type="checkbox" id="penalize-check-${trade.id}"> Penalize Brain autonomy (-10%)
+                  </label>
+                  <button class="pill-btn" style="background:var(--text);color:#fff;border:0;padding:6px 14px;font-weight:600" onclick="submitNoteToBrain(${trade.id})">
+                    Send Note
+                  </button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+        `;
+        container.appendChild(div);
+      });
+
+      // Update Summary Bar
+      const totalTrades = state.trades.length;
+      const reviewedCount = state.trades.filter(t => t.status !== 'pending').length;
+      document.getElementById('review-total-trades').innerText = totalTrades;
+      document.getElementById('review-progress').innerText = `${reviewedCount} of ${totalTrades}`;
+    }
+
+    // Modal Controllers
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('active');
+    }
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    }
+
+    // Modal: Multi-Chain Deposit (Section 05)
+    function openDepositModal() {
+      updateDepositAssetOptions();
+      openModal('modal-deposit');
+    }
+    function updateDepositAssetOptions() {
+      const net = document.getElementById('deposit-network').value;
+      const symEl = document.getElementById('deposit-asset-symbol');
+      if (net.includes('Ethereum')) symEl.innerText = 'ETH';
+      else if (net.includes('Arbitrum')) symEl.innerText = 'USDC';
+      else if (net.includes('FISCO')) symEl.innerText = 'e-CNY';
+      else symEl.innerText = 'USDC';
+      updateDepositUSDConversion();
+    }
+    function updateDepositUSDConversion() {
+      const amt = parseFloat(document.getElementById('deposit-amount').value) || 0;
+      const sym = document.getElementById('deposit-asset-symbol').innerText;
+      let rate = 2410.50;
+      if (sym === 'USDC' || sym === 'USDT') rate = 1.0;
+      else if (sym === 'e-CNY') rate = 0.14;
+      else if (sym === 'POL') rate = 0.42;
+      const usd = amt * rate;
+      document.getElementById('deposit-usd-conversion').innerText = 
+        `≈ $${usd.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} USD via Chainlink Oracle Feed`;
+    }
+    function confirmDeposit() {
+      const amt = parseFloat(document.getElementById('deposit-amount').value) || 0;
+      const sym = document.getElementById('deposit-asset-symbol').innerText;
+      let rate = 2410.50;
+      if (sym === 'USDC' || sym === 'USDT') rate = 1.0;
+      else if (sym === 'e-CNY') rate = 0.14;
+      const usd = Math.round(amt * rate);
+      state.vaultBalance += usd;
+      document.getElementById('top-vault-val').innerText = `$${state.vaultBalance.toLocaleString()}`;
+      document.getElementById('portfolio-total-val').innerText = `$${state.vaultBalance.toLocaleString()}`;
+      closeModal('modal-deposit');
+      showToast(`Deposit Confirmed: +$${usd.toLocaleString()} credited to Smart Safe on-chain.`);
+    }
+
+    // Modal: Biometric Withdrawal (Section 05)
+    function openWithdrawModal() {
+      openModal('modal-withdraw');
+    }
+    function authenticateAndWithdraw() {
+      const btn = document.getElementById('btn-withdraw-faceid');
+      const amt = parseInt(document.getElementById('withdraw-amount').value) || 0;
+      btn.innerText = 'Verifying FaceID via WebAuthn...';
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.innerText = 'Scan FaceID & Transfer';
+        btn.disabled = false;
+        closeModal('modal-withdraw');
+        state.vaultBalance = Math.max(0, state.vaultBalance - amt);
+        document.getElementById('top-vault-val').innerText = `$${state.vaultBalance.toLocaleString()}`;
+        document.getElementById('portfolio-total-val').innerText = `$${state.vaultBalance.toLocaleString()}`;
+        state.biometricUnlocked = true;
+        document.getElementById('bio-dot').style.background = 'var(--green)';
+        document.getElementById('bio-status-text').innerText = 'Unlocked (5m)';
+        showToast(`FaceID Signature Verified: $${amt.toLocaleString()} transferred to external wallet.`);
+      }, 900);
+    }
+
+    // Modal: Breakout Trade Authorization
+    function openBreakoutModal(val, profit) {
+      document.getElementById('breakout-trade-val').innerText = `$${val.toLocaleString()}`;
+      document.getElementById('breakout-trade-profit').innerText = `+$${profit.toLocaleString()}`;
+      openModal('modal-breakout');
+    }
+    function approveBreakoutTrade() {
+      closeModal('modal-breakout');
+      state.biometricUnlocked = true;
+      document.getElementById('bio-dot').style.background = 'var(--green)';
+      document.getElementById('bio-status-text').innerText = 'Unlocked (5m)';
+      
+      const newTrade = {
+        id: state.trades.length + 1,
+        title: 'Flash Arbitrage $4,500 Stablecoin Spread',
+        time: 'Just now',
+        market: 'Arbitrum One',
+        val: '$4,500',
+        slippage: '0.01%',
+        estSlippage: '0.02%',
+        pnl: '+$120.00',
+        tx: '0x' + Math.random().toString(16).slice(2, 10) + '...breakout',
+        status: 'ratified',
+        statusText: 'FaceID Breakout Approved',
+        statusBadge: 'badge-green',
+        news: '+0.88',
+        econ: '0.94',
+        inj: 'Pass',
+        note: 'Breakout trade approved via mobile FaceID.'
+      };
+      state.trades.unshift(newTrade);
+      renderTrades();
+      showToast('FaceID Approved! $4,500 flash breakout completed: +$120 profit secured.');
+    }
+
+    // Modal: Note to AI Brain (Section 09)
+    let currentNoteTradeId = 1;
+    function openNoteModal(tradeId) {
+      currentNoteTradeId = tradeId;
+      openModal('modal-note');
+    }
+    function updateNoteWordCount(text) {
+      const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+      document.getElementById('note-word-count').innerText = `${words} / 25 words`;
+    }
+    function submitNoteToBrain() {
+      const text = document.getElementById('note-text-input').value;
+      const penalize = document.getElementById('note-penalty-check').checked;
+      closeModal('modal-note');
+      if (penalize) {
+        state.tetherTotal = Math.round(state.tetherTotal * 0.9);
+        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+      }
+      const trade = state.trades.find(t => t.id === currentNoteTradeId);
+      if (trade) {
+        trade.status = 'reviewed';
+        trade.statusText = penalize ? 'Reviewed (-10% Penalty)' : 'Reviewed & Taught';
+        trade.statusBadge = penalize ? 'badge-amber' : 'badge-green';
+        trade.note = text;
+        renderTrades();
+      }
+      showToast(penalize ? 'Note learned! -10% leash penalty applied on-chain.' : 'Note learned by tecc_brain.learning.notes! Protocol affinity updated.');
+    }
+
+    // Agent Weights Sliders in Zone C (Page 3)
+    const agentWeights = { news: 30, econ: 45, inj: 25 };
+    function updateAgentWeight(comp, val) {
+      agentWeights[comp] = parseInt(val);
+      document.getElementById(`weight-${comp}-val`).innerText = `${val}%`;
+      showToast(`Agent Weights: News ${agentWeights.news}%, Econ ${agentWeights.econ}%, Injection ${agentWeights.inj}%`);
+    }
+
+    // Execution Outcome Modes in Zone C (Page 3)
+    function selectOutcomeMode(mode) {
+      document.querySelectorAll('#outcome-modes .pill-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      const badge = document.getElementById('synthesis-badge');
+      const rationale = document.getElementById('synthesis-rationale');
+      const execBtn = document.getElementById('btn-execute-trade');
+
+      if (mode === 'split') {
+        badge.className = 'badge badge-green';
+        badge.innerText = 'Autonomous Split (70/30)';
+        rationale.innerHTML = `<strong>Synthesis Rationale:</strong> Options A and B both pass hard safety filters with close composite scores. The Brain chooses a portfolio diversification split: 70% to Lido and 30% to Aave.`;
+        execBtn.style.display = 'block';
+        execBtn.innerText = `Execute Autonomous Split Inside Tether ($482 of $580 Left)`;
+      } else if (mode === 'single') {
+        badge.className = 'badge badge-green';
+        badge.innerText = 'Single Best Option';
+        rationale.innerHTML = `<strong>Synthesis Rationale:</strong> Concentrates 100% of capital into Option A (Lido Staking) to maximize single-protocol net yield.`;
+        execBtn.style.display = 'block';
+        execBtn.innerText = `Execute Single Best Route (100% into Option A)`;
+      } else if (mode === 'idle') {
+        badge.className = 'badge badge-amber';
+        badge.innerText = 'Do Nothing (Negative Edge)';
+        rationale.innerHTML = `<strong>Synthesis Rationale:</strong> Risk-adjusted spread does not exceed gas hurdle. Brain policy advises remaining in cash collateral until market spreads widen.`;
+        execBtn.style.display = 'none';
+      } else if (mode === 'breakout') {
+        badge.className = 'badge badge-red';
+        badge.innerText = 'Needs Biometric Breakout';
+        rationale.innerHTML = `<strong>Synthesis Rationale:</strong> Required capital exceeds daily tether limit. Execution is locked until user signs with smartphone FaceID.`;
+        execBtn.style.display = 'block';
+        execBtn.innerText = `Request FaceID Breakout Authorization`;
+        execBtn.onclick = () => openBreakoutModal(4500, 120);
+      }
+    }
+
+    // Active Watchdog De-risk Action in Screen 3 (Page 4)
+    function executeWatchdogDerisk() {
+      const card = document.getElementById('watchdog-alert-card');
+      card.style.background = 'var(--green-bg)';
+      card.style.borderColor = 'var(--green)';
+      document.getElementById('watchdog-alert-badge').className = 'badge badge-green';
+      document.getElementById('watchdog-alert-badge').innerText = 'De-risked OK';
+      document.getElementById('watchdog-alert-desc').innerHTML = '<strong>Risk Reduced:</strong> Successfully swapped $1,060 (10% of e-CNY MMF) into USDC collateral on Arbitrum One.';
+      document.getElementById('watchdog-alert-actions').innerHTML = '<span style="font-size:12px;color:var(--green);font-weight:700;">✔ Risk Reduction Executed &bull; Position Guarded</span>';
+      showToast('Watchdog: $1,060 shifted from e-CNY MMF into USDC collateral!');
+    }
+    function dismissWatchdogAlert() {
+      const card = document.getElementById('watchdog-alert-card');
+      card.style.display = 'none';
+      showToast('Watchdog alert dismissed.');
+    }
+
+    function handleLikeAndRatify(id) {
+      const trade = state.trades.find(t => t.id === id);
+      if (trade) {
+        trade.status = 'ratified';
+        trade.statusText = 'Ratified';
+        trade.statusBadge = 'badge-green';
+        renderTrades();
+        
+        const allReviewed = state.trades.every(t => t.status !== 'pending');
+        if (allReviewed) {
+          state.tetherTotal = Math.min(2500, Math.round(state.tetherTotal * 1.10));
+          document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+          showToast(`Trade ratified! Daily tether limit increased by +10% ($${state.tetherTotal.toLocaleString()})!`);
+        } else {
+          showToast('Trade ratified! +1 toward daily +10% limit step-up.');
+        }
+      }
+    }
+
+    function handleFlagRevert(id) {
+      const trade = state.trades.find(t => t.id === id);
+      if (trade) {
+        trade.status = 'flagged';
+        trade.statusText = 'Flagged (-20%)';
+        trade.statusBadge = 'badge-red';
+        state.tetherTotal = Math.round(state.tetherTotal * 0.8);
+        document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+        renderTrades();
+        showToast('Flagged for revert: Daily Tether radius contracted by -20% on-chain.');
+      }
+    }
+
+    function toggleNoteBox(id) {
+      openNoteModal(id);
+    }
+
+    function ratifyAllRemaining() {
+      state.trades.forEach(t => {
+        if (t.status === 'pending') {
+          t.status = 'ratified';
+          t.statusText = 'Ratified';
+          t.statusBadge = 'badge-green';
+        }
+      });
+      state.tetherTotal = Math.min(2500, Math.round(state.tetherTotal * 1.10));
+      document.getElementById('top-tether-val').innerText = `$${state.tetherUsed} / $${state.tetherTotal}`;
+      renderTrades();
+      document.getElementById('review-badge').innerText = '0';
+      document.getElementById('top-pending-badge').innerText = '0';
+      document.getElementById('widget-pending-reviews').innerHTML = `0 <span style="font-size:13px;font-weight:400;color:var(--muted)">pending</span>`;
+      showToast(`All trades ratified! Daily tether allowance expanded by +10% to $${state.tetherTotal.toLocaleString()}.`);
+    }
+
+    function toggleBiometricWindow() {
+      state.biometricUnlocked = !state.biometricUnlocked;
+      const dot = document.getElementById('bio-dot');
+      const text = document.getElementById('bio-status-text');
+      if (state.biometricUnlocked) {
+        dot.style.background = 'var(--green)';
+        text.innerText = 'Unlocked (5m)';
+        showToast('FaceID Verified: 5-minute breakout window active.');
+      } else {
+        dot.style.background = '#B9B7AE';
+        text.innerText = 'Locked';
+        showToast('Biometric window locked.');
+      }
+    }
+
+    function togglePegGuardArbitrage() {
+      state.pegGuardEnabled = !state.pegGuardEnabled;
+      const badge = document.getElementById('arb-status-badge');
+      const text = document.getElementById('arb-state-text');
+      const btn = document.getElementById('arb-toggle-btn');
+      if (state.pegGuardEnabled) {
+        badge.className = 'badge badge-amber';
+        badge.innerText = 'Active';
+        text.innerText = 'Enabled';
+        text.style.color = 'var(--green)';
+        btn.innerText = 'Turn Off';
+        showToast('PegGuard Arbitrage: Enabled (monitoring 25 assets).');
+      } else {
+        badge.className = 'badge badge-red';
+        badge.innerText = 'Disabled';
+        text.innerText = 'Idle';
+        text.style.color = 'var(--muted)';
+        btn.innerText = 'Turn On';
+        showToast('PegGuard Arbitrage: Stopped.');
+      }
+    }
+
+    function triggerManualWatchdog() {
+      showToast('Watchdog sweep started across all held assets...');
+      setTimeout(() => {
+        showToast('Watchdog sweep complete: Oracle parity confirmed.');
+      }, 1200);
+    }
+
+    function showToast(msg) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.innerText = msg;
+      c.appendChild(t);
+      setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transition = 'opacity 0.3s';
+        setTimeout(() => t.remove(), 300);
+      }, 3500);
+    }
+
+    // Countdown loop for watchdog timer
+    let secondsLeft = 38 * 60 + 10;
+    setInterval(() => {
+      if (secondsLeft > 0) secondsLeft--;
+      const m = Math.floor(secondsLeft / 60);
+      const s = secondsLeft % 60;
+      const el = document.getElementById('watchdog-timer');
+      if (el) el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+    }, 1000);
+
+    // Initial Setup on Page Load
+    document.addEventListener('DOMContentLoaded', () => {
+      selectAction('Stake');
+      renderTrades();
+    });
+  </script>
+</body>
+</html>

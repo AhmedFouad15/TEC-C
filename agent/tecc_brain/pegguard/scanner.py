@@ -23,11 +23,12 @@ Architecture:
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 
 from tecc_brain.models import ActionType, CardLabel, ExecutionIntent, usd_to_onchain
+from tecc_brain.onchain.audit_anchor import compute_audit_record_hash
 from tecc_brain.pegguard.engine import (
     PEGGUARD_ASSET_CATALOG,
     PegGuardDecision,
@@ -38,8 +39,13 @@ from tecc_brain.pegguard.engine import (
     resolve_canonical_symbol,
 )
 
+from tecc_brain.graph.brain import BrainReport
+
 if TYPE_CHECKING:
     from tecc_brain.learning.store import ProfileStore
+    from tecc_brain.models import VaultState
+    from tecc_brain.onchain.anchoring import AuditAnchorService
+    from tecc_brain.reference import Reference
     from tecc_brain.onchain.executor import MarketRouter, PegGuardArbitrageExecutor
 
 DEFAULT_DEPEG_THRESHOLD = 0.0020  # 20 bps below Baseline*(t) triggers de-peg inspection
@@ -58,6 +64,10 @@ class UnprofitableWatermark(BaseModel):
     ev_bps: float = Field(description="Recovery-Adjusted EV in basis points at unprofitable_price")
     reason: str = Field(description="Rejection summary from the 5-layer PegGuard engine")
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
 
 
 ScanItemStatus = Literal[
@@ -66,6 +76,8 @@ ScanItemStatus = Literal[
     "noted_unprofitable",
     "executed",
     "execution_failed",
+    "held_for_approval",  # authorized by PegGuard, but the soft tether or the AI Brain left it for the user
+    "vetoed_by_brain",  # authorized by PegGuard, vetoed by the AI Brain (tighten-only)
 ]
 
 
@@ -87,6 +99,10 @@ class AssetScanOutcome(BaseModel):
     ev_bps: float | None = None
     decision: PegGuardDecision | None = None
     execution_intent: ExecutionIntent | None = None
+    audit_record_hash: str | None = Field(
+        None,
+        description="Privacy-Preserving SHA-256 audit anchor committed to FISCO BCOS: SHA256(account || symbol || action || P_cons || timestamp || salt)",
+    )
     detail: str
 
 
@@ -101,7 +117,12 @@ class ScanTickReport(BaseModel):
     skipped_by_watermark_count: int = 0
     noted_unprofitable_count: int = 0
     executed_count: int = 0
+    held_count: int = 0
     outcomes: list[AssetScanOutcome] = Field(default_factory=list)
+    brain_report: BrainReport | None = Field(
+        None, description="The AI Brain's decision over every PegGuard-authorized trade in this tick (same contract as /propose)"
+    )
+    proposal_id: str | None = Field(None, description="Approve a held trade with POST /api/mandate/execute (label OPPORTUNITY)")
     active_watermarks: dict[str, UnprofitableWatermark] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -116,7 +137,9 @@ class PegGuardAutonomousScanner:
         router: "MarketRouter | None" = None,
         store: "ProfileStore | None" = None,
         depeg_threshold: float = DEFAULT_DEPEG_THRESHOLD,
+        anchors: "AuditAnchorService | None" = None,
     ) -> None:
+        self.anchors = anchors
         self.engine = engine or PegGuardEngine()
         self._executor = executor
         self._router = router
@@ -209,6 +232,119 @@ class PegGuardAutonomousScanner:
         calm_ratio = spec.p_par if spec is not None else 1.000
         return default_pegguard_input_for_symbol(canonical, order_size_usd=order_size_usd, current_ratio=calm_ratio)
 
+    def _brain_gate(
+        self, account: str, items: list[dict[str, Any]], *, vault: "VaultState | None", brain_llm: Any,
+        ref: "Reference | None", proposals: Any,
+    ) -> tuple[list[AssetScanOutcome], "BrainReport", str | None]:
+        """PegGuard-authorized trades → soft tether → AI Brain (tighten-only) → MarketRouter. Never more than the
+        user's soft tether runs automatically; anything else is held for approval or vetoed."""
+        from tecc_brain.graph.brain import build_brain_input, synthesize
+        from tecc_brain.graph.pipeline import PipelineResult, load_or_create_profile
+        from tecc_brain.intent.firewall import scan
+        from tecc_brain.intent.rules import ParseOutcome
+        from tecc_brain.learning.update import new_profile
+        from tecc_brain.market import SnapshotSource
+        from tecc_brain.models import AutonomyMode, Candidate, Card, Decision, Mandate, RiskTier, VaultState
+        from tecc_brain.reference import load_reference
+        from tecc_brain.strategy.market_view import assess_market
+        from tecc_brain.strategy.planner import soft_limit
+
+        ref = ref or load_reference()
+        vault = vault or VaultState(tether_radius_usd=self._router.daily_limit_usd if self._router else 500.0)
+        profile = load_or_create_profile(self.store, account) if self.store is not None else new_profile(account, RiskTier.BALANCED)
+        items = sorted(items, key=lambda it: it["decision"].layer3.recovery_adjusted_ev_bps, reverse=True)
+
+        limit = soft_limit(profile, vault)
+        remaining = limit
+        cards: list[Card] = []
+        caps: list[float] = []
+        for it in items:
+            d, sym = it["decision"], it["symbol"]
+            size = d.layer5.final_order_size_usd
+            ev = d.layer3.recovery_adjusted_ev_bps
+            cand = Candidate(venue_id=it["venue_id"], action=ActionType.BUY_DISCOUNT, asset_in=sym, amount_usd=size,
+                             apy=max(ev, 0.0) / 1e4)
+            lines = [f"PegGuard: all 5 layers authorized ({d.summary}).", f"Recovery-adjusted EV {ev:+.1f} bps."]
+            if remaining > 0:
+                alloc = min(size, remaining)
+                remaining -= alloc
+                mode = AutonomyMode.AUTO
+                if alloc < size:
+                    lines.append(f"Soft tether: ${alloc:,.0f} of ${size:,.0f} runs now; the rest needs your approval.")
+            else:
+                alloc = 0.0
+                mode = AutonomyMode.BREAKOUT if size > vault.remaining_usd else AutonomyMode.PROPOSE
+                lines.append("Today's soft tether is already used: needs your approval"
+                             + (" with FaceID (above the vault radius)." if mode == AutonomyMode.BREAKOUT else "."))
+            caps.append(alloc if mode == AutonomyMode.AUTO else size)
+            cards.append(Card(label=CardLabel.OPPORTUNITY, candidate=cand, mode=mode, market="arbitrage",
+                              headline=f"PegGuard: buy {sym} at {it['r_cons']:.4f}", explanation=lines))
+
+        total = sum(c.candidate.amount_usd for c in cards)
+        auto = sum(cap for cap, c in zip(caps, cards) if c.mode == AutonomyMode.AUTO)
+        baseline = Decision(
+            mandate=Mandate(raw_text="pegguard:scan", action=ActionType.BUY_DISCOUNT, asset=items[0]["symbol"],
+                            amount=total, amount_usd=total),
+            mode=AutonomyMode.AUTO if auto > 0 else AutonomyMode.PROPOSE, auto_amount_usd=auto,
+            proposed_amount_usd=max(0.0, total - auto), cards=cards,
+            trace=[f"PegGuard authorized {len(cards)} trade(s); soft tether ${limit:,.0f}."],
+        )
+        snapshot = SnapshotSource("demo").snapshot()
+        payload = build_brain_input(baseline, total, profile, vault, snapshot, assess_market(snapshot, ref), ref)
+        for i, cand in enumerate(payload["candidates"]):
+            cand["max_amount_usd"] = round(caps[i], 2)
+            cand["exposed_to"] = [items[i]["symbol"]]
+        payload["mandate"] = {
+            "kind": "pegguard_arbitrage", "amount_usd": round(total, 2),
+            "opportunities": [{"symbol": it["symbol"], "hedge_class": it["hedge_class"],
+                               "ev_bps": round(it["decision"].layer3.recovery_adjusted_ev_bps, 2),
+                               "current_ratio": round(it["r_cons"], 6)} for it in items],
+        }
+        final, report = synthesize(baseline, payload, brain_llm)
+        auto_by = {a.candidate_id: a.amount_usd for a in report.allocations if a.mode == AutonomyMode.AUTO}
+
+        arbitrage_exec = self._router.arbitrage if self._router is not None else self.executor
+        outcomes: list[AssetScanOutcome] = []
+        auto_executed: dict[str, float] = {}
+        for i, (card, it) in enumerate(zip(final.cards, items)):
+            sym, d = it["symbol"], it["decision"]
+            arbitrage_exec.market_inputs[sym] = it["pg_input"]  # /execute re-checks a held trade with this input
+            exec_res = None
+            if card.mode == AutonomyMode.AUTO:
+                amount = min(auto_by.get(f"c{i}", 0.0), caps[i])
+                intent = ExecutionIntent(card_label=CardLabel.OPPORTUNITY, venue_id=it["venue_id"],
+                                         action=ActionType.BUY_DISCOUNT, asset_in=sym, amount_usd=amount,
+                                         amount_onchain=usd_to_onchain(amount), market="arbitrage")
+                if self._router is not None:
+                    exec_res = self._router.submit(intent, account, market="arbitrage", limit_usd=vault.tether_radius_usd)
+                else:
+                    exec_res = self.executor.submit(intent, account, market_input=it["pg_input"])
+                status: ScanItemStatus = "executed" if exec_res.status in ("submitted", "simulated") else "execution_failed"
+                if status == "executed":
+                    auto_executed[card.candidate.venue_id] = exec_res.amount_usd
+                detail = exec_res.detail
+            elif card.mode == AutonomyMode.BLOCKED:
+                status, detail = "vetoed_by_brain", f"AI Brain vetoed this trade: {report.user_explanation}"
+            else:
+                status = "held_for_approval"
+                detail = (f"Held for your approval ({card.mode.value}): " + " ".join(card.explanation[2:])).strip()
+            outcomes.append(AssetScanOutcome(
+                symbol=sym, category=it["category"], anchor_asset=it["anchor_asset"], hedge_class=it["hedge_class"],
+                current_price=it["r_cons"], baseline_star=d.layer1.baseline_star,
+                abnormal_spread_delta=d.layer1.abnormal_spread_delta, depegged=True, status=status,
+                ev_bps=d.layer3.recovery_adjusted_ev_bps, decision=d, execution_intent=exec_res,
+                audit_record_hash=exec_res.audit_record_hash if exec_res else None, detail=detail,
+            ))
+
+        proposal_id = None
+        open_cards = [c for c in final.cards if c.mode != AutonomyMode.BLOCKED
+                      and auto_executed.get(c.candidate.venue_id, 0.0) < c.candidate.amount_usd - 0.01]
+        if proposals is not None and open_cards:
+            record = PipelineResult(status="decided", decision=final, brain_report=report,
+                                    parse=ParseOutcome(mandate=final.mandate, verdict=scan(final.mandate.raw_text)))
+            proposal_id = proposals.add(account, record, vault, auto_executed_usd=auto_executed)
+        return outcomes, report, proposal_id
+
     def scan_tick(
         self,
         account: str,
@@ -217,6 +353,10 @@ class PegGuardAutonomousScanner:
         market_inputs: dict[str, PegGuardMarketInput] | None = None,
         symbols: list[str] | None = None,
         order_size_usd: float = 250.0,
+        vault: "VaultState | None" = None,
+        brain_llm: Any = None,
+        ref: "Reference | None" = None,
+        proposals: Any = None,
     ) -> ScanTickReport:
         """Runs one continuous monitoring pass across the PegGuard asset universe for `account`.
 
@@ -257,6 +397,8 @@ class PegGuardAutonomousScanner:
         skipped_count = 0
         noted_unprofitable_count = 0
         executed_count = 0
+        held_count = 0
+        authorized: list[dict[str, Any]] = []
 
         for sym in scan_symbols:
             spec = PEGGUARD_ASSET_CATALOG.get(sym)
@@ -328,6 +470,13 @@ class PegGuardAutonomousScanner:
 
             if not decision.authorized:
                 noted_unprofitable_count += 1
+                depeg_hash = compute_audit_record_hash(
+                    account=account,
+                    symbol=sym,
+                    action="DEPEG_DETECTED",
+                    p_cons=r_cons,
+                    salt=f"L1_{decision.layer1.baseline_star:.4f}",
+                )
                 wm = UnprofitableWatermark(
                     symbol=sym,
                     unprofitable_price=r_cons,
@@ -335,8 +484,14 @@ class PegGuardAutonomousScanner:
                     abnormal_spread_delta=decision.layer1.abnormal_spread_delta,
                     ev_bps=decision.layer3.recovery_adjusted_ev_bps,
                     reason=decision.summary,
+                    audit_record_hash=depeg_hash,
                 )
                 acct_watermarks[sym] = wm
+                overridden = bool(price_overrides) and any(resolve_canonical_symbol(k) == sym for k in price_overrides)
+                if self.anchors is not None and not overridden:  # a caller-supplied price is not a market fact
+                    from tecc_brain.onchain.audit_anchor import AuditRecordType
+
+                    self.anchors.anchor(depeg_hash, AuditRecordType.DEPEG_DETECTED)
                 outcomes.append(
                     AssetScanOutcome(
                         symbol=sym,
@@ -351,6 +506,7 @@ class PegGuardAutonomousScanner:
                         watermark_price=r_cons,
                         ev_bps=decision.layer3.recovery_adjusted_ev_bps,
                         decision=decision,
+                        audit_record_hash=depeg_hash,
                         detail=(
                             f"Noted unprofitable watermark for {sym} at {r_cons:.4f} "
                             f"(EV={decision.layer3.recovery_adjusted_ev_bps:+.1f} bps): {decision.summary}. "
@@ -360,48 +516,24 @@ class PegGuardAutonomousScanner:
                 )
                 continue
 
-            # Profitable & authorized by all 5 layers -> Clear watermark and execute via PegGuardArbitrageExecutor!
+            # Authorized by all 5 layers. B3: PegGuard is the deterministic Level 2 — it never executes on its own.
+            # Every authorized trade goes to the AI Brain with the soft tether and the vault radius, then through the
+            # MarketRouter's cross-chain tether tracker, exactly like /propose and /evaluate_options.
             acct_watermarks.pop(sym, None)
-            exec_size_usd = decision.layer5.final_order_size_usd
-            intent = ExecutionIntent(
-                card_label=CardLabel.OPPORTUNITY,
-                venue_id=venue_id,
-                action=ActionType.BUY_DISCOUNT,
-                asset_in=sym,
-                amount_usd=exec_size_usd,
-                amount_onchain=usd_to_onchain(exec_size_usd),
-                market="arbitrage",
-            )
-            if self._router is not None:
-                self.executor.market_inputs[sym] = pg_input
-                exec_res = self._router.submit(intent, account, market="arbitrage")
-            else:
-                exec_res = self.executor.submit(intent, account, market_input=pg_input)
+            authorized.append({
+                "symbol": sym, "category": category, "anchor_asset": anchor_asset, "hedge_class": hedge_class,
+                "venue_id": venue_id, "r_cons": r_cons, "decision": decision, "pg_input": pg_input,
+            })
 
-            if exec_res.status in ("submitted", "simulated"):
-                executed_count += 1
-                item_status: ScanItemStatus = "executed"
-            else:
-                item_status = "execution_failed"
-
-            outcomes.append(
-                AssetScanOutcome(
-                    symbol=sym,
-                    category=category,
-                    anchor_asset=anchor_asset,
-                    hedge_class=hedge_class,
-                    current_price=r_cons,
-                    baseline_star=decision.layer1.baseline_star,
-                    abnormal_spread_delta=decision.layer1.abnormal_spread_delta,
-                    depegged=True,
-                    status=item_status,
-                    watermark_price=None,
-                    ev_bps=decision.layer3.recovery_adjusted_ev_bps,
-                    decision=decision,
-                    execution_intent=exec_res,
-                    detail=exec_res.detail,
-                )
-            )
+        report = None
+        proposal_id = None
+        if authorized:
+            gated, report, proposal_id = self._brain_gate(account, authorized, vault=vault, brain_llm=brain_llm,
+                                                          ref=ref, proposals=proposals)
+            for outcome in gated:
+                executed_count += outcome.status == "executed"
+                held_count += outcome.status == "held_for_approval"
+            outcomes.extend(gated)
 
         return ScanTickReport(
             account=account,
@@ -412,6 +544,9 @@ class PegGuardAutonomousScanner:
             skipped_by_watermark_count=skipped_count,
             noted_unprofitable_count=noted_unprofitable_count,
             executed_count=executed_count,
+            held_count=held_count,
             outcomes=outcomes,
+            brain_report=report,
+            proposal_id=proposal_id,
             active_watermarks=dict(acct_watermarks),
         )

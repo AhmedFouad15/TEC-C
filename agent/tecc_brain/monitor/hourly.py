@@ -117,17 +117,20 @@ def run_once(
 
     # Autonomous PegGuard De-Peg Scanner: runs automatically for any account where the user enabled arbitrage
     from tecc_brain.api.arbitrage import get_arbitrage_scanner
+    from tecc_brain.api.deps import get_anchors, get_proposals, get_router
     from tecc_brain.graph.pipeline import load_or_create_profile
 
-    arb_scanner = get_arbitrage_scanner(store)
+    # Same path as POST /api/arbitrage/scan: soft tether → AI Brain → MarketRouter (never the bare executor)
+    arb_scanner = get_arbitrage_scanner(store, router=get_router(), anchors=get_anchors())
     snap_prices = {sym: peg.price for sym, peg in snapshot.pegs.items()}
     for account in accounts:
         profile = load_or_create_profile(store, account)
         if profile.arbitrage_enabled or arb_scanner.is_enabled(account):
             arb_scanner.set_enabled(account, True)
-            tick_report = arb_scanner.scan_tick(account, price_overrides=snap_prices)
+            tick_report = arb_scanner.scan_tick(account, price_overrides=snap_prices, ref=ref, proposals=get_proposals())
             for out in tick_report.outcomes:
-                if out.status in ("executed", "noted_unprofitable", "skipped_watermark"):
+                if out.status in ("executed", "noted_unprofitable", "skipped_watermark", "held_for_approval",
+                                  "vetoed_by_brain"):
                     ev = MonitorEvent(
                         account=account,
                         symbol=out.symbol,
@@ -136,7 +139,8 @@ def run_once(
                         regime=out.decision.layer2.regime_name if out.decision else "depegged",
                         at=datetime.now(timezone.utc),
                         pipeline_status=out.status,
-                        summary=out.detail,
+                        summary=out.detail + (f" (approve with proposal {tick_report.proposal_id})"
+                                              if out.status == "held_for_approval" and tick_report.proposal_id else ""),
                     )
                     _LOG.add(ev)
                     triggered.append(ev)

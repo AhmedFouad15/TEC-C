@@ -35,7 +35,7 @@ def test_token_is_required_when_configured(monkeypatch):
 def test_a_proposal_can_only_be_executed_for_its_own_account(monkeypatch):
     monkeypatch.delenv("TECC_API_TOKEN", raising=False)
     client = TestClient(app)
-    pid = client.post("/api/mandate/propose", json={"text": "Deposit 300 USDC into Aave"}).json()["proposal_id"]
+    pid = client.post("/api/mandate/propose", json={"text": "Deposit 450 USDC into Aave"}).json()["proposal_id"]
     other = "0x" + "cd" * 20
     r = client.post("/api/mandate/execute", json={"proposal_id": pid, "label": "BEST", "account": other})
     assert r.status_code == 404

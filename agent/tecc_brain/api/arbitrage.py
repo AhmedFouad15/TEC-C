@@ -2,12 +2,14 @@
 
 PegGuard Arbitrage is NOT a manual free-text user command:
 - The user simply toggles `enabled: true | false` at any time via `POST /api/arbitrage/toggle`.
-- When enabled, the bot continuously monitors the 24-asset 4-category PegGuard universe across Ethereum L1,
+- When enabled, the bot continuously monitors the 25-asset 4-category PegGuard universe across Ethereum L1,
   Arbitrum L2, and FISCO BCOS to detect de-pegs.
 - When a de-peg is found and evaluated through the 5-layer PegGuard engine:
   * If unprofitable, the bot records an `UnprofitableWatermark` at the current price so it does not re-evaluate
     the same unprofitable trade every second — it only re-checks when the price drops strictly lower.
-  * If profitable, it clears the watermark and routes the two-leg arbitrage trade through `PegGuardArbitrageExecutor`.
+  * If profitable, it clears the watermark and hands the trade to the AI Brain like every other order: only what
+    fits the user's soft tether may run automatically, the Brain can only tighten that, and anything that runs goes
+    through the shared MarketRouter (cross-chain tether radius). The rest is held for approval (`proposal_id`).
 """
 
 from __future__ import annotations
@@ -15,8 +17,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from tecc_brain.api.deps import Account, get_store
+from tecc_brain.api.deps import (
+    Account, ProposalCache, VaultIn, get_anchors, get_brain_llm, get_proposals, get_ref, get_router, get_store,
+)
+from tecc_brain.graph.brain import BrainLLM
 from tecc_brain.learning.store import ProfileStore
+from tecc_brain.onchain.anchoring import AuditAnchorService
+from tecc_brain.onchain.executor import MarketRouter
+from tecc_brain.reference import Reference
 from tecc_brain.pegguard import (
     PEGGUARD_ASSET_CATALOG,
     PegGuardAssetSpec,
@@ -30,8 +38,18 @@ router = APIRouter(prefix="/api/arbitrage", tags=["arbitrage"])
 _SCANNER = PegGuardAutonomousScanner()
 
 
-def get_arbitrage_scanner(store: ProfileStore = Depends(get_store)) -> PegGuardAutonomousScanner:
+def get_arbitrage_scanner(
+    store: ProfileStore = Depends(get_store),
+    router: MarketRouter = Depends(get_router),
+    anchors: AuditAnchorService = Depends(get_anchors),
+) -> PegGuardAutonomousScanner:
+    if not isinstance(router, MarketRouter):  # called directly (not via FastAPI): resolve the shared router
+        router = get_router()
+    if not isinstance(anchors, AuditAnchorService):
+        anchors = get_anchors()
     _SCANNER.store = store
+    _SCANNER._router = router  # never the bare executor: the cross-chain tether tracker sees every trade
+    _SCANNER.anchors = anchors
     return _SCANNER
 
 
@@ -49,13 +67,16 @@ class ArbitrageStatusResponse(BaseModel):
 
 class ScanArbitrageRequest(BaseModel):
     account: Account = "demo"
-    order_size_usd: float = Field(250.0, gt=0, le=1_000_000.0)
+    order_size_usd: float = Field(250.0, gt=0, le=1_000_000.0,
+                                  description="Size PegGuard sizes each trade from; what runs is capped by the soft tether")
     price_overrides: dict[str, float] | None = Field(
-        None, description="Optional map of symbol -> current ratio R_direct(t) to inspect"
+        None, description="Demo/simulation input: symbol -> current ratio R_direct(t). Trades it triggers are capped "
+                          "by the same soft tether, Brain and tether radius, and are never anchored on chain as de-pegs."
     )
     symbols: list[str] | None = Field(
-        None, description="Optional subset of symbols to scan (defaults to all 24 assets in PEGGUARD_ASSET_CATALOG)"
+        None, description="Optional subset of symbols to scan (defaults to all 25 assets in PEGGUARD_ASSET_CATALOG)"
     )
+    vault: VaultIn = Field(default_factory=VaultIn, description="Today's vault radius and spend (as for /propose)")
 
 
 @router.post("/toggle", response_model=ArbitrageStatusResponse)
@@ -89,7 +110,7 @@ def arbitrage_status(
 
 @router.get("/assets", response_model=dict[str, PegGuardAssetSpec])
 def arbitrage_assets() -> dict[str, PegGuardAssetSpec]:
-    """Returns the complete 24-asset 4-category PegGuard catalog across Ethereum L1, Arbitrum L2, and FISCO BCOS."""
+    """Returns the complete 25-asset 4-category PegGuard catalog across Ethereum L1, Arbitrum L2, and FISCO BCOS."""
     return PEGGUARD_ASSET_CATALOG
 
 
@@ -97,11 +118,19 @@ def arbitrage_assets() -> dict[str, PegGuardAssetSpec]:
 def scan_arbitrage(
     req: ScanArbitrageRequest,
     scanner: PegGuardAutonomousScanner = Depends(get_arbitrage_scanner),
+    brain_llm: BrainLLM | None = Depends(get_brain_llm),
+    ref: Reference = Depends(get_ref),
+    proposals: ProposalCache = Depends(get_proposals),
 ) -> ScanTickReport:
-    """Executes one autonomous PegGuard de-peg scan pass (only runs if `enabled == True` for `req.account`)."""
+    """One PegGuard de-peg scan pass (only if `enabled == True` for `req.account`). PegGuard decides what is
+    profitable; the AI Brain decides what of it runs now, inside the soft tether and the cross-chain radius."""
     return scanner.scan_tick(
         req.account,
         price_overrides=req.price_overrides,
         symbols=req.symbols,
         order_size_usd=req.order_size_usd,
+        vault=req.vault.to_state(),
+        brain_llm=brain_llm,
+        ref=ref,
+        proposals=proposals,
     )

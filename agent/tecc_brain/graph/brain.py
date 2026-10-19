@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tecc_brain.intent.firewall import scan
 from tecc_brain.intent.parser import call_with_timeout
+from tecc_brain.intent.sieve import mask
 from tecc_brain.models import (
     ActionType,
     AutonomyMode,
@@ -67,6 +68,7 @@ class ReasonCode(str, Enum):
     LOW_CONFIDENCE = "LOW_CONFIDENCE"
     INJECTION_SUSPECTED = "INJECTION_SUSPECTED"
     NO_CANDIDATES = "NO_CANDIDATES"
+    MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
 
 
 class ConflictCode(str, Enum):
@@ -102,8 +104,10 @@ class BrainVerdict(BaseModel):
 
 
 class BrainReport(BrainVerdict):
-    """The final, validated decision of one run — whoever produced it."""
+    """The final, validated decision of one run — whoever produced it. HOLD is never a model's verdict: it is the
+    fail-closed state when the configured model did not answer (timeout, provider or network error)."""
 
+    decision: Literal["EXECUTE", "SPLIT", "PROPOSE", "REJECT", "HOLD"]
     producer: Literal["llm", "rules"]
     fallback_reason: str | None = Field(None, description="Why the model's verdict was not used, when it was asked")
 
@@ -119,7 +123,10 @@ discarded is always safe. Being wrong is not.
 - mandate: the order the user confirmed: action, asset, amount, amount_usd, horizon_days, constraints \
 ("avoid:<protocol>", "venue:<protocol>"). The user approved exactly this. When mandate.kind is \
 "options_list", the user picked several predefined options instead (mandate.options), each candidate \
-carries the option_id it answers, and amount_usd is the total of all options.
+carries the option_id it answers, and amount_usd is the total of all options. When mandate.kind is \
+"pegguard_arbitrage", every candidate is a de-peg trade that PegGuard's five quantitative layers already \
+authorized (mandate.opportunities lists each one's EV in bps): you may size it down, hold it or veto it, \
+never enlarge it.
 - profile: tier (1 conservative, 2 balanced, 3 aggressive), lam (loss aversion λ; expected losses already \
 weigh (1+λ) in every score), tau (trust τ), approval_posteriors per venue (Beta posterior mean of the user's \
 past approvals; absent = no history), standing_preferences.
@@ -181,6 +188,15 @@ signal_conflicts are a subset of: """ + ", ".join(c.value for c in ConflictCode)
 A candidate you leave out of allocations is not funded."""
 
 
+_QUOTED = re.compile(r"“([^”]*)”")
+
+
+def _mask_quotes(text: str) -> str:
+    """The user's own words (quoted review notes) go through the privacy sieve before any cloud call: amounts,
+    addresses, number words and DIDs become <AMT_n>/<ADDR_n> tokens. System wording stays readable."""
+    return _QUOTED.sub(lambda m: "“" + mask(m.group(1))[0] + "”", text)
+
+
 def _pct(x: float | None) -> float | None:
     return round(x * 100, 3) if x is not None else None
 
@@ -210,7 +226,7 @@ def build_brain_input(
             "cvar_95_pct": _pct(s.cvar_95) if s else None,
             "exposed_to": list(ref.venues[c.venue_id].exposures) if c.venue_id in ref.venues else [c.venue_id],
             "max_amount_usd": round(cap, 2), "allowed_mode": card.mode.value,
-            "blockers": [line.removeprefix("Not automatic: ").rstrip(".") for line in card.explanation
+            "blockers": [_mask_quotes(line.removeprefix("Not automatic: ").rstrip(".")) for line in card.explanation
                          if line.startswith("Not automatic: ")],
         })
     venues = {c["venue_id"] for c in candidates}
@@ -470,6 +486,30 @@ def report_from_decision(decision: Decision, payload: dict[str, Any], fallback_r
     )
 
 
+def hold(decision: Decision, payload: dict[str, Any], reason: str) -> tuple[Decision, BrainReport]:
+    """Fail-closed HOLD (docs/05 §4B): the configured model did not answer, so nothing runs automatically. Every option
+    the rules allowed stays visible for the user to approve by hand; vetoes stay vetoes."""
+    note = "AI Brain unavailable: held for your approval — nothing runs automatically."
+    cards = [c.model_copy(update={"mode": AutonomyMode.PROPOSE, "explanation": [*c.explanation, note]})
+             if c.mode == AutonomyMode.AUTO else c for c in decision.cards]
+    total = decision.auto_amount_usd + decision.proposed_amount_usd
+    mode = AutonomyMode.PROPOSE if any(c.mode != AutonomyMode.BLOCKED for c in cards) else AutonomyMode.BLOCKED
+    final = decision.model_copy(update={
+        "cards": cards, "mode": mode, "auto_amount_usd": 0.0, "proposed_amount_usd": total,
+        "trace": [*decision.trace, f"AI Brain HOLD ({reason}): nothing runs automatically."],
+    })
+    allocations = [Allocation(candidate_id=f"c{i}", amount_usd=round(c.candidate.amount_usd, 2), mode=c.mode)
+                   for i, c in enumerate(cards) if c.mode != AutonomyMode.BLOCKED][:5]
+    report = BrainReport(
+        schema_version=SCHEMA_VERSION, request_id=payload["request_id"], decision="HOLD", allocations=allocations,
+        total_auto_usd=0.0, reason_codes=[ReasonCode.MODEL_UNAVAILABLE], vetoes_honored=[v["id"] for v in payload["vetoes"]],
+        signal_conflicts=[], confidence=0.0, producer="rules", fallback_reason=reason,
+        user_explanation="The AI Brain did not answer in time, so nothing runs automatically. "
+                         "Review the options and approve one yourself if you still want it.",
+    )
+    return final, report
+
+
 def synthesize(
     decision: Decision, payload: dict[str, Any], llm: BrainLLM | None, timeout_s: float = BRAIN_TIMEOUT_S
 ) -> tuple[Decision, BrainReport]:
@@ -481,8 +521,8 @@ def synthesize(
     try:
         cloud, k = privatize(payload)
         reply = call_with_timeout(lambda p: llm(SYSTEM_PROMPT + PRIVACY_NOTE, p), json.dumps(cloud, ensure_ascii=False), timeout_s)
-    except Exception as exc:  # noqa: BLE001 — timeouts, network, provider errors all fall back the same way
-        return decision, report_from_decision(decision, payload, fallback_reason=f"model call failed: {exc.__class__.__name__}")
+    except Exception as exc:  # noqa: BLE001 — timeouts, network, provider errors all fail closed the same way
+        return hold(decision, payload, f"model call failed: {exc.__class__.__name__}")
     dollars, why = descale_reply(reply, k)
     verdict, why = validate_verdict(dollars, payload) if dollars is not None else (None, why)
     if verdict is None:
@@ -494,6 +534,6 @@ def synthesize(
 __all__ = [
     "AMOUNT_UNIT", "PRIVACY_NOTE", "PRIVACY_UNITS", "CloudVerdict", "descale_reply", "privatize",
     "BRAIN_TIMEOUT_S", "SCHEMA_VERSION", "SYSTEM_PROMPT", "Allocation", "BrainLLM", "BrainReport", "BrainVerdict",
-    "ConflictCode", "ReasonCode", "apply_verdict", "build_brain_input", "report_from_decision", "synthesize",
+    "ConflictCode", "ReasonCode", "apply_verdict", "hold", "build_brain_input", "report_from_decision", "synthesize",
     "validate_verdict",
 ]

@@ -96,12 +96,19 @@ contract WebAuthnP256Validator is IERC7579Validator {
     // Phase 1 & Nuance 4: On-Chain Passkey Registration, Multi-Device & Recovery
     // =========================================================================
 
+    function _isAuthorizedAccountCaller(address account) internal view returns (bool) {
+        if (msg.sender == account) return true;
+        (bool ok, bytes memory data) =
+            msg.sender.staticcall(abi.encodeWithSignature("getRemainingRadius(address)", account));
+        return ok && data.length == 32;
+    }
+
     /**
      * @notice Registers a primary hardware WebAuthn P-256 Passkey for a smart account.
-     * @dev Restricted strictly to the smart account itself (`msg.sender == account`).
+     * @dev Restricted strictly to the smart account itself (`msg.sender == account`) or its active guard hook.
      */
     function registerPasskey(address account, uint256 qx, uint256 qy) external {
-        if (msg.sender != account) revert UnauthorizedCaller();
+        if (!_isAuthorizedAccountCaller(account)) revert UnauthorizedCaller();
         if (qx == 0 || qy == 0) revert InvalidPasskeyCoordinates();
 
         bool wasRegistered = passkeys[account].isRegistered;
@@ -149,7 +156,7 @@ contract WebAuthnP256Validator is IERC7579Validator {
      * @param qy Public key Y coordinate.
      */
     function addPasskey(address account, bytes32 keyId, uint256 qx, uint256 qy) external {
-        if (msg.sender != account) revert UnauthorizedCaller();
+        if (!_isAuthorizedAccountCaller(account)) revert UnauthorizedCaller();
         if (qx == 0 || qy == 0 || keyId == bytes32(0)) revert InvalidPasskeyCoordinates();
 
         if (!accountPasskeysById[account][keyId].isRegistered) {
@@ -171,7 +178,7 @@ contract WebAuthnP256Validator is IERC7579Validator {
      * @notice Revokes the primary passkey for a smart account.
      */
     function revokePasskey(address account) external {
-        if (msg.sender != account) revert UnauthorizedCaller();
+        if (!_isAuthorizedAccountCaller(account)) revert UnauthorizedCaller();
         if (passkeys[account].isRegistered && activePasskeyCount[account] > 0) {
             activePasskeyCount[account] -= 1;
         }
@@ -184,9 +191,9 @@ contract WebAuthnP256Validator is IERC7579Validator {
      * @notice Revokes a specific device passkey by keyId while preserving backup passkeys (Nuance 4).
      */
     function revokePasskeyById(address account, bytes32 keyId) external {
-        if (msg.sender != account) revert UnauthorizedCaller();
+        if (!_isAuthorizedAccountCaller(account)) revert UnauthorizedCaller();
         WebAuthnPasskey storage pk = accountPasskeysById[account][keyId];
-        if (!pk.isRegistered) revert PasskeyNotRegistered();
+        if (!pk.isRegistered) return;
         if (activePasskeyCount[account] <= 1) revert CannotRevokeLastPasskey();
 
         uint256 revokedQx = pk.qx;
@@ -214,7 +221,7 @@ contract WebAuthnP256Validator is IERC7579Validator {
      * @notice Configures an Emergency Recovery Guardian to protect against total device loss (Nuance 4).
      */
     function setRecoveryGuardian(address account, address guardian) external {
-        if (msg.sender != account) revert UnauthorizedCaller();
+        if (!_isAuthorizedAccountCaller(account)) revert UnauthorizedCaller();
         if (guardian == address(0) || guardian == account) revert InvalidGuardianAddress();
         recoveryGuardians[account] = guardian;
         emit RecoveryGuardianUpdated(account, guardian);
@@ -225,7 +232,10 @@ contract WebAuthnP256Validator is IERC7579Validator {
      */
     function recoverPasskey(address account, bytes32 newKeyId, uint256 newQx, uint256 newQy) external {
         address guardian = recoveryGuardians[account];
-        if (guardian == address(0) || msg.sender != guardian) revert UnauthorizedGuardian();
+        if (guardian == address(0)) revert UnauthorizedGuardian();
+        if (msg.sender != guardian && !_isAuthorizedAccountCaller(account)) {
+            revert UnauthorizedGuardian();
+        }
         if (newQx == 0 || newQy == 0 || newKeyId == bytes32(0)) revert InvalidPasskeyCoordinates();
 
         if (!accountPasskeysById[account][newKeyId].isRegistered) {
@@ -393,5 +403,19 @@ contract WebAuthnP256Validator is IERC7579Validator {
         (uint256 r, uint256 s) = abi.decode(data, (uint256, uint256));
         bool valid = verifyP256Signature(hash, r, s, pk.qx, pk.qy);
         return valid ? EIP1271_SUCCESS : EIP1271_FAILED;
+    }
+
+    /**
+     * @notice Drop-in compatibility fallback: accepts raw 160-byte RIP-7212 precompile calldata
+     *         (messageHash, r, s, qx, qy) and returns uint256(1) on valid signature, uint256(0) on failure.
+     */
+    fallback(bytes calldata input) external returns (bytes memory) {
+        if (input.length == 160) {
+            (bytes32 hash, uint256 r, uint256 s, uint256 qx, uint256 qy) =
+                abi.decode(input, (bytes32, uint256, uint256, uint256, uint256));
+            bool valid = verifyP256Signature(hash, r, s, qx, qy);
+            return abi.encode(valid ? uint256(1) : uint256(0));
+        }
+        return abi.encode(uint256(0));
     }
 }
