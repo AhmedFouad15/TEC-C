@@ -1,7 +1,7 @@
 """Virtual Session Package (Section 1-11 of Virtual_Session_Design.pdf).
 
 Provides remote phone access to the local laptop app via a Cloudflare Quick-Tunnel link
-and biometric WebAuthn passkey login (Face ID / Touch ID).
+and biometric WebAuthn passkey login (Face ID).
 """
 
 from __future__ import annotations

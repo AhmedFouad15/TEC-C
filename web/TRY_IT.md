@@ -65,7 +65,7 @@ Shortcuts for testing:
 | **Review → Needs your decision** | Routes the Brain won't run on its own (needs your tap or FaceID). **Approve** sends `/api/mandate/execute` |
 | **Review → Done by the AI** | The vault's on-chain Morning Review records; **ratify / flag / note** are on-chain transactions that change the leash |
 | **Sessions → Generate a session** | Opens a real `trycloudflare.com` tunnel to the phone gateway and shows its QR and 6-digit code. Scan it, register the passkey on the phone, type the code, then **Approve phone** |
-| **Biometric** chip (status strip) | Click it: the first time it creates a passkey for this vault (Touch ID / FaceID), then signs in with it. The Brain verifies the P-256 signature and opens a 5-minute window. Use **http://localhost:5500**: passkeys don't work on an IP address |
+| **Biometric** chip (status strip) | Click it: the first time it creates a passkey for this vault (Face ID), then signs in with it. The Brain verifies the P-256 signature and opens a 5-minute window. Use **http://localhost:5500**: passkeys don't work on an IP address |
 | **Review → Approve** on a "Needs FaceID" route | Asks for your passkey, then the vault lets that one execution break the leash (owner sign-approval on-chain). Without the passkey it stays refused |
 | **PegGuard switch**, **Hold to revoke**, **Save the leash**, **Withdraw** | `/api/arbitrage/toggle`, `/api/vault/demo/session`, `/api/vault/demo/radius`, `/api/vault/demo/withdraw` (the vault refuses without a passkey window) |
 

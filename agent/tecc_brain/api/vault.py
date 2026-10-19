@@ -416,7 +416,7 @@ def withdraw(account: Account, req: WithdrawRequest) -> dict[str, Any]:
     _dev_only(rpc)
     active, _ = get_biometric_manager().is_biometric_window_active(account)
     if not active:
-        raise HTTPException(403, "verify with your passkey (FaceID / Touch ID) first: withdrawals need the biometric window")
+        raise HTTPException(403, "verify with your passkey (Face ID) first: withdrawals need the biometric window")
     dep = market.deployment
     hook = Contract.load("TetherGuardHook", dep.hook)
     # The passkey signature was verified (P-256) by the biometrics service; the vault keeps its own window, which

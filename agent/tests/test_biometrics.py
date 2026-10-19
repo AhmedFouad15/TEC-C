@@ -40,10 +40,10 @@ def test_phase1_to_phase4_decentralized_biometric_lifecycle_and_4_nuances():
     )
     assert pk_primary.is_primary is True
 
-    # Nuance 4: Register backup MacBook TouchID passkey
+    # Nuance 4: Register backup MacBook Face ID passkey
     mac_priv, mac_qx, mac_qy = generate_p256_keypair(seed_int=2002)
     pk_backup = mgr.register_passkey(
-        account, mac_qx, mac_qy, key_id="macbook-pro", device_label="MacBook Pro TouchID"
+        account, mac_qx, mac_qy, key_id="macbook-pro", device_label="MacBook Pro Face ID"
     )
     assert pk_backup.is_primary is False
     assert len(mgr.get_passkeys(account)) == 2
@@ -119,7 +119,7 @@ def test_phase1_to_phase4_decentralized_biometric_lifecycle_and_4_nuances():
     assert res_replay.verified is False
     assert "ChallengeAlreadyUsed" in (res_replay.rejection_reason or "")
 
-    # Nuance 1 & Nuance 4: Backup MacBook TouchID verifies on Ethereum L1 / FISCO BCOS fallback path
+    # Nuance 1 & Nuance 4: Backup MacBook Face ID verifies on Ethereum L1 / FISCO BCOS fallback path
     challenge2 = hashlib.sha256(b"TetherBreak_Challenge_002_L1_Fallback").digest()
     r3, s3_low, _ = sign_webauthn_p256(mac_priv, biometric_auth_data, challenge2)
     res_valid_l1 = mgr.verify_webauthn_assertion(
@@ -179,7 +179,7 @@ def test_biometrics_fastapi_endpoints(tmp_path, monkeypatch):
         json={
             "account": "alice",
             "key_id": "macbook-backup",
-            "device_label": "MacBook TouchID",
+            "device_label": "MacBook Face ID",
             "qx": hex(qx2),
             "qy": hex(qy2),
         },

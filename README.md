@@ -33,7 +33,8 @@ Detailed architectural breakdowns, run guides, and econometric specifications ar
 | [`docs/06_privacy_anchors_and_slippage/`](./docs/06_privacy_anchors_and_slippage/README.md) | Audit & Slippage Engine | SHA-256 anchors on FISCO BCOS, orderbook thinning recovery ($Q^*/2$), and positive carry |
 | [`docs/07_defi_protocols_and_routing/`](./docs/07_defi_protocols_and_routing/README.md) | Protocol Registry | Verified contracts, ABIs, function selectors, and risk tiers (Lido, Aave, Curve, Uniswap) |
 | [`docs/08_smart_contracts/`](./docs/08_smart_contracts/README.md) | Smart Contracts Vault | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas matrix |
-| [`docs/pdf/`](./docs/pdf/README.md) | Original Whitepapers (PDF) | Complete archive of all 8 original technical PDF whitepapers, engineering masterplans, and roadmap guides |
+| [`docs/09_pegguard_arbitrage_framework/`](./docs/09_pegguard_arbitrage_framework/README.md) | PegGuard Arbitrage Framework | 5-layer quantitative funnel, Markov regimes, 25-asset universe, 24/7 autonomous daemon & watermark memory |
+| [`docs/pdf/`](./docs/pdf/README.md) | Original Whitepapers (PDF) | Complete archive of all 9 original technical PDF whitepapers, engineering masterplans, and roadmap guides |
 
 ---
 
@@ -80,7 +81,8 @@ TEC-C/
 │   ├── 06_privacy_anchors_and_slippage/     # Banking Secrecy SHA-256 & Recovery
 │   ├── 07_defi_protocols_and_routing/       # Verified Multi-Chain Protocol Registry
 │   ├── 08_smart_contracts/                  # Vault, Hook, Gas & Security Benchmarks
-│   └── pdf/                                 # Complete Collection of 8 Original PDF Whitepapers
+│   ├── 09_pegguard_arbitrage_framework/     # 5-Layer Funnel, 24/7 Daemon & Watermark Memory Spec
+│   └── pdf/                                 # Complete Collection of 9 Original PDF Whitepapers
 ├── shared/
 │   ├── api_spec.json                        # Exported OpenAPI 3.1 specification (35 endpoints)
 │   ├── chainlink_feeds.json                 # Verified Chainlink Oracle Registry (Multi-Chain)
@@ -102,7 +104,7 @@ TEC-C/
 │                                                                                 │
 │   ┌───────────────────────────┐           ┌─────────────────────────────────┐   │
 │   │   Passkey Root Owner      │           │     AI Brain (Session Key)      │   │
-│   │ (Biometric FaceID/TouchID)│           │  (LangGraph Cognitive Planner)  │   │
+│   │   (Biometric Face ID)     │           │  (LangGraph Cognitive Planner)  │   │
 │   └─────────────┬─────────────┘           └────────────────┬────────────────┘   │
 │                 │                                          │                    │
 │                 │ (Root Signer)                            │ (Session Signer)   │

@@ -16,7 +16,7 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 │                                                                                 │
 │   ┌───────────────────────────┐           ┌─────────────────────────────────┐   │
 │   │   Passkey Root Owner      │           │     AI Brain (Session Key)      │   │
-│   │ (Biometric FaceID/TouchID)│           │  (LangGraph Cognitive Planner)  │   │
+│   │   (Biometric Face ID)     │           │  (LangGraph Cognitive Planner)  │   │
 │   └─────────────┬─────────────┘           └────────────────┬────────────────┘   │
 │                 │                                          │                    │
 │        Direct / Breakout                           Bounded UserOps              │
@@ -64,7 +64,7 @@ Tec-C (**Tethered Expense Corporate Card**) decouples autonomous AI cognitive pl
 ### 🔐 Invariant 3: Breaking the Tether Protocol (5-Minute Biometric Window & Sign Approval)
 > **Active Biometric Invariant (No Indefinite Session Bypass)**
 > Simply having an active session or calling as the root owner does NOT grant an automatic, indefinite bypass.
-> 1. **Biometric Verification Window**: When a breakout is required (exceeding Tether Radius or accessing higher-tier assets), the AI Brain confirms user activity and triggers a biometric challenge (FaceID / TouchID / Passkey).
+> 1. **Biometric Verification Window**: When a breakout is required (exceeding Tether Radius or accessing higher-tier assets), the AI Brain confirms user activity and triggers a biometric challenge (Face ID / Passkey).
 > 2. **5-Minute Grace Period**: Successful verification opens an on-chain 5-minute active window (`BIOMETRIC_VERIFICATION_WINDOW = 5 minutes`).
 > 3. **Subsequent Brain Transactions**: If the Brain proposes any follow-up transactions during these 5 minutes, the user is **NOT** prompted for biometrics again. Instead, the user provides a simple **Sign Approval** (**Accept** or **Reject**).
 > 4. **Normal Accept or Reject**: If the user accepts, the transaction executes under the active biometric window; if rejected, the transaction is immediately vetoed. Gasless signature approvals (`submitSignApprovalWithSignature`) are fully supported.

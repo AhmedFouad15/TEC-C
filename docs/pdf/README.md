@@ -1,6 +1,6 @@
 # Original Technical Whitepapers (PDF)
 
-This folder contains all 8 original PDF technical whitepapers, engineering roadmaps, and specification documents for the Tec-C project.
+This folder contains all 9 original PDF technical whitepapers, engineering roadmaps, and specification documents for the Tec-C project.
 
 Each document has also been transcribed into markdown within its respective domain folder in `docs/` for reading convenience, fast search, and git version tracking.
 
@@ -18,5 +18,6 @@ Each document has also been transcribed into markdown within its respective doma
 | [`Virtual_Session_Design.pdf`](./Virtual_Session_Design.pdf) | [`VIRTUAL_SESSION_DESIGN.md`](../02_prerequisites_and_run_guide/VIRTUAL_SESSION_DESIGN.md) | Dual-server IPC architecture and remote passkey gateway | `docs/02_prerequisites_and_run_guide/` |
 | [`TecC_Making_Markets_Real.pdf`](./TecC_Making_Markets_Real.pdf) | [`MAKING_MARKETS_REAL.md`](../04_multichain_and_fisco_bcos/MAKING_MARKETS_REAL.md) | FISCO BCOS testnet cluster and real market node supervisor | `docs/04_multichain_and_fisco_bcos/` |
 | [`Tec-C_Vault_User_and_Architecture_Guide.pdf`](./Tec-C_Vault_User_and_Architecture_Guide.pdf) | [`VAULT_ARCHITECTURE_GUIDE.md`](../08_smart_contracts/VAULT_ARCHITECTURE_GUIDE.md) | Comprehensive vault invariants, ERC-7579, and hook mechanics | `docs/08_smart_contracts/` |
+| [`PegGuard.pdf`](./PegGuard.pdf) | [`PEGGUARD_SPECIFICATION.md`](../09_pegguard_arbitrage_framework/PEGGUARD_SPECIFICATION.md) | 12-page quantitative master whitepaper on peg arbitrage, Markov regimes & contagion hedges | `docs/09_pegguard_arbitrage_framework/` |
 
 ---

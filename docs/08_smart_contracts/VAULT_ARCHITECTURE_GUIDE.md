@@ -36,7 +36,7 @@ Core Value Propositions:
   Dual-Axis Risk Engine: Orthogonal control restricting what protocols can be touched (Asset Whitelists) and how much
 capital can move (Daily Tether Radius).
  Hardware Biometrics via RIP-7212: Native WebAuthn NIST P-256 precompile at 0x100 allows corporate cardholders
-to sign directly with Apple FaceID or TouchID.
+to sign directly with Apple Face ID.
  Zero-Friction Morning Review: Overnight AI transactions are staged for review; users ratify or flag trades, educating
 the AI and replenishing spent budgets.
  Anti-Zombie Liveness & Dead-Man's Recovery: Inactive AI Heartbeat (48h cutoff) prevents stale key exploitation;
@@ -172,7 +172,7 @@ Page 3 of 8
 When market opportunities or institutional obligations require transfers beyond the Tether Radius or outside the whitelisted
 asset tier, the account enters the Breaking the Tether breakout workflow:
 THE 5-MINUTE BIOMETRIC GRACE PERIOD & SIGN APPROVAL FLOW
-1. Initial Biometric Challenge: The AI Brain requests a breakout. The user authenticates hardware FaceID/TouchID via
+1. Initial Biometric Challenge: The AI Brain requests a breakout. The user authenticates hardware Face ID via
 Passkey, unlocking an on-chain 5-minute biometric window (BIOMETRIC_VERIFICATION_WINDOW).
 2. Brain-Initiated Transactions: During these 5 minutes, subsequent high-value transactions proposed by the AI Brain do NOT
 require repeating the biometric scan.
@@ -219,7 +219,7 @@ developers.
 Onboarding & Passkey
 Registration
 1. Deploy TecAccount via the factory.
-2. The user registers their biometric passkey (Apple FaceID / TouchID / Windows Hello).
+2. The user registers their biometric passkey (Apple Face ID / Windows Hello).
 Coordinates (qx, qy) are saved via setAccountPasskey.
 3. Configure initial policy parameters via initializeAccountPolicy: default daily Tether Radius
 (e.g. $1,000 USD), risk tier (Tier 1, 2, or 3), and dynamic elasticity ceiling.

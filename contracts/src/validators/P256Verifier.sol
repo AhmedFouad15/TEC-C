@@ -10,7 +10,7 @@ pragma solidity 0.8.24;
  *         if 0x100 is unavailable (e.g. Ethereum L1 Mainnet or FISCO BCOS without 0x100), routes to an optional
  *         external verifier contract or executes pure-Solidity Jacobian secp256r1 verification via EIP-198 modexp (0x05).
  *      2. Strict Low-S Signature Malleability Defense: Enforces 0 < s <= N / 2 on secp256r1.
- *      3. On-Chain WebAuthn authenticatorData Flag Verification: Enforces UP (0x01) and UV (0x04, Biometric FaceID/TouchID).
+ *      3. On-Chain WebAuthn authenticatorData Flag Verification: Enforces UP (0x01) and UV (0x04, Biometric Face ID).
  */
 library P256Verifier {
     /// @notice Native RIP-7212 secp256r1 precompile address (active on Arbitrum One, Optimism, Base, Polygon)
@@ -51,7 +51,7 @@ library P256Verifier {
     /// @notice Bit 0: User Present (UP) - user interacted with the authenticator
     uint8 internal constant AUTH_DATA_FLAG_UP = 0x01;
 
-    /// @notice Bit 2: User Verified (UV) - user biometrically verified via FaceID / TouchID / Passkey PIN
+    /// @notice Bit 2: User Verified (UV) - user biometrically verified via Face ID / Passkey PIN
     uint8 internal constant AUTH_DATA_FLAG_UV = 0x04;
 
     /// @notice Minimum byte length of WebAuthn authenticatorData (32-byte rpIdHash + 1-byte flags + 4-byte signCount)

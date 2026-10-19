@@ -8,13 +8,13 @@ import {P256Verifier} from "./P256Verifier.sol";
 /**
  * @title WebAuthnP256Validator
  * @author Tec-C Core Engineering Team (FinTechathon 2026 Topic F)
- * @notice Validates WebAuthn Passkey (NIST P-256 / secp256r1) hardware biometrics (FaceID / TouchID)
+ * @notice Validates WebAuthn Passkey (NIST P-256 / secp256r1) hardware biometrics (Face ID)
  *         via the native RIP-7212 EVM precompile at address 0x0100 with automatic pure-Solidity fallback
  *         for Ethereum L1 Mainnet and FISCO BCOS consortium nodes.
  * @dev Implements all 4 production security nuances:
  *      1. RIP-7212 Precompile (0x100) + Pure-Solidity P-256 Fallback (L1 / FISCO BCOS compatibility).
  *      2. Signature Malleability Protection: Enforces low-s (0 < s <= n/2) on secp256r1.
- *      3. On-Chain authenticatorData Flags: Enforces UP (0x01) and UV (0x04, Biometric FaceID/TouchID).
+ *      3. On-Chain authenticatorData Flags: Enforces UP (0x01) and UV (0x04, Biometric Face ID).
  *      4. Multi-Device Passkey Registry & Emergency Guardian Account Recovery.
  */
 contract WebAuthnP256Validator is IERC7579Validator {
@@ -151,7 +151,7 @@ contract WebAuthnP256Validator is IERC7579Validator {
     /**
      * @notice Registers an additional passkey (e.g., backup laptop / tablet) for multi-device resilience (Nuance 4).
      * @param account The smart account address.
-     * @param keyId Unique identifier for the device key (e.g. keccak256("MacBook-TouchID")).
+     * @param keyId Unique identifier for the device key (e.g. keccak256("MacBook-FaceID")).
      * @param qx Public key X coordinate.
      * @param qy Public key Y coordinate.
      */
@@ -310,7 +310,7 @@ contract WebAuthnP256Validator is IERC7579Validator {
      * @param s Signature S component (must satisfy s <= n/2).
      * @param qx Public key X coordinate.
      * @param qy Public key Y coordinate.
-     * @param requireUserVerification If true, requires UV bit (flags & 0x04 != 0) proving biometric FaceID/TouchID.
+     * @param requireUserVerification If true, requires UV bit (flags & 0x04 != 0) proving biometric Face ID.
      */
     function verifyWebAuthnSignature(
         bytes calldata authenticatorData,
@@ -379,7 +379,7 @@ contract WebAuthnP256Validator is IERC7579Validator {
         }
         uint8 flags = uint8(authData[32]);
         if ((flags & P256Verifier.AUTH_DATA_FLAG_UP) == 0 || (flags & P256Verifier.AUTH_DATA_FLAG_UV) == 0) {
-            return 1; // Both UP and UV (biometric FaceID/TouchID) required
+            return 1; // Both UP and UV (biometric Face ID) required
         }
 
         bytes32 messageHash = sha256(abi.encodePacked(authData, clientDataHash));

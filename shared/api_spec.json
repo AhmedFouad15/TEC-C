@@ -2131,7 +2131,7 @@
           "user_verified_uv": {
             "type": "boolean",
             "title": "User Verified Uv",
-            "description": "Bit 2 (0x04): User biometrically verified via FaceID/TouchID"
+            "description": "Bit 2 (0x04): User biometrically verified via Face ID"
           },
           "sign_count": {
             "type": "integer",
@@ -6239,7 +6239,7 @@
           "require_uv": {
             "type": "boolean",
             "title": "Require Uv",
-            "description": "Enforce Bit 2 (UV = 0x04) biometric FaceID/TouchID verification",
+            "description": "Enforce Bit 2 (UV = 0x04) biometric Face ID verification",
             "default": true
           },
           "chain_target": {

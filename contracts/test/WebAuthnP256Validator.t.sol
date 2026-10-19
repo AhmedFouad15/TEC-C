@@ -17,7 +17,7 @@ contract WebAuthnP256ValidatorTest is Test {
     address public rootOwner = address(0xAA11);
     address public guardian = address(0xCC33);
 
-    // Simulated P-256 coordinates from an iPhone Secure Enclave (TouchID/FaceID)
+    // Simulated P-256 coordinates from an iPhone Secure Enclave (Face ID)
     uint256 public constant PASSKEY_QX = 0x5821017c667a6d8d9b1a5e3f4c2b1a0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a;
     uint256 public constant PASSKEY_QY = 0x203541f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3;
 
@@ -265,7 +265,7 @@ contract WebAuthnP256ValidatorTest is Test {
             tecAccount, passiveAuthData, clientDataHash, r, s, PASSKEY_QX, PASSKEY_QY, block.timestamp + 5 minutes
         );
 
-        // Case 2: True Biometric FaceID/TouchID verification (UP = 0x01 | UV = 0x04 -> flags = 0x05)
+        // Case 2: True Biometric Face ID verification (UP = 0x01 | UV = 0x04 -> flags = 0x05)
         bytes memory biometricAuthData = _buildAuthData(0x05);
         assertTrue(
             validator.verifyWebAuthnSignature(biometricAuthData, clientDataHash, r, s, PASSKEY_QX, PASSKEY_QY, true)
@@ -287,7 +287,7 @@ contract WebAuthnP256ValidatorTest is Test {
     // =========================================================================
 
     function test_Nuance4_MultiDevicePasskeys_And_EmergencyGuardianRecovery() public {
-        bytes32 macbookKeyId = keccak256("MacBook-Pro-TouchID");
+        bytes32 macbookKeyId = keccak256("MacBook-Pro-FaceID");
         uint256 macQx = 0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff;
         uint256 macQy = 0x9999888877776666555544443333222211110000ffffeeeeddddccccbbbbaaaa;
 

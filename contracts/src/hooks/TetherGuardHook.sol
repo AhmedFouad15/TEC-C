@@ -199,7 +199,7 @@ contract TetherGuardHook is IERC7579Hook {
     /// @notice Used biometric challenges per account to prevent replay attacks
     mapping(address => mapping(bytes32 => bool)) public usedBiometricChallenges;
 
-    /// @notice Timestamp until which the account has an active biometric verification window (FaceID/TouchID/Passkey)
+    /// @notice Timestamp until which the account has an active biometric verification window (Face ID / Passkey)
     mapping(address => uint256) public biometricVerifiedUntil;
 
     /// @notice Sign approvals (Accept / Reject) given by the user for executions proposed during active biometric window
@@ -1357,7 +1357,7 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice Completes biometric verification (FaceID / TouchID / Passkey) when the user is active.
+     * @notice Completes biometric verification (Face ID / Passkey) when the user is active.
      * @param account The address of the smart account.
      */
     function completeBiometricVerification(address account) external onlyAccountOrOwner(account) {
@@ -1677,7 +1677,7 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 (0x100) with automatic
+     * @notice Verifies a WebAuthn P-256 Face ID signature via RIP-7212 (0x100) with automatic
      *         pure-Solidity fallback for Ethereum L1 and FISCO BCOS, and opens the 5-minute grace window.
      * @dev Enforces:
      *      - Deadline & replay protection (`usedBiometricChallenges`)
@@ -1713,7 +1713,7 @@ contract TetherGuardHook is IERC7579Hook {
     }
 
     /**
-     * @notice Verifies a WebAuthn P-256 FaceID / TouchID signature via RIP-7212 (0x100) with automatic
+     * @notice Verifies a WebAuthn P-256 Face ID signature via RIP-7212 (0x100) with automatic
      *         pure-Solidity fallback for Ethereum L1 and FISCO BCOS, and opens the 5-minute grace window.
      */
     function completeBiometricVerificationWithP256(
@@ -1761,7 +1761,7 @@ contract TetherGuardHook is IERC7579Hook {
     /**
      * @notice Full W3C WebAuthn biometric verification enforcing on-chain `authenticatorData` flags (Nuance 3).
      * @dev Explicitly asserts that both Bit 0 (UP: User Present, 0x01) AND Bit 2 (UV: User Verified, 0x04)
-     *      are set in `authenticatorData[32]`, rejecting passive keypresses without actual FaceID/TouchID.
+     *      are set in `authenticatorData[32]`, rejecting passive keypresses without actual Face ID.
      */
     function completeBiometricVerificationWithWebAuthn(
         address account,

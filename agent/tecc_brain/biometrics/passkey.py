@@ -3,7 +3,7 @@
 Implements the 4-Phase Decentralized Biometric Architecture and the 4 Production Nuances:
 1. RIP-7212 Precompile (0x100) + Pure-Solidity / Cryptographic NIST P-256 Fallback (Arbitrum L2, Ethereum L1, FISCO BCOS).
 2. Signature Malleability Protection: Enforces low-s canonical form (0 < s <= N / 2) on secp256r1.
-3. On-Chain authenticatorData Flag Verification: Enforces Bit 0 (UP = 0x01) and Bit 2 (UV = 0x04, Biometric FaceID/TouchID).
+3. On-Chain authenticatorData Flag Verification: Enforces Bit 0 (UP = 0x01) and Bit 2 (UV = 0x04, Biometric Face ID).
 4. Multi-Device Passkey Registry & Emergency Recovery Guardian (protects against device loss).
 """
 
@@ -32,7 +32,7 @@ P256_GX = 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296
 P256_GY = 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5
 
 AUTH_DATA_FLAG_UP = 0x01  # Bit 0: User Present
-AUTH_DATA_FLAG_UV = 0x04  # Bit 2: User Verified (Biometric FaceID / TouchID)
+AUTH_DATA_FLAG_UV = 0x04  # Bit 2: User Verified (Biometric Face ID)
 AUTH_DATA_FLAG_AT = 0x40  # Bit 6: Attested Credential Data
 AUTH_DATA_FLAG_ED = 0x80  # Bit 7: Extension Data
 MIN_AUTH_DATA_LEN = 37  # 32B rpIdHash + 1B flags + 4B signCount
@@ -57,7 +57,7 @@ class AuthenticatorDataParsed(BaseModel):
     rp_id_hash_hex: str
     flags_byte: int
     user_present_up: bool = Field(description="Bit 0 (0x01): User tapped/interacted with device")
-    user_verified_uv: bool = Field(description="Bit 2 (0x04): User biometrically verified via FaceID/TouchID")
+    user_verified_uv: bool = Field(description="Bit 2 (0x04): User biometrically verified via Face ID")
     sign_count: int
 
 

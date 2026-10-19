@@ -1254,7 +1254,7 @@ function submitNoteToBrain() {
 }
 
 /* =========================================================================================
-   Passkey (WebAuthn P-256): Touch ID / FaceID on this device opens the vault's 5-minute biometric window.
+   Passkey (WebAuthn P-256): Face ID on this device opens the vault's 5-minute biometric window.
    The Brain verifies the signature (/api/biometrics/verify) against a key registered for the account.
    ========================================================================================= */
 const PK_KEY = 'tecc_passkey';

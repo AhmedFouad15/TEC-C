@@ -93,4 +93,4 @@ cd agent
 ```
 
 * **Admin Portal (FastAPI):** `http://127.0.0.1:8000` (Localhost-bound, high privilege).
-* **Mobile Biometric Gateway:** `http://127.0.0.1:8001` (Exposed via Cloudflare Quick-Tunnel for biometric FaceID/TouchID pairing).
+* **Mobile Biometric Gateway:** `http://127.0.0.1:8001` (Exposed via Cloudflare Quick-Tunnel for biometric Face ID pairing).

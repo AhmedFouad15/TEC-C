@@ -18,7 +18,8 @@ Each core component has a dedicated folder containing comprehensive technical ex
 | [`06_privacy_anchors_and_slippage/`](./06_privacy_anchors_and_slippage/README.md) | **Privacy Anchors & Resilience** | WeBank banking secrecy, SHA-256 on-chain audit anchors, and flash-panic order halving ($Q^*/2$) recovery. |
 | [`07_defi_protocols_and_routing/`](./07_defi_protocols_and_routing/README.md) | **DeFi Protocols & Routing** | Verified multi-chain DeFi protocol registry (Lido, Aave v3, Curve, Uniswap v3, Compound v3, Shibor MMF, PAXG). |
 | [`08_smart_contracts/`](./08_smart_contracts/README.md) | **Smart Contracts Architecture** | ERC-7579 vault, EIP-712 session key validator, RIP-7212 precompile `0x100`, gas benchmarks, and EIP-170 compliance. |
-| [`pdf/`](./pdf/README.md) | **Original Technical Whitepapers (PDF)** | Complete collection of all 8 original technical PDF whitepapers, engineering roadmaps, and specification documents. |
+| [`09_pegguard_arbitrage_framework/`](./09_pegguard_arbitrage_framework/README.md) | **PegGuard Arbitrage Framework** | 5-layer quantitative funnel, Markov regime switching, 25-asset universe, 24/7 background daemon, and stateful watermark memory. |
+| [`pdf/`](./pdf/README.md) | **Original Technical Whitepapers (PDF)** | Complete collection of all 9 original technical PDF whitepapers, engineering roadmaps, and specification documents. |
 
 ---
 
@@ -59,8 +60,12 @@ docs/
 │   ├── README.md                                                 # ERC-7579 Vault, EIP-712 Session Key & Hook Spec
 │   ├── SECURITY_AND_GAS_BENCHMARKS.md                            # Gas Benchmarks & EIP-170 Compliance Analysis
 │   └── VAULT_ARCHITECTURE_GUIDE.md                               # Transcribed from Tec-C_Vault_User_and_Architecture_Guide.pdf
+├── 09_pegguard_arbitrage_framework/
+│   ├── README.md                                                 # 5-Layer Funnel, 24/7 Daemon & Watermark Memory Spec
+│   └── PEGGUARD_SPECIFICATION.md                                 # Transcribed from PegGuard.pdf (12-Page Master Whitepaper)
 └── pdf/
     ├── README.md                                                 # Index of All Original Technical PDFs & Whitepapers
+    ├── PegGuard.pdf                                              # Master Quantitative Peg Arbitrage Whitepaper
     ├── excution.pdf                                              # Master Technical Roadmap
     ├── project.pdf                                               # Core Project Specification
     ├── Tec-C_4_Person_Execution_Roadmap.pdf                      # Engineering Workstream Map
@@ -77,6 +82,7 @@ docs/
 
 ### For Academic Judges (Tsinghua University PBCSF):
 * Start with [`05_fail_closed_strictness_hierarchy/`](./05_fail_closed_strictness_hierarchy/README.md) to review how mathematical models (Markov-switching AR(1), CVaR bounds, Sharpe filters) strictly govern probabilistic LLM outputs.
+* Review [`09_pegguard_arbitrage_framework/`](./09_pegguard_arbitrage_framework/README.md) for the 5-layer econometric funnel, Jump-Diffusion duration SDE, and Death-Spiral Canary ($\beta \ge 1.0$).
 * Review [`01_system_architecture/`](./01_system_architecture/README.md) for the 3-member multi-agent cognitive architecture.
 
 ### For Enterprise & Consortium Evaluators (WeBank):
@@ -85,5 +91,6 @@ docs/
 
 ### For Developers & Quant Engineers:
 * Start with [`02_prerequisites_and_run_guide/`](./02_prerequisites_and_run_guide/README.md) to run the 170 Foundry tests and 637 Pytest suites locally.
+* Review [`09_pegguard_arbitrage_framework/`](./09_pegguard_arbitrage_framework/README.md) for the 25-asset peg arbitrage scanner, live feed integration, and watermark memory.
 * Review [`03_market_data_feeds_and_apis/`](./03_market_data_feeds_and_apis/README.md) and [`07_defi_protocols_and_routing/`](./07_defi_protocols_and_routing/README.md) for market integrations and smart contract addresses.
 * Inspect [`pdf/`](./pdf/README.md) for original reference PDFs and architectural whitepapers.

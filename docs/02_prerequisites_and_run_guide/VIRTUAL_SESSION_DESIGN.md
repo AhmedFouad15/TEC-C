@@ -9,7 +9,7 @@
 
 Virtual Session: Remote Phone Access to the Local App
 Design and implementation guide for letting a user open the locally running laptop app from a phone browser. It uses
-a random Cloudflare quick-tunnel link and biometric login (Face ID or fingerprint). The session stays active until it is
+a random Cloudflare quick-tunnel link and biometric login (Face ID). The session stays active until it is
 deleted on the laptop or disconnected on the phone.
 1. What it does
 Requirement How it is met
@@ -22,7 +22,7 @@ URL, and shows it as a link and QR code.
 Opens from any browser The phone only needs Safari or Chrome. Nothing to install.
 Biometric security is
 mandatory
-WebAuthn passkeys with userVerification: required . The fingerprint or face never
+WebAuthn passkeys with userVerification: required . The Face ID scan never
 leaves the phone.
 Doesn't expire; ends only on
 delete or disconnect
@@ -67,7 +67,7 @@ API keys stay here
 Cloudflare edge
 https://xxxx.trycloudflare.com
 Phone browser
-Face ID / fingerprint
+Face ID
 Two separate servers is the most important design decision. Requests arriving through the tunnel appear to come
 from 127.0.0.1 , so you can't tell local from remote by IP. Only the gateway port (8001) is tunneled, and it exposes
 a minimal API. Admin functions (create, delete sessions, view API keys, change settings) live only on port 8000, which
@@ -90,7 +90,7 @@ Create session (state = PENDING), show link + QR
 Open /s/{session_id}
 Pairing page
 Start passkey registration
-Face ID / fingerprint
+Face ID
 Registration response
 "iPhone wants to pair. Approve?"
 Approve

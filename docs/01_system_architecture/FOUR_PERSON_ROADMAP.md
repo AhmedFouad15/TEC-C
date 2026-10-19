@@ -198,7 +198,7 @@ App runs at localhost:3000 with dark
 slate / emerald theme.
 Day 2 (Oct 17)
 Biometrics & Dashboard
-Implement Passkey WebAuthn Login (1-tap FaceID/TouchID setup; zero seed
+Implement Passkey WebAuthn Login (1-tap Face ID setup; zero seed
 phrases). Build Dual-Axis Risk Selector, The Tether Radius Gauge ($ spent vs.
 daily limit), and the 'Breaking the Tether' FaceID Modal.
 FaceID biometric prompt triggers and

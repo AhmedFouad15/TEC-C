@@ -106,11 +106,11 @@ Deposit funds seamlessly on any available connected chain:
 • Optimism & Polygon (DeFi collateral)
 Deposits credit your normalized 8-decimal USD vault balance via
 Chainlink price feeds.
-📤  Biometric Withdrawal FaceID / TouchID Required
+📤  Biometric Withdrawal Face ID Required
 Strict Security Invariant: The AI session key has ZERO authority to
 withdraw funds to external addresses.
 • Withdrawing capital to an external address strictly requires
-hardware biometric verification (FaceID / TouchID via WebAuthn
+hardware biometric verification (Face ID via WebAuthn
 NIST P-256).
 • Even if the AI agent server is fully breached, the user's treasury can
 never be drained.

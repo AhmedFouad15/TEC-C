@@ -29,7 +29,7 @@ your loss is capped at $500.
 2. Merchant Whitelist: The AI can only deposit into pre-approved protocols (like Aave or Compound). It cannot send funds to unknown addresses.
 3. Breaking the Tether (Biometric FaceID): If an operation requires more than the daily radius (e.g. $10,000), execution pauses instantly and rings
 your phone for a 1-tap FaceID approval.
-4. Zero Seed Phrases: Log in using native device biometrics (FaceID/TouchID via WebAuthn), just like Apple Pay.
+4. Zero Seed Phrases: Log in using native device biometrics (Face ID via WebAuthn), just like Apple Pay.
 Personalized Dual-Axis Risk Calibration:
 Users define their profile across two parameters: (1) Asset Risk Universe (what tokens can the bot buy?), and (2) The Tether Radius (how
 much money can the bot wander with autonomously?):
