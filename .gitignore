@@ -24,9 +24,6 @@ Thumbs.db
 *.swp
 *.bak
 
-# Internal / Scratch folders
-just to enhance/
-
 # Tec-C Brain (agent)
 agent/.venv/
 agent/.state/

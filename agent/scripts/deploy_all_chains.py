@@ -101,7 +101,7 @@ def main() -> None:
     if not deployer_key or deployer_key.startswith("0x...") or len(deployer_key) < 64:
         print("\n[!] Error: No valid TECC_DEPLOYER_KEY found in agent/.env.")
         print("    Please run the wallet setup wizard first:")
-        print("    python setup_wallet_env.py\n")
+        print("    python agent/scripts/setup_wallet_env.py\n")
         sys.exit(1)
 
     deployer_account = Account.from_key(deployer_key)

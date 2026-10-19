@@ -58,7 +58,7 @@ except ImportError:
         sys.exit(
             "Error: 'eth_account' is required. Please activate the virtual environment:\n"
             "  cd agent && .venv\\Scripts\\activate (Windows)\n"
-            "or run with: agent/.venv/bin/python setup_wallet_env.py"
+            "or run with: agent/.venv/bin/python agent/scripts/setup_wallet_env.py"
         )
 
 
