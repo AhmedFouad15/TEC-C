@@ -56,8 +56,13 @@ const isLoopbackApi = isValidApiUrl;
 let API = (() => {
   const q = new URLSearchParams(location.search).get('api');
   if (q && isValidApiUrl(q)) store.set('tecc_api', new URL(q).origin);
+  const isLoopbackHost = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
   const saved = store.get('tecc_api');
-  if (saved && isValidApiUrl(saved)) return new URL(saved).origin;
+  if (saved && isValidApiUrl(saved)) {
+    if (!isLoopbackHost || ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(saved).hostname) || q) {
+      return new URL(saved).origin;
+    }
+  }
   const isVercel = location.hostname.endsWith('vercel.app') || location.hostname === 'vercel.app';
   if (isValidApiUrl(location.origin)) {
     if (!isVercel && (location.protocol === 'https:' || location.port === '8000')) return location.origin;
@@ -117,18 +122,37 @@ async function api(path, { method = 'GET', body, timeout = 60000 } = {}) {
 
 async function probeBrain() {
   if (state.isSubmittingCommand) return;
+  const isLoopbackHost = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+  const isVercel = location.hostname.endsWith('vercel.app') || location.hostname === 'vercel.app';
   if (!API && isValidApiUrl(location.origin)) {
-    const isVercel = location.hostname.endsWith('vercel.app') || location.hostname === 'vercel.app';
     if (!isVercel) API = location.origin;
   }
   if (!API) {
-    setBrainStatus(false, 'connect backend \u00b7 click to connect');
-    return;
+    if (isLoopbackHost) API = 'http://127.0.0.1:8000';
+    else {
+      setBrainStatus(false, 'connect backend \u00b7 click to connect');
+      return;
+    }
   }
   try {
     const h = await api('/health', { timeout: 10000 });
     setBrainStatus(true, `live \u00b7 v${h.version || '?'}`);
-  } catch {
+  } catch (err) {
+    if (isLoopbackHost && API !== 'http://127.0.0.1:8000') {
+      try {
+        const ctl = new AbortController();
+        const t = setTimeout(() => ctl.abort(), 3000);
+        const res = await fetch('http://127.0.0.1:8000/health', { signal: ctl.signal });
+        clearTimeout(t);
+        if (res.ok) {
+          const h = await res.json();
+          API = 'http://127.0.0.1:8000';
+          store.set('tecc_api', API);
+          setBrainStatus(true, `live \u00b7 v${h.version || '?'}`);
+          return;
+        }
+      } catch {}
+    }
     if (!state.isSubmittingCommand) {
       setBrainStatus(false, 'offline \u00b7 click to connect');
     }
@@ -1147,7 +1171,7 @@ function setVault(v) {
 async function refreshLive() {
   if (!brain.live && !state.vault) { renderVaultNumbers(); renderTrades(); renderDecisions(); return; }
   try {
-    const v = await api('/api/vault/demo', { timeout: 8000 });
+    const v = await api('/api/vault/demo', { timeout: 25000 });
     if (v && typeof v.total_usd === 'number') {
       state.vault = v;
       vaultInfo = state.vault;
@@ -1162,7 +1186,7 @@ function renderVaultNumbers() {
   const v = state.vault;
   if (!v) {
     $('#top-vault-val').textContent = '—'; $('#portfolio-total-val').textContent = '—';
-    $('#top-wallet-text').textContent = 'offline'; $('#top-network-text').textContent = '—';
+    $('#top-wallet-text').textContent = brain.live ? 'syncing…' : '—'; $('#top-network-text').textContent = '—';
     refreshTether(); return;
   }
   state.tetherTotal = v.policy.radius_usd; state.tetherUsed = v.policy.spent_today_usd; state.tetherRemaining = v.policy.remaining_usd;

@@ -83,7 +83,7 @@ def _vault(account: str) -> tuple[MarketFile, Rpc]:
     market = _active_market()
     if market is None:
         raise HTTPException(404, f"no vault deployed on {_network()}: run ./dev_up.sh (or scripts/deploy_market_chain.py)")
-    rpc = Rpc(market.rpc_url, timeout_s=5)
+    rpc = Rpc(market.rpc_url, timeout_s=15)
     try:
         code = rpc.call("eth_getCode", [market.deployment.account, "latest"])
     except Exception as exc:  # node down

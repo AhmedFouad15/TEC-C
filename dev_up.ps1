@@ -249,4 +249,4 @@ if ($TargetNetwork -eq 'sepolia') {
 Write-Host '    PegGuard Scanner   Active (24/7 scanning enabled across 25 assets)'
 Write-Host "    Logs               $State\{brain,web}*.log"
 Write-Host ''
-Start-Process "http://localhost:$UiPort/app.html"
+Start-Process "http://localhost:$UiPort/app.html?api=http://127.0.0.1:8000#home"
