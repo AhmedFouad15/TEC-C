@@ -785,7 +785,6 @@ function showOptionDetail() {
   }
   const ranText = o.intents.length ? `Already executed automatically: ${o.intents.map(i => `${usd(i.amount_usd)} → ${esc(i.venue_id)} (${esc(i.status)}${i.tx_hash ? `, tx ${esc(i.tx_hash.slice(0, 10))}…` : ''})`).join('; ')}.` : '';
   if (ranText) $('#synthesis-rationale').insertAdjacentHTML('beforeend', `<br>${ranText}`);
-  void ran;
 }
 
 /* What the vault actually answered for an approved order. Only a real on-chain (or simulated) execution says
