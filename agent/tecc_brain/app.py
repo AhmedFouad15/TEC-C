@@ -78,7 +78,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins(),
-    allow_origin_regex=r"^https://([a-zA-Z0-9-]+\.)*(tec-c\.xyz|trycloudflare\.(?:com|co))$",
+    allow_origin_regex=r"^https://([a-zA-Z0-9-]+\.)*(tec-c\.xyz|vercel\.app|trycloudflare\.(?:com|co)|ngrok-free\.app|loca\.lt)$",
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )

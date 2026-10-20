@@ -60,3 +60,6 @@ def test_cross_site_posts_are_refused(monkeypatch):
     ok = client.post("/api/review/sync", headers={"Origin": "http://localhost:3000"},
                      json={"account": "demo", "events": []})
     assert ok.status_code == 200
+    vercel = client.post("/api/review/sync", headers={"Origin": "https://tec-c.vercel.app"},
+                         json={"account": "demo", "events": []})
+    assert vercel.status_code == 200

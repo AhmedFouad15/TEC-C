@@ -58,19 +58,28 @@ let API = (() => {
   if (q && isValidApiUrl(q)) store.set('tecc_api', new URL(q).origin);
   const saved = store.get('tecc_api');
   if (saved && isValidApiUrl(saved)) return new URL(saved).origin;
+  const isVercel = location.hostname.endsWith('vercel.app') || location.hostname === 'vercel.app';
   if (isValidApiUrl(location.origin)) {
-    if (location.protocol === 'https:' || location.port === '8000') return location.origin; // served by Brain or HTTPS tunnel
+    if (!isVercel && (location.protocol === 'https:' || location.port === '8000')) return location.origin;
   }
-  return location.protocol === 'https:' ? location.origin : 'http://127.0.0.1:8000';
+  return isVercel ? '' : (location.protocol === 'https:' ? location.origin : 'http://127.0.0.1:8000');
 })();
 const brain = { live: false, checked: false };
 
 function configureBrainApi() {
   const current = API || '';
-  const msg = 'Connect Command Center to your Brain backend:\n\n' +
-    '• For local server: http://127.0.0.1:8000\n' +
-    '• For HTTPS tunnel: https://<subdomain>.trycloudflare.com\n\n' +
-    'Enter API endpoint URL (or leave empty to reset):';
+  const isHttps = location.protocol === 'https:';
+  const msg = isHttps
+    ? 'Connect Command Center to your Brain backend (HTTPS environment):\n\n' +
+      '• Enter your HTTPS tunnel URL (e.g. Cloudflare tunnel or ngrok):\n' +
+      '  https://<subdomain>.trycloudflare.com\n\n' +
+      'Note: Modern browsers block mixed content (http://127.0.0.1:8000) from HTTPS pages.\n' +
+      'To connect directly without a tunnel, open http://localhost:5500 instead.\n\n' +
+      'Enter API endpoint URL (or leave empty to reset):'
+    : 'Connect Command Center to your Brain backend:\n\n' +
+      '• For local server: http://127.0.0.1:8000\n' +
+      '• For HTTPS tunnel: https://<subdomain>.trycloudflare.com\n\n' +
+      'Enter API endpoint URL (or leave empty to reset):';
   const val = prompt(msg, current);
   if (val === null) return;
   const clean = val.trim();
@@ -81,6 +90,10 @@ function configureBrainApi() {
   }
   if (!isValidApiUrl(clean)) {
     alert('Invalid URL. Please enter an http:// or https:// URL (e.g. https://xxxx.trycloudflare.com)');
+    return;
+  }
+  if (isHttps && clean.startsWith('http://') && !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(clean).hostname)) {
+    alert('Mixed Content warning: Insecure HTTP endpoints cannot be reached from an HTTPS page. Use an https:// tunnel URL or open the local dashboard at http://localhost:5500.');
     return;
   }
   store.set('tecc_api', new URL(clean).origin);
@@ -103,16 +116,22 @@ async function api(path, { method = 'GET', body, timeout = 60000 } = {}) {
 }
 
 async function probeBrain() {
-  if (!API && isValidApiUrl(location.origin)) API = location.origin;
+  if (state.isSubmittingCommand) return;
+  if (!API && isValidApiUrl(location.origin)) {
+    const isVercel = location.hostname.endsWith('vercel.app') || location.hostname === 'vercel.app';
+    if (!isVercel) API = location.origin;
+  }
   if (!API) {
-    setBrainStatus(false, 'offline · click to connect');
+    setBrainStatus(false, 'connect backend \u00b7 click to connect');
     return;
   }
   try {
-    const h = await api('/health', { timeout: 4000 });
-    setBrainStatus(true, `live · v${h.version || '?'}`);
+    const h = await api('/health', { timeout: 10000 });
+    setBrainStatus(true, `live \u00b7 v${h.version || '?'}`);
   } catch {
-    setBrainStatus(false, 'offline · click to connect');
+    if (!state.isSubmittingCommand) {
+      setBrainStatus(false, 'offline \u00b7 click to connect');
+    }
   }
 }
 function setBrainStatus(live, text) {
@@ -497,10 +516,18 @@ async function submitCommandToBrain(text) {
   const textGiven = !!text;
   const shown = text || commandText();
   text = text || brainText();
-  if (!brain.live) return showToast('The Brain is offline, so nothing was sent. Start it with ./dev_up.sh and try again.');
+  if (!brain.live) {
+    if (!API && (location.hostname.endsWith('vercel.app') || location.hostname === 'vercel.app')) {
+      showToast('Click the Brain status pill to configure your HTTPS backend tunnel, or run locally at http://localhost:5500.');
+      configureBrainApi();
+      return;
+    }
+    return showToast('The Brain is offline, so nothing was sent. Start it with ./dev_up.ps1 and try again.');
+  }
   if (state.vault && state.vaultBalance === 0) { showToast('The vault is empty: deposit funds (or use the test faucet) first.'); return openDepositModal(); }
   const btn = $('#submit-btn');
   btn.disabled = true; btn.classList.add('loading');
+  state.isSubmittingCommand = true;
   const no = nextRequestNo();
   try {
     if (!textGiven) return await evaluateOptions(shown, no); // composer buttons → closed schema
@@ -527,12 +554,22 @@ async function submitCommandToBrain(text) {
   } catch (err) {
     savePipeline({ no, text: shown, agents: [{ agent: 'gatekeeper_intake', lines: [`The Brain could not answer: ${err.message}`] }], statuses: ['blocked'], outcome: 'refused', at: Date.now() });
     restorePipeline();
-    if (err.message === 'Failed to fetch') { setBrainStatus(false, 'offline'); showToast('The Brain is not reachable: nothing was sent.'); }
-    // the request was sent: something may have executed, so check the vault before sending it again
-    else if (err.name === 'AbortError') showToast('The Brain took longer than 60 s. Check the vault and Morning Review before sending this again.');
-    else showToast(`The Brain refused this request: ${err.message}`);
+    let isAlive = false;
+    try {
+      await api('/health', { timeout: 3000 });
+      isAlive = true;
+    } catch {}
+    if (!isAlive && err.message === 'Failed to fetch') {
+      setBrainStatus(false, 'offline');
+      showToast('The Brain is not reachable: nothing was sent.');
+    } else if (err.name === 'AbortError') {
+      showToast('The Brain took longer than 60 s. Check the vault and Morning Review before sending this again.');
+    } else {
+      showToast(`Command error: ${err.message}`);
+    }
     refreshLive();
   } finally {
+    state.isSubmittingCommand = false;
     btn.disabled = false; btn.classList.remove('loading');
   }
 }
@@ -553,6 +590,7 @@ function composerOptions() {
 }
 
 async function evaluateOptions(shown, no) {
+  setPipelineHeader(no, 'running');
   const options = composerOptions();
   const [res] = await Promise.all([api('/evaluate_options', { method: 'POST', body: { account: 'demo', options } }), sleep(300)]);
   state.live = null;

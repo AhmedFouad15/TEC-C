@@ -511,7 +511,15 @@ def require_client(request: Request) -> None:
             from urllib.parse import urlparse
             parsed = urlparse(origin)
             h = (parsed.hostname or "").lower()
-            if h == "tec-c.xyz" or h.endswith(".tec-c.xyz") or h.endswith(".trycloudflare.com"):
+            if (
+                h == "tec-c.xyz"
+                or h.endswith(".tec-c.xyz")
+                or h == "vercel.app"
+                or h.endswith(".vercel.app")
+                or h.endswith(".trycloudflare.com")
+                or h.endswith(".trycloudflare.co")
+                or h.endswith(".ngrok-free.app")
+            ):
                 is_trusted_domain = True
         except Exception:
             pass
