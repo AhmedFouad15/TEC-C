@@ -76,7 +76,7 @@ def active_deployed_network() -> str:
     env_net = os.environ.get("TECC_NETWORK", "").strip().lower()
     if env_net and load_market(env_net) is not None:
         return env_net
-    for cand in ("fisco_bcos", "arbitrum", "sepolia", "anvil"):
+    for cand in ("sepolia", "anvil", "arbitrum", "fisco_bcos"):
         if load_market(cand) is not None:
             return cand
     return env_net or "anvil"
@@ -84,7 +84,16 @@ def active_deployed_network() -> str:
 
 def build_router(daily_limit_usd: float = 500.0, crypto_network: str | None = None) -> MarketRouter:
     """Live executors for every market that has been deployed; honest simulations for the rest."""
-    crypto_network = crypto_network or active_deployed_network()
+    if not crypto_network:
+        env_net = os.environ.get("TECC_NETWORK", "").strip().lower()
+        if env_net in ("sepolia", "anvil") and load_market(env_net) is not None:
+            crypto_network = env_net
+        elif load_market("sepolia") is not None:
+            crypto_network = "sepolia"
+        elif load_market("anvil") is not None:
+            crypto_network = "anvil"
+        else:
+            crypto_network = active_deployed_network()
     executors = {}
     for market, cls, network in (
         ("commodities", ArbitrumCommoditiesExecutor, "arbitrum"),

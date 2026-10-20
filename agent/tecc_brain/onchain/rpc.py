@@ -136,7 +136,7 @@ class Rpc:
             "nonce": int(self.call("eth_getTransactionCount", [signer.address, "pending"]), 16),
             "gas": gas_limit,
             "data": tx.get("data", "0x"),
-            "value": int(tx.get("value", "0x0"), 16),
+            "value": int(tx.get("value", "0x0"), 16) if isinstance(tx.get("value", "0x0"), str) else int(tx.get("value", 0)),
         }
         if tx.get("to"):
             full["to"] = tx["to"]

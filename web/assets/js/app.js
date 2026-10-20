@@ -814,6 +814,10 @@ async function executeOptions() {
   if (r.mode !== 'PROPOSE') return showToast('This option is not waiting for your approval.');
   const key = 'opt:' + o.proposal_id + ':' + r.option_id;
   const btn = $('#btn-execute-trade');
+  if (btn?.firstElementChild?.textContent === 'Needs your passkey' && !state.biometricUnlocked) {
+    const ok = await passkeyUnlock('Approve breaking the leash');
+    if (!ok) return;
+  }
   btn.disabled = true; btn.classList.add('loading');
   try {
     const out = await api('/api/mandate/execute', { method: 'POST', body: { proposal_id: o.proposal_id, account: 'demo', label: 'BEST', option_id: r.option_id } });
@@ -1367,7 +1371,7 @@ async function registerPasskey() {
     rp: { name: 'Tec-C vault', id: location.hostname },
     user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'demo', displayName: 'Tec-C vault owner' },
     pubKeyCredParams: [{ type: 'public-key', alg: -7 }], // ES256 = P-256
-    authenticatorSelection: { userVerification: 'preferred', residentKey: 'preferred' },
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'preferred', residentKey: 'preferred' },
     attestation: 'none', timeout: 60000,
   } });
   let qx, qy;
@@ -1387,7 +1391,9 @@ async function registerPasskey() {
     const rawIdHash2 = new Uint8Array(await crypto.subtle.digest('SHA-256', rawIdHash));
     qy = '0x' + hex(rawIdHash2);
   }
-  const pk = { id: b64u(cred.rawId), qx, qy, label: navigator.userAgentData?.platform || navigator.platform || 'this device' };
+  const transports = (cred.response.getTransports && typeof cred.response.getTransports === 'function')
+    ? cred.response.getTransports() : ['internal'];
+  const pk = { id: b64u(cred.rawId), qx, qy, transports, label: navigator.userAgentData?.platform || navigator.platform || 'this device' };
   store.set(PK_KEY, JSON.stringify(pk));
   return pk;
 }
@@ -1449,7 +1455,7 @@ async function passkeyUnlock(reason = 'Confirm with your passkey', opts = {}) {
     showToast(reason + '…');
     const a = await navigator.credentials.get({ publicKey: {
       challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname,
-      allowCredentials: [{ type: 'public-key', id: unb64u(pk.id) }], userVerification: 'preferred', timeout: 60000,
+      allowCredentials: [{ type: 'public-key', id: unb64u(pk.id), transports: (pk.transports && pk.transports.length) ? pk.transports : ['internal'] }], userVerification: 'preferred', timeout: 60000,
     } });
     const cdHash = await crypto.subtle.digest('SHA-256', a.response.clientDataJSON);
     const [r, s] = derToRS(a.response.signature);
@@ -2083,10 +2089,10 @@ function renderHoldings(v) {
     : '<tr><td colspan="8" class="muted">The vault is empty. Use Deposit to fund it.</td></tr>';
 }
 
-function showToast(msg, ms = 3800) {
+function showToast(msg, ms = 3800, isHtml = false) {
   const t = document.createElement('div');
   t.className = 'toast';
-  t.textContent = msg;
+  if (isHtml) t.innerHTML = msg; else t.textContent = msg;
   $('#toast-container').appendChild(t);
   const all = $$('#toast-container .toast'); if (all.length > 4) all[0].remove();
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, ms);
@@ -2094,7 +2100,8 @@ function showToast(msg, ms = 3800) {
 /* An on-chain result: the full transaction hash stays on screen long enough to read (and to film). */
 const shortTx = h => (h ? `${h.slice(0, 10)}…${h.slice(-6)}` : '');
 function txToast(msg, hash) {
-  showToast(hash ? `${msg.replace(/\.$/, '')} · tx ${hash}` : msg, hash ? 10000 : 3800);
+  const linkHtml = hash ? `<br><a href="https://sepolia.etherscan.io/tx/${hash}" target="_blank" rel="noopener noreferrer" style="color:var(--lime);text-decoration:underline;display:inline-block;margin-top:4px;">View on Sepolia Etherscan ↗ (${shortTx(hash)})</a>` : '';
+  showToast(hash ? `${msg.replace(/\.$/, '')} · tx ${shortTx(hash)}${linkHtml}` : msg, hash ? 12000 : 3800, !!hash);
 }
 
 function spawnLeaves() {
