@@ -93,6 +93,14 @@ class ChainExecutor:
         if action == ActionType.STAKE:
             if intent.asset_in == "ETH":
                 wei = int(intent.amount_usd / self.dep.eth_usd * 10**18)
+                try:
+                    bal = int(self.rpc.call("eth_getBalance", [self.dep.account, "latest"]), 16)
+                    if wei > bal:
+                        wei = bal
+                except Exception:
+                    pass
+                if wei <= 0:
+                    raise ValueError("Vault has insufficient ETH balance to stake (0 ETH available)")
                 return execution_calldata(venue, wei, self.protocol.encode("stake"))
             if intent.asset_in == "USDC":
                 units = round(intent.amount_usd * 10**USDC_DECIMALS)
@@ -106,6 +114,14 @@ class ChainExecutor:
                 return execution_calldata(self.dep.usdc, 0, self.usdc.encode("transfer", venue, units))
             if intent.asset_in == "ETH":
                 wei = int(intent.amount_usd / self.dep.eth_usd * 10**18)
+                try:
+                    bal = int(self.rpc.call("eth_getBalance", [self.dep.account, "latest"]), 16)
+                    if wei > bal:
+                        wei = bal
+                except Exception:
+                    pass
+                if wei <= 0:
+                    raise ValueError("Vault has insufficient ETH balance to stake (0 ETH available)")
                 return execution_calldata(venue, wei, self.protocol.encode("stake"))
             raise ValueError(f"Exchange trade asset {intent.asset_in} is not supported on this chain")
 
@@ -116,6 +132,14 @@ class ChainExecutor:
                 return execution_calldata(self.dep.usdc, 0, self.usdc.encode("transfer", venue, units))
             if intent.asset_in == "ETH":
                 wei = int(intent.amount_usd / self.dep.eth_usd * 10**18)
+                try:
+                    bal = int(self.rpc.call("eth_getBalance", [self.dep.account, "latest"]), 16)
+                    if wei > bal:
+                        wei = bal
+                except Exception:
+                    pass
+                if wei <= 0:
+                    raise ValueError("Vault has insufficient ETH balance to stake (0 ETH available)")
                 return execution_calldata(venue, wei, self.protocol.encode("stake"))
             raise ValueError(f"Deposit asset {intent.asset_in} is not supported on this chain")
 
@@ -126,6 +150,14 @@ class ChainExecutor:
                 return execution_calldata(self.dep.usdc, 0, self.usdc.encode("transfer", venue, units))
             if intent.asset_in == "ETH":
                 wei = int(intent.amount_usd / self.dep.eth_usd * 10**18)
+                try:
+                    bal = int(self.rpc.call("eth_getBalance", [self.dep.account, "latest"]), 16)
+                    if wei > bal:
+                        wei = bal
+                except Exception:
+                    pass
+                if wei <= 0:
+                    raise ValueError("Vault has insufficient ETH balance (0 ETH available)")
                 return execution_calldata(venue, wei, b"")
             raise ValueError(f"Transfer asset {intent.asset_in} is not supported on this chain")
 

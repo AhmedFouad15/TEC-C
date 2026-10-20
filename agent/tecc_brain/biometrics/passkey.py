@@ -266,6 +266,11 @@ class DecentralizedBiometricManager:
             raise PermissionError("Unauthorized caller: only the designated recovery guardian can recover passkeys")
         return self.register_passkey(account, new_qx, new_qy, key_id=new_key_id, device_label=device_label)
 
+    def open_biometric_window(self, account: str, ttl_seconds: int = BIOMETRIC_VERIFICATION_WINDOW_SECONDS) -> datetime:
+        valid_until = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+        self._biometric_valid_until[account] = valid_until
+        return valid_until
+
     def is_biometric_window_active(self, account: str, now: datetime | None = None) -> tuple[bool, datetime | None]:
         t = now or datetime.now(timezone.utc)
         until = self._biometric_valid_until.get(account)
