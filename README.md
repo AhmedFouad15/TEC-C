@@ -5,7 +5,7 @@
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-tec--c.xyz-10b981?logo=vercel)](https://www.tec-c.xyz)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
 [![Foundry](https://img.shields.io/badge/Foundry-170%2F170%20Passing-brightgreen?logo=ethereum)](https://getfoundry.sh/)
-[![Python Brain](https://img.shields.io/badge/Python%20Brain-660%20Tests-blue?logo=python)](https://fastapi.tiangolo.com/)
+[![Python Brain](https://img.shields.io/badge/Python%20Brain-1632%20Passing-blue?logo=python)](https://fastapi.tiangolo.com/)
 [![ERC-7579](https://img.shields.io/badge/ERC--7579-Modular%20Account-blue)](https://erc7579.com/)
 [![ERC-4337](https://img.shields.io/badge/ERC--4337-Account%20Abstraction-purple)](https://eips.ethereum.org/EIPS/eip-4337)
 [![RIP-7212](https://img.shields.io/badge/RIP--7212-P256%20Precompile%20%40%200x100-orange)](https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md)
@@ -57,7 +57,7 @@ TEC-C/
 │   │   ├── strategy/                        # Autonomous Playbooks & Portfolio Risk Engine
 │   │   ├── virtual_session/                 # Remote Phone Access Gateway & Cloudflare Quick-Tunnel
 │   │   └── app.py                           # FastAPI Application Entrypoint (Port 8000)
-│   └── tests/                               # 660 Unit, Property & Integration Tests
+│   └── tests/                               # 1,663 Unit, Property & Integration Tests
 ├── contracts/                               # Smart Contracts Layer (Foundry)
 │   ├── src/                                 # Production Smart Contracts (100% NatSpec)
 │   │   ├── TecAccount.sol                   # ERC-7579 Modular Smart Account
@@ -171,7 +171,7 @@ TEC-C/
 
 ---
 
-## 🧪 Comprehensive Test Results (100% Pass Rate)
+## 🧪 Comprehensive Test Results
 
 ### 1. Smart Contracts Layer: 170 / 170 Passing Tests (Foundry)
 ```bash
@@ -192,9 +192,11 @@ Ran 14 test suites: 170 tests passed, 0 failed, 0 skipped (170 total tests)
 - `MultiTokenTetherTest`: 12 passed (Multi-token pricing & USD normalization)
 - `TecAccountTest`: 7 passed (ERC-7579 modular account execution)
 
-### 2. Python AI Brain & Risk Engine: 660 Tests (Pytest)
+### 2. Python AI Brain & Risk Engine: 1,663 Tests (Pytest)
 ```bash
-659 passed locally; test_audit_anchor needs a current `forge build` (PrivacyAuditAnchor artifact)
+1663 collected: 1632 passed, 31 not passing
+# the 31 are on-chain integration tests that deploy a fresh vault; they fail until the TetherGuardHook
+# constructor call in onchain/deploy.py is fixed (see Known Limitations in the Security Self-Assessment)
 ```
 - `test_audit_resolution.py`: 22 passed (System Flow Audit regressions: AI veto/BREAKOUT binding at execute, PegGuard through the Brain, HOLD on model failure, market routing, anchoring, masked notes, live phone gateway)
 - `test_strictness_hierarchy.py`: 9 passed (Asymmetric bounding $B_{AI} \subseteq B_{math}$, deterministic Layer 1-5 gating, fail-closed timeout > 8.0s, audit anchor hashing)
@@ -206,6 +208,9 @@ Ran 14 test suites: 170 tests passed, 0 failed, 0 skipped (170 total tests)
 - `test_pegguard.py`: 20 passed (5-layer arbitrage engine, 25-asset catalog, watermark memory)
 - `test_biometrics.py`: 15 passed (NIST P-256 signing, low-$s$ normalization, UP/UV authenticatorData parser, guardian recovery)
 - `test_pipeline.py`, `test_brain.py`, `test_planner.py`: Cognitive intent parser, firewall sieve, and risk engine
+- `test_coverage_core.py`: 660 passed (all 243 possible risk-quiz answer sets, 8-decimal on-chain USD, reference data, cross-chain tether tracker, P-256 passkey signing/verification, WebAuthn helpers, all 25 PegGuard assets)
+- `test_coverage_intent.py`: 225 passed (rules parser actions/assets/amounts/horizons/constraints, firewall on everyday requests and named attacks in English and Chinese, privacy sieve round-trips)
+- `test_coverage_api.py`: 77 passed (catalog, profile and onboarding, regime radar, headline sandbox, backtests, draft → confirm → propose, structured options for every venue, PegGuard and settings endpoints)
 
 ---
 
