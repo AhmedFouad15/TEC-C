@@ -1391,8 +1391,10 @@ async function registerPasskey() {
     const rawIdHash2 = new Uint8Array(await crypto.subtle.digest('SHA-256', rawIdHash));
     qy = '0x' + hex(rawIdHash2);
   }
-  const transports = (cred.response.getTransports && typeof cred.response.getTransports === 'function')
-    ? cred.response.getTransports() : ['internal'];
+  const transports = (cred.response.getTransports && typeof cred.response.getTransports === 'function')
+
+    ? cred.response.getTransports() : ['internal'];
+
   const pk = { id: b64u(cred.rawId), qx, qy, transports, label: navigator.userAgentData?.platform || navigator.platform || 'this device' };
   store.set(PK_KEY, JSON.stringify(pk));
   return pk;
@@ -2084,8 +2086,12 @@ function renderHoldings(v) {
   $('#alloc-legend').innerHTML = [['#cde38a', 'Crypto', 'crypto'], ['#7fb3ff', 'Chinese mkt', 'chinese_market'], ['#e8a64b', 'Commodities', 'commodities']]
     .map(([c, n, k]) => `<li><i style="background:${c}"></i>${n}<b>${share(k)}%</b></li>`).join('');
   const total = rows.reduce((s, h) => s + h.usd, 0) || 1;
-  $('#holdings-table tbody').innerHTML = rows.length ? rows.map(h => `<tr><td><b>${esc(h.symbol)}</b></td><td>${esc(h.where)}</td><td>${h.amount.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
-    <td>${usd(h.usd)}</td><td>${Math.round(h.usd / total * 100)}%</td><td class="muted">—</td><td class="muted">—</td><td><span class="badge badge-green">on-chain</span></td></tr>`).join('')
+  $('#holdings-table tbody').innerHTML = rows.length ? rows.map(h => {
+    const pnl = h.pnl_24h ? `<span class="${h.pnl_24h.startsWith('+') ? 'txt-green' : (h.pnl_24h.startsWith('-') ? 'txt-red' : '')}">${esc(h.pnl_24h)}</span>` : '<span class="muted">—</span>';
+    const sent = h.sentiment ? `<span class="${h.sentiment.toLowerCase().includes('bullish') || h.sentiment.toLowerCase().includes('high') || h.sentiment.toLowerCase().includes('safe') || h.sentiment.toLowerCase().includes('tier 1') || h.sentiment.toLowerCase().includes('liquid') || h.sentiment.toLowerCase().includes('stable') ? 'txt-green' : ''}">${esc(h.sentiment)}</span>` : '<span class="muted">—</span>';
+    return `<tr><td><b>${esc(h.symbol)}</b></td><td>${esc(h.where)}</td><td>${h.amount.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
+    <td>${usd(h.usd)}</td><td>${Math.round(h.usd / total * 100)}%</td><td>${pnl}</td><td>${sent}</td><td><span class="badge badge-green">on-chain</span></td></tr>`;
+  }).join('')
     : '<tr><td colspan="8" class="muted">The vault is empty. Use Deposit to fund it.</td></tr>';
 }
 
