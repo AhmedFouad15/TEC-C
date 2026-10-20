@@ -176,9 +176,9 @@ contract TetherGuardHook is IERC7579Hook {
     address public immutable portfolioValuator;
 
     /// @notice Initializes the hook deployer address and helper contracts
-    constructor() {
+    constructor(address _portfolioValuator) {
         deployer = msg.sender;
-        portfolioValuator = address(new PortfolioValuator());
+        portfolioValuator = _portfolioValuator;
     }
 
     /**
@@ -1224,8 +1224,24 @@ contract TetherGuardHook is IERC7579Hook {
      * @param account The address of the smart account.
      * @return pending An array of AutonomousExecutionRecord structs currently in PENDING_REVIEW status.
      */
-    function getPendingReviews(address account) external view returns (AutonomousExecutionRecord[] memory) {
-        return PortfolioValuator(portfolioValuator).getPendingReviews(account, address(this));
+    function getPendingReviews(address account) external view returns (AutonomousExecutionRecord[] memory pending) {
+        uint256 total = executionCount[account];
+        uint256 pendingCount = 0;
+        for (uint256 i = 1; i <= total; i++) {
+            if (executionRecords[account][i].status == ReviewStatus.PENDING_REVIEW) {
+                pendingCount++;
+            }
+        }
+
+        pending = new AutonomousExecutionRecord[](pendingCount);
+        uint256 idx = 0;
+        for (uint256 i = 1; i <= total; i++) {
+            AutonomousExecutionRecord storage rec = executionRecords[account][i];
+            if (rec.status == ReviewStatus.PENDING_REVIEW) {
+                pending[idx] = rec;
+                idx++;
+            }
+        }
     }
 
     /**

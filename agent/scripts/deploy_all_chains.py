@@ -89,6 +89,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Deploy Tec-C Vault across all chains")
     parser.add_argument("--smoke", action="store_true", help="Run verification smoke test on all deployed chains")
     parser.add_argument("--skip-fisco", action="store_true", help="Skip local FISCO BCOS node deployment")
+    parser.add_argument("--skip-arbitrum", action="store_true", help="Skip Arbitrum deployment and use Ethereum Sepolia only")
     args = parser.parse_args()
 
     print("=" * 76)
@@ -154,6 +155,11 @@ def main() -> None:
         print("-" * 76)
         print(f"[*] Processing {cname} [{chain['market']}]")
         print(f"    RPC Endpoint: {rpc_url}")
+
+        if cid == "arbitrum" and args.skip_arbitrum:
+            print("    [-] Skipped (--skip-arbitrum flag passed).")
+            results.append({"chain": cname, "status": "SKIPPED", "detail": "Flag --skip-arbitrum"})
+            continue
 
         if cid == "fisco_bcos" and args.skip_fisco:
             print("    [-] Skipped (--skip-fisco flag passed).")

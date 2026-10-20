@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 import {TecAccount} from "../src/TecAccount.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
 import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
 import {MockDeFiProtocol} from "../test/mocks/MockDeFiProtocol.sol";
@@ -22,8 +23,12 @@ contract DeployTecCScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        // 0. Deploy Portfolio Valuator Helper
+        PortfolioValuator valuator = new PortfolioValuator();
+        console.log("PortfolioValuator deployed at:", address(valuator));
+
         // 1. Deploy Core Security Hook (IMMUTABLE)
-        TetherGuardHook hook = new TetherGuardHook();
+        TetherGuardHook hook = new TetherGuardHook(address(valuator));
         console.log("TetherGuardHook deployed at:", address(hook));
 
         // 2. Deploy Session Key Validator

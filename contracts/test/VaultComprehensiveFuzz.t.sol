@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test, console} from "forge-std/Test.sol";
 import {TecAccount} from "../src/TecAccount.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
 import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
 import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
@@ -39,7 +40,7 @@ contract VaultComprehensiveFuzzTest is Test {
     address public sessionKey = address(0xBB22);
 
     function setUp() public {
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
         sessionValidator = new SessionKeyValidator();
         paymaster = new TecPaymaster(entryPoint);
         account = new TecAccount(entryPoint);

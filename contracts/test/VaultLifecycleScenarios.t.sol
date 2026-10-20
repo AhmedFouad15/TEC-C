@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test, console} from "forge-std/Test.sol";
 import {TecAccount} from "../src/TecAccount.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
 import {WebAuthnP256Validator} from "../src/validators/WebAuthnP256Validator.sol";
 import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
@@ -71,7 +72,7 @@ contract VaultLifecycleScenariosTest is Test {
         vm.etch(address(0x100), address(mockPrecompile).code);
 
         // Deploy contracts
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
         sessionValidator = new SessionKeyValidator();
         passkeyValidator = new WebAuthnP256Validator();
         paymaster = new TecPaymaster(entryPoint);

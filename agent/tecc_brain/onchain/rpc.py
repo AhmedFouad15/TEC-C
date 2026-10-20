@@ -115,11 +115,21 @@ class Rpc:
         signer = Account.from_key(private_key)
         call = {"from": signer.address, **{k: tx[k] for k in ("to", "data", "value") if k in tx}}
         try:
+            cid = self.chain_id()
+        except Exception:
+            cid = 0
+        try:
             gas = int(self.call("eth_estimateGas", [call]), 16)
         except Exception:
-            gas = 12_000_000
-        # Ethereum block gas limit is 30,000,000. Never exceed 25,000,000.
-        gas_limit = min(int(gas * gas_margin) + GAS_HEADROOM, 25_000_000)
+            gas = 40_000_000 if cid == 11155111 else 12_000_000
+        if cid == 11155111:  # Ethereum Sepolia has ~200M block gas limit; TetherGuardHook needs ~38.4M gas
+            max_gas = 50_000_000
+            gas_limit = min(int(gas * 1.1) + GAS_HEADROOM, max_gas)
+        else:
+            if gas > 20_000_000:
+                gas = 12_000_000
+            # Ethereum block gas limit is 30,000,000. Never exceed 25,000,000.
+            gas_limit = min(int(gas * gas_margin) + GAS_HEADROOM, 25_000_000)
         full: dict[str, Any] = {
             **self.fee_fields(),
             "chainId": self.chain_id(),

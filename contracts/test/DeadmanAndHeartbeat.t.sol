@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
 
 contract DeadmanAndHeartbeatTest is Test {
@@ -19,7 +20,7 @@ contract DeadmanAndHeartbeatTest is Test {
     uint8 public constant TIER_BALANCED = 2;
 
     function setUp() public {
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
         lidoStaking = new MockDeFiProtocol();
 
         hook.initializeAccountPolicy(tecAccount, rootOwner, TETHER_RADIUS, TIER_BALANCED);

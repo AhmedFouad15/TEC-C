@@ -8,10 +8,14 @@ import {TetherGuardHook} from "./TetherGuardHook.sol";
 /**
  * @title PortfolioValuator
  * @author Tec-C Core Engineering Team
- * @notice Helper contract for multi-token portfolio valuation offloading TetherGuardHook runtime size.
+ * @notice Helper contract offloading price feed valuation, morning reviews, and signature validation from TetherGuardHook.
  */
 contract PortfolioValuator {
     address internal constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    // --- Autonomous Execution History (Morning Review) ---
+    mapping(address => uint256) public executionCount;
+    mapping(address => mapping(uint256 => TetherGuardHook.AutonomousExecutionRecord)) public executionRecords;
 
     function _calculateUSD(uint256 amount, uint8 tokenDecimals, uint256 priceUSD, uint8 feedDecimals)
         internal
@@ -170,18 +174,70 @@ contract PortfolioValuator {
         }
     }
 
-    function getPendingReviews(address account, address hook)
+    // --- Morning Review Storage and Dispatch ---
+
+    function recordExecution(address account, address target, uint256 value) external returns (uint256 recId) {
+        recId = ++executionCount[account];
+        executionRecords[account][recId] = TetherGuardHook.AutonomousExecutionRecord({
+            id: recId,
+            target: target,
+            value: value,
+            timestamp: block.timestamp,
+            status: TetherGuardHook.ReviewStatus.PENDING_REVIEW,
+            userNote: ""
+        });
+    }
+
+    function ratifyRecord(address account, uint256 recordId) external returns (uint256 value, uint256 timestamp) {
+        TetherGuardHook.AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
+        if (rec.id == 0) revert TetherGuardHook.InvalidRecordId();
+        if (rec.status != TetherGuardHook.ReviewStatus.PENDING_REVIEW) {
+            revert TetherGuardHook.RecordAlreadyReviewed(rec.status);
+        }
+        rec.status = TetherGuardHook.ReviewStatus.LIKED_AND_RATIFIED;
+        return (rec.value, rec.timestamp);
+    }
+
+    function flagRecordForRevert(address account, uint256 recordId, string calldata reason) external {
+        TetherGuardHook.AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
+        if (rec.id == 0) revert TetherGuardHook.InvalidRecordId();
+        if (rec.status != TetherGuardHook.ReviewStatus.PENDING_REVIEW) {
+            revert TetherGuardHook.RecordAlreadyReviewed(rec.status);
+        }
+        rec.status = TetherGuardHook.ReviewStatus.REVERT_REQUESTED;
+        rec.userNote = reason;
+    }
+
+    function submitRecordNote(address account, uint256 recordId, string calldata note) external {
+        TetherGuardHook.AutonomousExecutionRecord storage rec = executionRecords[account][recordId];
+        if (rec.id == 0) revert TetherGuardHook.InvalidRecordId();
+        if (rec.status != TetherGuardHook.ReviewStatus.PENDING_REVIEW) {
+            revert TetherGuardHook.RecordAlreadyReviewed(rec.status);
+        }
+        rec.status = TetherGuardHook.ReviewStatus.NOTED;
+        rec.userNote = note;
+    }
+
+    function getExecutionRecord(address account, uint256 recordId)
+        external
+        view
+        returns (TetherGuardHook.AutonomousExecutionRecord memory)
+    {
+        return executionRecords[account][recordId];
+    }
+
+    function getPendingReviews(
+        address account,
+        address /* hook */
+    )
         external
         view
         returns (TetherGuardHook.AutonomousExecutionRecord[] memory pending)
     {
-        uint256 total = TetherGuardHook(hook).executionCount(account);
+        uint256 total = executionCount[account];
         uint256 pendingCount = 0;
         for (uint256 i = 1; i <= total; i++) {
-            if (
-                TetherGuardHook(hook).getExecutionRecord(account, i).status
-                    == TetherGuardHook.ReviewStatus.PENDING_REVIEW
-            ) {
+            if (executionRecords[account][i].status == TetherGuardHook.ReviewStatus.PENDING_REVIEW) {
                 pendingCount++;
             }
         }
@@ -189,11 +245,133 @@ contract PortfolioValuator {
         pending = new TetherGuardHook.AutonomousExecutionRecord[](pendingCount);
         uint256 idx = 0;
         for (uint256 i = 1; i <= total; i++) {
-            TetherGuardHook.AutonomousExecutionRecord memory rec = TetherGuardHook(hook).getExecutionRecord(account, i);
+            TetherGuardHook.AutonomousExecutionRecord memory rec = executionRecords[account][i];
             if (rec.status == TetherGuardHook.ReviewStatus.PENDING_REVIEW) {
                 pending[idx] = rec;
                 idx++;
             }
         }
+    }
+
+    // --- Cryptographic Signer Recovery Helpers ---
+
+    function _recoverSigner(bytes32 ethHash, bytes memory sig) internal pure returns (address) {
+        if (sig.length != 65) return address(0);
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := mload(add(sig, 0x20))
+            s := mload(add(sig, 0x40))
+            v := byte(0, mload(add(sig, 0x60)))
+        }
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            return address(0);
+        }
+        if (v < 27) v += 27;
+        if (v != 27 && v != 28) return address(0);
+        return ecrecover(ethHash, v, r, s);
+    }
+
+    function verifyCrossChainSpendSignature(
+        TetherGuardHook.CrossChainSpendProof calldata proof,
+        bytes calldata signature,
+        uint256 chainId,
+        address hook
+    ) external pure returns (address) {
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                proof.account,
+                proof.sourceChainId,
+                proof.amountUSD,
+                proof.epoch,
+                proof.nonce,
+                proof.deadline,
+                chainId,
+                hook
+            )
+        );
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        return _recoverSigner(ethSignedMessageHash, signature);
+    }
+
+    function verifySignApprovalSignature(
+        address account,
+        bytes32 executionHash,
+        bool approve,
+        uint256 nonce,
+        uint256 deadline,
+        uint256 chainId,
+        address hook,
+        bytes calldata signature
+    ) external pure returns (address) {
+        bytes32 messageHash = keccak256(abi.encode(account, executionHash, approve, nonce, deadline, chainId, hook));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        return _recoverSigner(ethSignedMessageHash, signature);
+    }
+
+    // --- Deadman Switch & AI Heartbeat Storage ---
+    uint256 public constant DEFAULT_DEADMAN_TIMEOUT = 90 days;
+    uint256 public constant DEFAULT_AI_HEARTBEAT_TIMEOUT = 24 hours;
+
+    mapping(address => uint256) public lastUserActivity;
+    mapping(address => uint256) public lastAIHeartbeat;
+    mapping(address => uint256) public customAIHeartbeatTimeout;
+    mapping(address => address) public deadmanGuardians;
+    mapping(address => uint256) public deadmanTimeouts;
+
+    function _aiHeartbeatTimeout(address account) internal view returns (uint256) {
+        uint256 hb = customAIHeartbeatTimeout[account];
+        return hb > 0 ? hb : DEFAULT_AI_HEARTBEAT_TIMEOUT;
+    }
+
+    function _deadmanEligibleTime(address account) internal view returns (uint256) {
+        uint256 timeout = deadmanTimeouts[account] > 0 ? deadmanTimeouts[account] : DEFAULT_DEADMAN_TIMEOUT;
+        return lastUserActivity[account] + timeout;
+    }
+
+    function pingUserActivity(address account) external {
+        lastUserActivity[account] = block.timestamp;
+    }
+
+    function recordAIHeartbeat(address account) external {
+        lastAIHeartbeat[account] = block.timestamp;
+    }
+
+    function configureAIHeartbeatTimeout(address account, uint256 timeoutSeconds) external {
+        require(timeoutSeconds >= 1 hours, "TIMEOUT_TOO_SHORT");
+        customAIHeartbeatTimeout[account] = timeoutSeconds;
+    }
+
+    function configureDeadmanSwitch(address account, address guardian, uint256 timeoutSeconds) external {
+        require(guardian != address(0), "INVALID_GUARDIAN");
+        deadmanGuardians[account] = guardian;
+        deadmanTimeouts[account] = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_DEADMAN_TIMEOUT;
+        if (lastUserActivity[account] == 0) {
+            lastUserActivity[account] = block.timestamp;
+        }
+    }
+
+    function triggerDeadmanRecovery(address account, address caller, address newRootOwner) external returns (bool) {
+        if (caller != deadmanGuardians[account]) {
+            revert TetherGuardHook.UnauthorizedGuardian();
+        }
+        require(newRootOwner != address(0), "INVALID_NEW_OWNER");
+        uint256 eligibleTime = _deadmanEligibleTime(account);
+        if (lastUserActivity[account] == 0 || block.timestamp < eligibleTime) {
+            revert TetherGuardHook.DeadmanSwitchNotEligible(lastUserActivity[account], eligibleTime);
+        }
+        lastUserActivity[account] = block.timestamp;
+        return true;
+    }
+
+    function isAIHeartbeatAlive(address account) external view returns (bool) {
+        if (lastAIHeartbeat[account] == 0) return true;
+        return block.timestamp <= lastAIHeartbeat[account] + _aiHeartbeatTimeout(account);
+    }
+
+    function isDeadmanSwitchTriggerable(address account) external view returns (bool) {
+        if (deadmanGuardians[account] == address(0) || lastUserActivity[account] == 0) return false;
+        return block.timestamp >= _deadmanEligibleTime(account);
     }
 }

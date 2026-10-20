@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {MockChainlinkFeed} from "./mocks/MockChainlinkFeed.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
@@ -46,9 +47,9 @@ contract CrossChainTetherTest is Test {
         rootOwner = vm.addr(rootOwnerPk);
 
         // 1. Deploy hooks for each chain
-        ethHook = new TetherGuardHook();
-        arbHook = new TetherGuardHook();
-        fiscoHook = new TetherGuardHook();
+        ethHook = new TetherGuardHook(address(new PortfolioValuator()));
+        arbHook = new TetherGuardHook(address(new PortfolioValuator()));
+        fiscoHook = new TetherGuardHook(address(new PortfolioValuator()));
 
         // 2. Deploy common token and feeds ($1.00 USDC, $3000 ETH)
         usdc = new MockERC20("USD Coin", "USDC", 6);

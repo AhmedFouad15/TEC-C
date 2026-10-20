@@ -7,7 +7,7 @@
     "version": "1.0.0",
     "network": "Ethereum Sepolia",
     "chainId": 11155111,
-    "note": "Addresses below are placeholders filled in by the smart-contract engineer after `forge script Deploy --broadcast --rpc-url $SEPOLIA_RPC_URL`. ABIs/bytecode are NOT duplicated here: tecc_brain.onchain.network reads ABIs from shared/contracts.json (network-independent) and only takes chainId/addresses from this file. Keep both files' contract names in sync. USDC and ETHUSDFeed below are filled with the commonly-cited public Circle Sepolia USDC and Chainlink Sepolia ETH/USD feed addresses as a starting point ONLY — VERIFY BOTH ON SEPOLIA ETHERSCAN before relying on them; do not route real funds against an unverified address."
+    "note": "Addresses below are placeholders filled in by the smart-contract engineer after `forge script Deploy --broadcast --rpc-url $SEPOLIA_RPC_URL`. ABIs/bytecode are NOT duplicated here: tecc_brain.onchain.network reads ABIs from shared/contracts.json (network-independent) and only takes chainId/addresses from this file. Keep both files' contract names in sync. USDC and ETHUSDFeed below are filled with the commonly-cited public Circle Sepolia USDC and Chainlink Sepolia ETH/USD feed addresses as a starting point ONLY \u2014 VERIFY BOTH ON SEPOLIA ETHERSCAN before relying on them; do not route real funds against an unverified address."
   },
   "defaultParameters": {
     "tetherRadiusDefaultWei": "500000000000000000",
@@ -20,18 +20,25 @@
   },
   "deployedAddresses": {
     "EntryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
-    "TetherGuardHook": "0x000000000000000000000000000000000000dEaD",
-    "SessionKeyValidator": "0x000000000000000000000000000000000000dEaD",
+    "TetherGuardHook": "0xEa5F1FC5e50a308Bf27BF74A8b466638Ca23850E",
+    "SessionKeyValidator": "0x1545ec6919DdA5A97C1c4Cf97003c2A121f50039",
     "TecPaymaster": "0x000000000000000000000000000000000000dEaD",
-    "TecAccount": "0x000000000000000000000000000000000000dEaD",
-    "USDC": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-    "ETHUSDFeed": "0x694AA1769357215DE4FAC081bf1f309aDC325306",
-    "USDCUSDFeed": "0x000000000000000000000000000000000000dEaD",
+    "TecAccount": "0xC0EfC6E69fEB95c6e1d000220F1EC04E2E322B01",
+    "USDC": "0x8CDa31FBE04E670ee398304750059a64cF53361f",
+    "ETHUSDFeed": "0x5A1eE5363c4575Ce41087ec537a89a3d6B77828F",
+    "USDCUSDFeed": "0x7e4aB5Da08cD3158340aa0aad027a179493a96D1",
     "LidoStaking": "0x000000000000000000000000000000000000dEaD",
     "CurveLP": "0x000000000000000000000000000000000000dEaD"
   },
   "venues": {
-    "note": "venue id (from agent/tecc_brain/data/venues.json) -> deployed target address on Sepolia; filled by the smart-contract engineer."
+    "lido_stake": "0x49B4481198d2480E3811a410dd5A135C71160cd0",
+    "curve_steth_eth": "0x1AF7E028dE5041e6d3e32448F0e2e72d17FAc598",
+    "aave_v3_usdc": "0x90AAe0666FDC92211B6e433270483EeB1Bc09773",
+    "compound_v3_usdc": "0x468573800A56b23C04669a42FC6a9b0008f73463",
+    "shibor_mmf": "0x229806B49174cCAa53A5cD9830aAF8b499E2c91B",
+    "paxg_hold": "0x3213AD835A83B01c9046a892F9fC8044bDac3825",
+    "eigenlayer_restake": "0xdD66e966C415F632600f7caa41785186aE8323ca",
+    "uniswap_v3_usdc_eth": "0xd3610A50E81B538D14A0956249aE9630F7425b51"
   },
   "eip712": {
     "domain": {

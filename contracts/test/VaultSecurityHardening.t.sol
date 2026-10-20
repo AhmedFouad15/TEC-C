@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test, console} from "forge-std/Test.sol";
 import {TecAccount} from "../src/TecAccount.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
 import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
 import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
@@ -72,7 +73,7 @@ contract VaultSecurityHardeningTest is Test {
         vm.etch(address(0x100), address(ripMock).code);
 
         // Deploy system contracts
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
         validator = new SessionKeyValidator();
         paymaster = new TecPaymaster(entryPoint);
         account = new TecAccount(entryPoint);
@@ -399,7 +400,7 @@ contract VaultSecurityHardeningTest is Test {
 
     function test_SEC07_CrossHook_SignatureReplay_Reverts() public {
         // Deploy second hook instance
-        TetherGuardHook hook2 = new TetherGuardHook();
+        TetherGuardHook hook2 = new TetherGuardHook(address(new PortfolioValuator()));
         hook2.initializeAccountPolicy(address(account), rootOwner, TETHER_RADIUS, 2);
 
         bytes32 execHash = keccak256("CrossHookAttack");

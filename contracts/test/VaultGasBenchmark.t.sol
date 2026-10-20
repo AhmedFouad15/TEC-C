@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test, console} from "forge-std/Test.sol";
 import {TecAccount} from "../src/TecAccount.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
 import {TecPaymaster} from "../src/paymaster/TecPaymaster.sol";
 import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
@@ -70,7 +71,7 @@ contract VaultGasBenchmarkTest is Test {
     }
 
     function _createFreshVault() internal returns (TecAccount acc, TetherGuardHook h) {
-        h = new TetherGuardHook();
+        h = new TetherGuardHook(address(new PortfolioValuator()));
         acc = new TecAccount(entryPoint);
         acc.initialize(rootOwner, address(h), address(validator));
         h.initializeAccountPolicy(address(acc), rootOwner, 1 ether, 2, true, 5 ether);
@@ -90,7 +91,7 @@ contract VaultGasBenchmarkTest is Test {
 
     function test_Gas_TecAccount_Initialize() public {
         TecAccount freshAccount = new TecAccount(entryPoint);
-        TetherGuardHook h = new TetherGuardHook();
+        TetherGuardHook h = new TetherGuardHook(address(new PortfolioValuator()));
         uint256 g0 = gasleft();
         freshAccount.initialize(rootOwner, address(h), address(validator));
         uint256 gUsed = g0 - gasleft();
@@ -191,7 +192,7 @@ contract VaultGasBenchmarkTest is Test {
     // =========================================================================
 
     function test_Gas_TetherGuardHook_InitializePolicy() public {
-        TetherGuardHook h = new TetherGuardHook();
+        TetherGuardHook h = new TetherGuardHook(address(new PortfolioValuator()));
         address dummyAccount = address(0x1234);
         uint256 g0 = gasleft();
         h.initializeAccountPolicy(dummyAccount, rootOwner, 0.5 ether, 2, true, 2 ether);

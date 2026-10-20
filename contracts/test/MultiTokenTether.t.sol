@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {MockChainlinkFeed} from "./mocks/MockChainlinkFeed.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
@@ -37,7 +38,7 @@ contract MultiTokenTetherTest is Test {
 
     function setUp() public {
         rootOwner = vm.addr(rootOwnerPk);
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
 
         // 1. Deploy Tokens
         usdc = new MockERC20("USD Coin", "USDC", 6);

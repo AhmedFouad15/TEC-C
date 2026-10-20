@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {WebAuthnP256Validator} from "../src/validators/WebAuthnP256Validator.sol";
 import {P256Verifier} from "../src/validators/P256Verifier.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {MockRIP7212} from "./mocks/MockRIP7212.sol";
 import {PackedUserOperation} from "../src/interfaces/PackedUserOperation.sol";
 
@@ -35,7 +36,7 @@ contract WebAuthnP256ValidatorTest is Test {
         vm.etch(address(0x100), address(mockPrecompile).code);
 
         validator = new WebAuthnP256Validator();
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
         hook.setFallbackP256Verifier(address(validator));
 
         hook.initializeAccountPolicy(tecAccount, rootOwner, 0.5 ether, 2);

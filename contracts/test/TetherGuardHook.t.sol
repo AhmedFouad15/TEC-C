@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
 
 contract TetherGuardHookTest is Test {
@@ -27,7 +28,7 @@ contract TetherGuardHookTest is Test {
 
     function setUp() public {
         rootOwner = vm.addr(rootOwnerPk);
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
         lidoStaking = new MockDeFiProtocol();
         maliciousDrainer = new MockDeFiProtocol();
 

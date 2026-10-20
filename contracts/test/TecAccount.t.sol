@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test, console} from "forge-std/Test.sol";
 import {TecAccount} from "../src/TecAccount.sol";
 import {TetherGuardHook} from "../src/hooks/TetherGuardHook.sol";
+import {PortfolioValuator} from "../src/hooks/PortfolioValuator.sol";
 import {SessionKeyValidator} from "../src/validators/SessionKeyValidator.sol";
 import {MockDeFiProtocol} from "./mocks/MockDeFiProtocol.sol";
 import {MODULE_TYPE_HOOK, MODULE_TYPE_VALIDATOR} from "../src/interfaces/IERC7579Account.sol";
@@ -26,7 +27,7 @@ contract TecAccountTest is Test {
         sessionKey = vm.addr(sessionKeyPrivKey);
 
         // Deploy contracts
-        hook = new TetherGuardHook();
+        hook = new TetherGuardHook(address(new PortfolioValuator()));
         validator = new SessionKeyValidator();
         account = new TecAccount(entryPoint);
         lidoStaking = new MockDeFiProtocol();
